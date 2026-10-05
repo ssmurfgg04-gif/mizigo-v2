@@ -207,6 +207,7 @@ model Shipment {
   paidAt         DateTime?
 
   // proof of delivery
+  deliveryCode  String? // 4-digit handshake shown to the customer at drop-off
   podRecipient  String?
   podOtp        String?
   podPhotoTaken Boolean @default(false)

@@ -11,10 +11,11 @@ import { Button, EmptyState, ListSkeleton, Row, SectionTitle, StatusBadge, toneF
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import { kes, fmtDateTimeEAT, relTimeEAT } from "@/lib/format";
-import { STATUS_LABEL } from "@/lib/state-machine";
+import { STATUS_LABEL, ACTIVE_STATES } from "@/lib/state-machine";
 import { LANGUAGES, t } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 import { shareTrackLink } from "@/components/mizigo/shared/share";
+import { useSettings } from "@/components/mizigo/shared/useSettings";
 
 // ─── Trips ───
 export function TripsScreen() {
@@ -23,7 +24,7 @@ export function TripsScreen() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["customer-home", user?.id],
-    queryFn: () => api<CustomerHome>(`/api/customer?userId=${user!.id}`),
+    queryFn: () => api<CustomerHome>("/api/customer"),
     enabled: !!user,
     refetchInterval: 8000,
   });
@@ -214,6 +215,13 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
         </div>
       </div>
 
+      {/* live delivery opened from anywhere → straight to the live map */}
+      {ACTIVE_STATES.includes(s.status as never) && (
+        <Button variant="brand" className="w-full" onClick={() => setBookingStep("active")}>
+          Track delivery live
+        </Button>
+      )}
+
       {/* unrated delivered shipment → rate first */}
       {(s.status === "COMPLETED" || s.status === "POD_CONFIRMED") && !s.ratings.some((r) => r.byRole === "CUSTOMER") && (
         <Button variant="brand" className="w-full" onClick={() => setBookingStep("rate")}>
@@ -244,9 +252,9 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
 // ─── Wallet ───
 export function WalletScreen() {
   const { user, setFocusShipment, setCustomerTab } = useSession();
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["customer-home", user?.id],
-    queryFn: () => api<CustomerHome>(`/api/customer?userId=${user!.id}`),
+    queryFn: () => api<CustomerHome>("/api/customer"),
     enabled: !!user,
   });
 
@@ -288,7 +296,9 @@ export function WalletScreen() {
 
       <SectionTitle>Notifications</SectionTitle>
       <div className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">
-        {(data?.notifications?.length ?? 0) === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-6"><ListSkeleton rows={2} /></div>
+        ) : (data?.notifications?.length ?? 0) === 0 ? (
           <EmptyState icon={<Bell size={22} />} title="You're all caught up" body="Delivery updates will appear here." />
         ) : (
           data!.notifications.map((n) => (
@@ -316,9 +326,10 @@ export function WalletScreen() {
 export function AccountScreen() {
   const { user, logout, setSurface, setCustomerTab, lang, setLang } = useSession();
   const qc = useQueryClient();
+  const settings = useSettings();
   const { data } = useQuery({
     queryKey: ["customer-home", user?.id],
-    queryFn: () => api<CustomerHome>(`/api/customer?userId=${user!.id}`),
+    queryFn: () => api<CustomerHome>("/api/customer"),
     enabled: !!user,
   });
   const u = data?.user;
@@ -432,8 +443,8 @@ export function AccountScreen() {
         <div className="px-4 py-4">
           <p className="text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Help &amp; support</p>
           <div className="mt-2 space-y-2">
-            <button onClick={() => toast({ title: "Support", description: "Reach us on support@mizigo.demo or 0800 000 000 (sandbox)." })} className="w-full rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-left text-[13.5px] font-bold">Get help with a delivery</button>
-            <button onClick={() => toast({ title: "Safety centre", description: "Verify plates, share tracking, emergency contacts." })} className="w-full rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-left text-[13.5px] font-bold">Safety centre</button>
+            <a href={`tel:${settings.supportPhone.replace(/\s/g, "")}`} className="block rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-[13.5px] font-bold">Get help with a delivery · {settings.supportPhone}</a>
+            <button onClick={() => toast({ title: "Safety centre", description: `Verify plates, share tracking and goods-in-transit cover live from an active trip (Get help → Safety centre). 24/7 line: ${settings.supportPhone}` })} className="w-full rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-left text-[13.5px] font-bold">Safety centre</button>
           </div>
         </div>
       </div>

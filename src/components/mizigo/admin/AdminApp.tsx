@@ -1,7 +1,7 @@
 "use client";
 // Admin console — desktop-first operations. High density, ops-priority over vanity.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, BarChart3, Ban, Banknote, Building2, CheckCircle2, FileWarning, LayoutDashboard,
@@ -1016,11 +1016,30 @@ function CustomersTab() {
 
 // ─── Support: exception inbox (final brief §19 human dispatch) ───
 function SupportTab() {
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["admin-support"],
     queryFn: () => api<{ queue: { id: string; kind: string; shipmentId: string; code: string; customer: string; detail: string; at: string }[]; supportPhone: string }>("/api/admin?tab=support"),
     refetchInterval: 6000,
   });
+  const { setAdminTab } = useSession();
+  const [jumpCode, setJumpCode] = useState<string | null>(null);
+  // deep-link into the bookings drawer with the code pre-filled
+  useEffect(() => {
+    if (!jumpCode) return;
+    setAdminTab("shipments");
+    const t = window.setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>("input[placeholder='ID, phone, plate, name…']");
+      if (input) {
+        // native setter so React's controlled input picks the change up
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+        setter?.call(input, jumpCode);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus();
+      }
+      setJumpCode(null);
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [jumpCode, setAdminTab]);
   const tone: Record<string, "danger" | "warn" | "active"> = { CARGO_MISMATCH: "warn", NO_DRIVERS: "danger", AWAITING_DISPATCH: "active", PAYMENT_TIMEOUT: "warn", DISPUTE: "danger" };
   return (
     <div className="p-6">
@@ -1030,8 +1049,9 @@ function SupportTab() {
       </div>
       <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">Automate the boring 90%, human-manage the exceptions — every item links to its booking.</p>
       <div className="mt-4 space-y-2">
+        {isLoading && <div className="h-16 animate-pulse rounded-[12px] bg-[var(--surface-2)]" />}
         {(data?.queue ?? []).map((x) => (
-          <div key={x.id} className="flex items-center gap-4 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5">
+          <button key={x.id} onClick={() => setJumpCode(x.code)} className="flex w-full items-center gap-4 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5 text-left transition hover:border-[var(--ink-3)]">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]"><LifeBuoy size={15} className="text-[var(--ink-2)]" /></span>
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-2 text-[13.5px] font-extrabold">
@@ -1041,7 +1061,7 @@ function SupportTab() {
               <p className="truncate text-[12.5px] font-semibold text-[var(--ink-2)]">{x.customer} · {x.detail}</p>
             </div>
             <span className="shrink-0 text-[11.5px] font-semibold text-[var(--ink-3)]">{relTimeEAT(x.at)}</span>
-          </div>
+          </button>
         ))}
         {(data?.queue ?? []).length === 0 && (
           <p className="rounded-[14px] border border-dashed border-[var(--line)] bg-[var(--surface)] py-12 text-center text-[13.5px] font-semibold text-[var(--ink-2)]">All clear — no exceptions right now.</p>

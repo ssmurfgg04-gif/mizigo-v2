@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ChevronDown, LifeBuoy, MessageCircle, Phone, Share2, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, KeyRound, LifeBuoy, MessageCircle, Phone, Share2, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -17,6 +17,7 @@ import { etaText, fmtDateTimeEAT, fmtPhone, kes, minutesAgoEAT } from "@/lib/for
 import { toast } from "@/hooks/use-toast";
 import { CARGO_CATEGORIES } from "@/lib/pricing";
 import { shareTrackLink } from "@/components/mizigo/shared/share";
+import { useSettings } from "@/components/mizigo/shared/useSettings";
 
 export default function ActiveTrip() {
   const { focusShipmentId, setBookingStep, setCustomerTab, setTrackToken } = useSession();
@@ -24,6 +25,8 @@ export default function ActiveTrip() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [safetyOpen, setSafetyOpen] = useState(false);
+  const settings = useSettings();
 
   const { data } = useQuery({
     queryKey: ["shipment", focusShipmentId, "auto"],
@@ -116,6 +119,18 @@ export default function ActiveTrip() {
           <p className="mt-2 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-2 text-[12px] font-semibold text-[var(--ink-2)]">
             Last location received {lastPing} min ago (weak network on the road)
           </p>
+        )}
+
+        {/* drop-off handshake (plan §13): the code the driver asks for at POD */}
+        {s.deliveryCode && ["ARRIVING", "DELIVERED"].includes(s.status) && (
+          <div className="mt-3 flex items-center gap-3.5 rounded-[12px] border-2 border-dashed border-[var(--brand)] bg-[var(--brand-soft)] px-4 py-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white"><KeyRound size={17} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-bold uppercase tracking-widest text-[var(--brand-ink)]">Delivery code</p>
+              <p className="text-[12px] font-medium text-[var(--ink-2)]">Read this to your driver when they arrive</p>
+            </div>
+            <span className="tnum text-[26px] font-extrabold tracking-[0.14em] text-[var(--brand-ink)]">{s.deliveryCode}</span>
+          </div>
         )}
 
         {/* actions */}
@@ -224,11 +239,11 @@ export default function ActiveTrip() {
             <p className="text-[17px] font-extrabold tracking-tight">Get help</p>
             <p className="tnum mt-0.5 text-[12px] font-semibold text-[var(--ink-3)]">Booking {s.code} · {s.route.pickup.area} → {s.route.dropoff.area} · {s.driver ? s.driver.name : "driver pending"}</p>
             <div className="mt-4 space-y-2.5">
-              <button onClick={() => { setHelpOpen(false); toast({ title: "Calling support", description: "0800 000 000 · free from Safaricom lines (sandbox)" }); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
+              <button onClick={() => { setHelpOpen(false); toast({ title: "Calling support", description: `${settings.supportPhone} · free from Safaricom lines (sandbox)` }); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Phone size={16} /></span>
                 <span className="flex-1">
                   <span className="block text-[14px] font-extrabold">Call support</span>
-                  <span className="block text-[12px] font-medium text-[var(--ink-2)]">0800 000 000 · 24/7</span>
+                  <span className="block text-[12px] font-medium text-[var(--ink-2)]">{settings.supportPhone} · 24/7</span>
                 </span>
               </button>
               <button onClick={() => { setHelpOpen(false); setChatOpen(true); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
@@ -245,6 +260,13 @@ export default function ActiveTrip() {
                   <span className="block text-[12px] font-medium text-[var(--ink-2)]">Damaged or missing cargo · wrong delivery</span>
                 </span>
               </button>
+              <button onClick={() => { setHelpOpen(false); setSafetyOpen(true); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)]"><ShieldCheck size={16} /></span>
+                <span className="flex-1">
+                  <span className="block text-[14px] font-extrabold">Safety centre</span>
+                  <span className="block text-[12px] font-medium text-[var(--ink-2)]">Verify the plate · share tracking · goods in transit</span>
+                </span>
+              </button>
             </div>
             <Button variant="ghost" className="mt-3 w-full" onClick={() => setHelpOpen(false)}>Close</Button>
           </div>
@@ -258,10 +280,10 @@ export default function ActiveTrip() {
             <p className="text-[17px] font-extrabold tracking-tight">Cancel this delivery?</p>
             <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[var(--ink-2)]">
               {["MATCHING", "DRIVER_ASSIGNED"].includes(s.status)
-                ? "Cancelling now is free. Your M-PESA payment is refunded automatically."
+                ? "Cancelling now is free. Your M-PESA payment is refunded in full — instantly in this sandbox."
                 : s.status === "DRIVER_EN_ROUTE"
-                  ? "Cancelling after the driver is on the way may attract a KES 200 fee. M-PESA refunds take up to 24 hours."
-                  : "The cargo is already being handled. Call support for help with this delivery."}
+                  ? "The driver is already on the way. Cancelling now refunds your M-PESA payment in full (sandbox: instant)."
+                  : "The cargo is already being handled. Call support and ops will help you sort it out."}
             </p>
             <div className="mt-4 space-y-2.5">
               <Button variant="danger" className="w-full" onClick={async () => {
@@ -278,6 +300,52 @@ export default function ActiveTrip() {
           </div>
         </div>
       )}
+
+      {/* safety centre (trust layer — Sendy-style goods-in-transit messaging) */}
+      {safetyOpen && (
+        <div className="absolute inset-0 z-30 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => setSafetyOpen(false)}>
+          <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Safety centre">
+            <p className="text-[17px] font-extrabold tracking-tight">Safety centre</p>
+            <p className="tnum mt-0.5 text-[12px] font-semibold text-[var(--ink-3)]">Booking {s.code}</p>
+            <div className="mt-4 space-y-2.5">
+              <div className="flex items-start gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--warn-soft)] text-[var(--warn)]"><TriangleAlert size={16} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-extrabold">Verify before loading</p>
+                  <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-[var(--ink-2)]">
+                    Only load into the booked vehicle — check the plate matches <span className="tnum font-extrabold text-[var(--ink)]">{s.vehicle?.registration ?? "your booking"}</span> and the driver knows your name.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)]"><ShieldCheck size={16} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-extrabold">Covered in transit</p>
+                  <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-[var(--ink-2)]">
+                    Goods-in-transit cover rides with every booked delivery, handled by vetted drivers with documents on file. Claims go through support — ops resolves them from the chain-of-custody log. <span className="font-bold">(Sandbox: cover shown for demo.)</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Share2 size={16} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-extrabold">Let someone follow this delivery</p>
+                  <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-[var(--ink-2)]">Share a tracking link — the recipient sees live progress and proof of delivery. No account needed.</p>
+                  <Button variant="outline" className="mt-2.5 w-full" onClick={() => { setSafetyOpen(false); void shareTrackLink(s.id); }}>Share tracking link</Button>
+                </div>
+              </div>
+              <div className="flex items-start gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Phone size={16} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-extrabold">24/7 support line</p>
+                  <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-2)]">Talk to a human about anything on this trip · {settings.supportPhone}</p>
+                </div>
+              </div>
+            </div>
+            <Button variant="ghost" className="mt-3 w-full" onClick={() => setSafetyOpen(false)}>Close</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -286,7 +354,7 @@ function statusHeadline(s: ShipmentDTO): string {
   const first = s.driver?.name.split(" ")[0] ?? "Your driver";
   switch (s.status) {
     case "MATCHING": return "Finding your vehicle…";
-    case "DRIVER_ASSIGNED": return `${first} accepts in a moment`;
+    case "DRIVER_ASSIGNED": return `${first} is confirming your booking`;
     case "DRIVER_EN_ROUTE": return `${first} is on the way`;
     case "DRIVER_ARRIVED": return `${first} has arrived`;
     case "LOADING": return "Loading your cargo";

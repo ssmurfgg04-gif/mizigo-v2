@@ -158,7 +158,13 @@ export default function QuoteMarketStep() {
               ))}
             </div>
             <p className="px-1 pb-2 text-center text-[12px] font-medium text-[var(--ink-3)]">
-              Quotes expire after 60 minutes. Your price locks the moment you select.
+              {(() => {
+                const soonest = pending.map((q) => new Date(q.expiresAt).getTime()).sort((a, b) => a - b)[0];
+                const mins = soonest ? Math.max(0, Math.ceil((soonest - Date.now()) / 60000)) : null;
+                return mins != null
+                  ? `Quotes expire in ${mins} min. Your price locks the moment you select.`
+                  : "Your price locks the moment you select.";
+              })()}
             </p>
           </>
         )}

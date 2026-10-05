@@ -46,7 +46,6 @@ export default function ReturnLoadPublisher({ data }: { data: DriverHome }) {
     try {
       await post("/api/driver/action", {
         action: "publish-return-load",
-        driverId: data.driver.id,
         from: { name: from.name, area: from.area, lat: from.lat, lng: from.lng },
         to: { name: to.name, area: to.area, lat: to.lat, lng: to.lng },
         categoryKey: chosen.categoryKey,
@@ -57,7 +56,7 @@ export default function ReturnLoadPublisher({ data }: { data: DriverHome }) {
       toast({ title: "Return capacity published", description: `${from.area} → ${to.area} is live on the deals market. Customers can reserve it instantly.` });
       setOpen(false);
       setFromKey(""); setToKey(""); setPrice("");
-      qc.invalidateQueries({ queryKey: ["driver"] });
+      qc.invalidateQueries({ queryKey: ["driver-home"] });
     } catch (e) {
       toast({ title: "Could not publish", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -67,9 +66,9 @@ export default function ReturnLoadPublisher({ data }: { data: DriverHome }) {
 
   const cancel = async (id: string) => {
     try {
-      await post("/api/driver/action", { action: "return-load-cancel", id, driverId: data.driver.id });
+      await post("/api/driver/action", { action: "return-load-cancel", id });
       toast({ title: "Leg withdrawn" });
-      qc.invalidateQueries({ queryKey: ["driver"] });
+      qc.invalidateQueries({ queryKey: ["driver-home"] });
     } catch (e) {
       toast({ title: "Could not withdraw", description: (e as Error).message, variant: "destructive" });
     }

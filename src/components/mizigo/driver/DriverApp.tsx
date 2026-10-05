@@ -24,6 +24,7 @@ import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
 import { post as apiPost, loginWithOtp } from "@/lib/api-client";
 import type { SessionUser } from "@/store/session";
+import { useSettings } from "@/components/mizigo/shared/useSettings";
 
 // ─── Home ───
 function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: () => void }) {
@@ -66,7 +67,8 @@ function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: 
             {active.route.pickup.area} → {active.route.dropoff.area}
           </p>
           <p className="mt-0.5 text-[12.5px] font-semibold text-[var(--ink-2)]">
-            Earning {kes(active.fare.driverEarnings)} · {etaText(active.live?.etaMin ?? 0)} left
+            Earning {kes(active.fare.driverEarnings)}
+            {active.live?.etaMin != null && active.live.etaMin > 0 ? ` · ${etaText(active.live.etaMin)} to pickup` : " · at the pickup"}
           </p>
           <span className="mt-2.5 inline-flex items-center gap-1 text-[13px] font-bold text-[var(--brand)]">
             Open trip <ChevronRight size={14} strokeWidth={2.8} />
@@ -200,7 +202,7 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
             <div className="flex-1">
               <p className="text-[15.5px] font-extrabold">{s.route.pickup.area} → {s.route.dropoff.area}</p>
               <p className="text-[12.5px] font-semibold text-[var(--ink-2)]">
-                {s.route.distanceKm.toFixed(1)} km · pickup {etaText(s.live?.etaMin ?? 8)} away · customer ★ {s.customer.name.split(" ")[0]}
+                {s.route.distanceKm.toFixed(1)} km · pickup {etaText(s.live?.etaMin ?? 8)} away · customer ★ {s.customer.rating.toFixed(1)}
               </p>
             </div>
           </div>
@@ -383,12 +385,6 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
           )}
 
           {stage === "AT_DROPOFF" && (
-            <Button variant="brand" className="w-full" onClick={() => act("pod", { recipient: s.route.dropoff.contact || "Recipient", otp: "0000" })} loading={busy}>
-              Confirm unloading
-            </Button>
-          )}
-
-          {stage === "POD" && (
             <div className="animate-mz-fade-in">
               <p className="text-[15px] font-extrabold">Proof of delivery</p>
               <p className="mt-1 text-[12.5px] font-medium text-[var(--ink-2)]">Ask the recipient for the delivery code shown in their app.</p>
@@ -406,12 +402,35 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
                   value={podOtp} onChange={(e) => setPodOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
                   placeholder="4-digit code"
                   inputMode="numeric"
+                  aria-label="Delivery code"
                   className="tnum mt-1.5 h-12 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-center text-[18px] font-extrabold tracking-[0.3em] outline-none focus:border-[var(--brand)]"
                 />
               </label>
               <Button
                 variant="brand" className="mt-4 w-full" loading={busy}
-                onClick={() => act("complete", { recipient: recipient || "Recipient", note: "pod" }).then(() => {
+                disabled={podOtp.length !== 4}
+                onClick={() => act("pod", { recipient: recipient || s.route.dropoff.contact || "Recipient", otp: podOtp, photo: true })}
+              >
+                Verify code &amp; confirm delivery
+              </Button>
+              <button
+                onClick={() => act("pod", { recipient: recipient || s.route.dropoff.contact || "Recipient" })}
+                className="mt-2 w-full text-center text-[12px] font-bold text-[var(--ink-3)] underline underline-offset-4"
+              >
+                Skip the code (sandbox)
+              </button>
+            </div>
+          )}
+
+          {stage === "POD" && (
+            <div className="animate-mz-fade-in">
+              <p className="flex items-center gap-2 text-[15px] font-extrabold"><CheckCircle2 size={17} className="text-[var(--success)]" /> Proof of delivery confirmed</p>
+              <p className="mt-1 text-[12.5px] font-medium text-[var(--ink-2)]">
+                Received by {s.pod?.recipient ?? "the recipient"}{s.pod?.photo ? " · photo + GPS attached" : ""}. Close out the job to release your earnings.
+              </p>
+              <Button
+                variant="brand" className="mt-4 w-full" loading={busy}
+                onClick={() => act("complete").then(() => {
                   toast({ title: "Delivery completed", description: `Earnings ${kes(s.fare.driverEarnings)} added to your wallet.` });
                   onDone();
                 })}
@@ -492,7 +511,7 @@ function DriverTripsScreen({ data }: { data: DriverHome }) {
       });
       toast({ title: "Customer rated", description: "Thanks. Your rating keeps the network reliable for every driver." });
       setRating(null);
-      qc.invalidateQueries({ queryKey: ["driver"] });
+      qc.invalidateQueries({ queryKey: ["driver-home"] });
     } catch (e) {
       toast({ title: "Rating failed", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -679,6 +698,7 @@ function DriverEarningsScreen({ data }: { data: DriverHome }) {
 // ─── Vehicle / Account ───
 function DriverAccountScreen({ data }: { data: DriverHome }) {
   const { logout } = useSession();
+  const settings = useSettings();
   const v = data.driver.vehicles[0];
   const [docsOpen, setDocsOpen] = useState(false);
 
@@ -737,7 +757,7 @@ function DriverAccountScreen({ data }: { data: DriverHome }) {
       <div className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">
         {[
           { icon: FileCheck2, label: "Documents", desc: "Licence · insurance · inspection", action: () => setDocsOpen(true) },
-          { icon: TriangleAlert, label: "Report a problem", desc: "Support is one tap away", action: () => toast({ title: "Support", description: "Reach us on 0800 000 000 (sandbox) — ops sees your active trip." }) },
+          { icon: TriangleAlert, label: "Report a problem", desc: `Support is one tap away · ${settings.supportPhone}`, action: () => toast({ title: "Support", description: "Ops sees your active trip and can call you back (sandbox)." }) },
         ].map((r) => (
           <button key={r.label} onClick={r.action} className="flex w-full items-center gap-3.5 border-b border-[var(--line)] px-4 py-4 text-left last:border-b-0 transition hover:bg-[var(--surface-2)]">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--ink-2)]"><r.icon size={16} /></span>
@@ -915,7 +935,7 @@ export default function DriverApp() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["driver-home", driverId],
-    queryFn: () => api<DriverHome>(`/api/driver?driverId=${driverId}`),
+    queryFn: () => api<DriverHome>("/api/driver"),
     enabled: !!driverId,
     refetchInterval: (q) => (q.state.data?.active ? 2500 : 12000),
   });

@@ -3,7 +3,8 @@
 // dominating when present, recent deliveries below. No dashboard vanity.
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Bell, ChevronRight, Clock3, MapPin, Package, PackageOpen, Sofa, Building2, HardHat } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Bell, ChevronRight, Clock3, Home as HomeIcon, MapPin, Package, PackageOpen, Sofa, Building2, HardHat } from "lucide-react";
 import { api } from "@/lib/api-client";
 import type { CustomerHome } from "@/lib/types";
 import { kes, etaText, relTimeEAT, fmtTimeEAT } from "@/lib/format";
@@ -13,20 +14,22 @@ import { Button, ChevronLink, EmptyState, ListSkeleton, SectionTitle, StatusBadg
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ReturnLoadDeals from "./ReturnLoadDeals";
+import NotificationsSheet from "./NotificationsSheet";
 import { STATUS_LABEL } from "@/lib/state-machine";
 
 const SHORTCUTS = [
-  { key: "furniture", label: "Move household", icon: Sofa },
-  { key: "furniture", label: "Deliver furniture", icon: Package },
+  { key: "household", label: "Move household", icon: HomeIcon },
+  { key: "furniture", label: "Deliver furniture", icon: Sofa },
   { key: "retail", label: "Business delivery", icon: Building2 },
   { key: "construction", label: "Construction materials", icon: HardHat },
 ];
 
 export default function HomeScreen() {
   const { user, setBookingStep, setCustomerTab, setFocusShipment, setSurface, draft, patchDraft, lang } = useSession();
+  const [notifOpen, setNotifOpen] = useState(false);
   const q = useQuery({
     queryKey: ["customer-home", user?.id],
-    queryFn: () => api<CustomerHome>(`/api/customer?userId=${user!.id}`),
+    queryFn: () => api<CustomerHome>("/api/customer"),
     enabled: !!user,
     refetchInterval: (query) => (query.state.data?.active ? 2500 : 15000),
   });
@@ -55,7 +58,7 @@ export default function HomeScreen() {
           <h1 className="text-[24px] font-extrabold tracking-tight">{business ?? `${firstName}`}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setCustomerTab("wallet")} className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]" aria-label="Notifications">
+          <button onClick={() => setNotifOpen(true)} className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]" aria-label="Notifications">
             <Bell size={18} />
             {(d?.notifications?.length ?? 0) > 0 && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[var(--brand)]" />}
           </button>
@@ -112,8 +115,8 @@ export default function HomeScreen() {
               {active.status === "IN_TRANSIT" || active.status === "ARRIVING" ? "Your delivery is on the way" : STATUS_LABEL[active.status]}
               {active.live?.etaMin != null && active.live.etaMin > 0 && active.live.leg !== "IDLE" ? ` · ${etaText(active.live.etaMin)}` : ""}
             </p>
-            <p className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--ink-2)]">
-              {active.driver && <>· {active.driver.name.split(" ")[0]} · {active.category.name} · </>}
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[13px] font-semibold text-[var(--ink-2)]">
+              {active.driver && <>{active.driver.name.split(" ")[0]} · {active.category.name} · </>}
               {active.route.pickup.area} → {active.route.dropoff.area}
             </p>
             {active.scheduledAt && active.status === "MATCHING" && (
@@ -176,9 +179,9 @@ export default function HomeScreen() {
 
       {/* shortcuts */}
       <section className="grid grid-cols-4 gap-2.5">
-        {SHORTCUTS.map((s, i) => (
+        {SHORTCUTS.map((s) => (
           <button
-            key={i}
+            key={s.key}
             onClick={() => startBooking(s.key)}
             className="flex flex-col items-center gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-2 py-3.5 transition hover:border-[var(--ink-3)] active:translate-y-px"
           >
@@ -258,6 +261,10 @@ export default function HomeScreen() {
       <button onClick={() => setSurface("welcome")} className="mx-auto mt-2 text-[12.5px] font-bold text-[var(--ink-3)] underline decoration-dotted underline-offset-4">
         Drive &amp; earn with Mizigo
       </button>
+
+      {notifOpen && (
+        <NotificationsSheet notifications={d?.notifications ?? []} trips={d?.trips} onClose={() => setNotifOpen(false)} />
+      )}
     </div>
   );
 }

@@ -210,10 +210,11 @@ export function shipmentDTO(s: ShipmentWithRelations) {
     vehicle: s.vehicle ? { id: s.vehicle.id, make: s.vehicle.make, model: s.vehicle.model, registration: s.vehicle.registration, bodyType: s.vehicle.bodyType, capacityKg: s.vehicle.capacityKg } : null,
     category: { key: s.category.key, name: s.category.name, capacityKg: s.category.capacityKg, bodyType: s.category.bodyType },
     driver: s.driver && s.driver.user ? { id: s.driver.id, name: s.driver.user.name, rating: s.driver.rating, trips: s.driver.tripsCompleted, phone: s.driver.user.phone, licenceClass: s.driver.licenceClass, initials: s.driver.user.name.split(" ").slice(0, 2).map((w) => w[0]).join("") } : null,
-    customer: { id: s.customer.id, name: s.customer.name, phone: s.customer.phone, business: s.customer.accountType === "BUSINESS" ? s.customer.businessName : null },
+    customer: { id: s.customer.id, name: s.customer.name, phone: s.customer.phone, rating: s.customer.rating, business: s.customer.accountType === "BUSINESS" ? s.customer.businessName : null },
     fare: { base: s.fareBase, distance: s.fareDistance, duration: s.fareDuration, loading: s.fareLoading, stops: s.fareStops, night: s.fareNight, schedule: s.fareSchedule, platform: s.farePlatform, discount: s.fareDiscount, promoCode: s.promoCode, total: s.fareTotal, driverEarnings: s.driverEarnings, commission: s.commission, returnLoad: !!s.returnLoadId },
     pricingMode: s.pricingMode,
     payment: { method: s.paymentMethod, status: s.paymentStatus, ref: s.paymentRef, paidAt: s.paidAt?.toISOString() ?? null },
+    deliveryCode: s.deliveryCode, // drop-off handshake (sandbox: shared DTO for demo simplicity)
     pod: s.podVerifiedAt ? { recipient: s.podRecipient, verifiedAt: s.podVerifiedAt.toISOString(), lat: s.podLat, lng: s.podLng, photo: s.podPhotoTaken } : null,
     cancelledBy: s.cancelledBy, cancelReason: s.cancelReason,
     events: s.events.map((e) => ({ id: e.id, type: e.type, label: e.label, actor: e.actor, lat: e.lat, lng: e.lng, at: e.createdAt.toISOString() })),

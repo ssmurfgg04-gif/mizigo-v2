@@ -25,7 +25,7 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["locations", q, user?.id],
-    queryFn: () => api<{ results: PlaceHit[]; saved: PlaceHit[] }>(`/api/locations?q=${encodeURIComponent(q)}&userId=${user?.id ?? ""}`),
+    queryFn: () => api<{ results: PlaceHit[]; saved: PlaceHit[] }>(`/api/locations?q=${encodeURIComponent(q)}`),
     staleTime: 30_000,
   });
 
@@ -37,7 +37,7 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
       }
       patchDraft({ stops: [...draft.stops, p] });
       setAddingStop(false);
-      toast({ title: "Stop added", description: `${p.name} · KES 250 per extra stop.` });
+      toast({ title: "Stop added", description: `${p.name} · extra stops are priced by vehicle class (from KES 100).` });
       return;
     }
     patchDraft(isPickup ? { pickup: p } : { dropoff: p });
@@ -149,7 +149,7 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
         <section className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
           <div className="flex items-center justify-between">
             <p className="text-[14.5px] font-extrabold tracking-tight">Stops along the way</p>
-            {draft.stops.length > 0 && <span className="tnum text-[12px] font-bold text-[var(--ink-3)]">+ KES 250 / stop</span>}
+            {draft.stops.length > 0 && <span className="tnum text-[12px] font-bold text-[var(--ink-3)]">+ priced per vehicle</span>}
           </div>
           {draft.stops.length > 0 ? (
             <div className="mt-2.5 space-y-2">

@@ -60,10 +60,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const paid = paymentMethod === "MPESA"; // sandbox: M-Pesa confirms instantly
   const code = await newShipmentCode();
   const token = await newShareToken(); // { raw, hash } — only the hash is stored (v1 lesson)
+  const deliveryCode = String(1000 + Math.floor(Math.random() * 9000));
 
   const s = await db.shipment.create({
     data: {
-      code, shareToken: token.hash, customerId, status: "DRIVER_ASSIGNED", stateEnteredAt: new Date(),
+      code, shareToken: token.hash, deliveryCode, customerId, status: "DRIVER_ASSIGNED", stateEnteredAt: new Date(),
       pickupName: load.fromName, pickupArea: load.fromArea, pickupLat: load.fromLat, pickupLng: load.fromLng,
       dropoffName: load.toName, dropoffArea: load.toArea, dropoffLat: load.toLat, dropoffLng: load.toLng,
       stops: "[]", distanceKm, durationMin,

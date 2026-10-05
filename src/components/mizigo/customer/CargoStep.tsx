@@ -96,6 +96,15 @@ export default function CargoStep({ categories }: { categories: { key: string; n
               </div>
             )}
 
+            {/* free text: anything not in the preset catalogue can still be added */}
+            {itemSearch.trim() && !suggestions.some((s) => s.toLowerCase() === itemSearch.trim().toLowerCase()) && (
+              <div className="mt-2.5">
+                <button onClick={() => { addItem(itemSearch.trim().slice(0, 60)); setItemSearch(""); }} className="rounded-full border-2 border-dashed border-[var(--brand)] bg-[var(--brand-soft)] px-3.5 py-2 text-[13px] font-bold text-[var(--brand-ink)] transition hover:border-[var(--brand)]">
+                  + Add “{itemSearch.trim().slice(0, 40)}”
+                </button>
+              </div>
+            )}
+
             {draft.items.length > 0 && (
               <div className="mt-3.5 space-y-1 divide-y divide-[var(--line)] border-t border-[var(--line)] pt-1.5">
                 {draft.items.map((i) => (

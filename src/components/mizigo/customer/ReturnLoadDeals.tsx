@@ -95,7 +95,7 @@ function BookSheet({ leg, onClose, user, onBooked }: { leg: ReturnLeg; onClose: 
       const res = await fetch(`/api/return-loads/${leg.id}/book`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ customerId: user.id, paymentMethod: method }),
+        body: JSON.stringify({ paymentMethod: method }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not reserve this leg.");

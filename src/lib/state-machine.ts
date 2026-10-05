@@ -35,7 +35,7 @@ export const TRANSITIONS: TransitionRule[] = [
   { from: ["IN_TRANSIT"], to: "ARRIVING", action: "arriving", actors: ["SYSTEM", "DRIVER"], label: "Approaching destination", type: "ARRIVING" },
   { from: ["IN_TRANSIT", "ARRIVING"], to: "DELIVERED", action: "deliver", actors: ["DRIVER"], label: "Destination reached · unloading", type: "DESTINATION_REACHED" },
   { from: ["DELIVERED"], to: "POD_CONFIRMED", action: "pod", actors: ["DRIVER", "SYSTEM"], label: "Proof of delivery captured", type: "POD_CONFIRMED" },
-  { from: ["POD_CONFIRMED", "DELIVERED"], to: "COMPLETED", action: "complete", actors: ["SYSTEM"], label: "Delivery completed · receipt ready", type: "COMPLETED" },
+  { from: ["POD_CONFIRMED", "DELIVERED"], to: "COMPLETED", action: "complete", actors: ["SYSTEM", "DRIVER"], label: "Delivery completed · receipt ready", type: "COMPLETED" },
   { from: ["MATCHING"], to: "NO_DRIVERS", action: "matching-failed", actors: ["SYSTEM"], label: "No suitable vehicle found right now", type: "MATCHING_FAILED" },
   { from: ["PRICED", "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "MATCHING", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "QUOTED"], to: "CANCELLED", action: "cancel", actors: ["CUSTOMER", "DRIVER", "ADMIN"], label: "Delivery cancelled", type: "CANCELLED" },
   { from: ["DELIVERED", "POD_CONFIRMED", "COMPLETED", "CANCELLED"], to: "DISPUTED", action: "dispute-open", actors: ["CUSTOMER", "ADMIN"], label: "Dispute opened", type: "DISPUTE_OPENED" },

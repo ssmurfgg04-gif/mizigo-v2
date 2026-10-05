@@ -99,10 +99,12 @@ export async function POST(req: Request) {
 
   const code = await newShipmentCode();
   const token = await newShareToken(); // { raw, hash } — only the hash is stored (v1 lesson)
+  // 4-digit drop-off handshake — the customer reads it to the driver at POD
+  const deliveryCode = String(1000 + Math.floor(Math.random() * 9000));
 
   const s = await db.shipment.create({
     data: {
-      code, shareToken: token.hash, customerId, status: "PRICED", stateEnteredAt: new Date(),
+      code, shareToken: token.hash, deliveryCode, customerId, status: "PRICED", stateEnteredAt: new Date(),
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       pickupName: capStr(pickup.name, 90), pickupArea: capStr(pickup.area ?? "", 60), pickupLat: pickupC.lat, pickupLng: pickupC.lng,
       pickupNote: capStr(pickup.note, 200) || null, pickupContact: capStr(pickup.contact, 60) || null, pickupPhone: capStr(pickup.phone, 20) || null,

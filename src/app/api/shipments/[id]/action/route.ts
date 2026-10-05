@@ -204,6 +204,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       meta.label = `Proof of delivery · ${capStr(body.recipient, 60)} · OTP ${body.otp ? "verified" : "captured"}`;
     }
     if (body.photo) meta.label = capStr(body.label, 200);
+    // the drop-off handshake: if the driver typed a code it must match the customer's
+    if (m.action === "pod" && body.otp && s.deliveryCode && String(body.otp) !== s.deliveryCode) {
+      return NextResponse.json({ error: "That delivery code doesn't match. Ask the customer to read it from their app." }, { status: 400 });
+    }
     const t = await applyTransition(id, m.action, m.role, meta);
     if (!t.ok) return NextResponse.json({ error: t.error }, { status: t.code });
     // POD data

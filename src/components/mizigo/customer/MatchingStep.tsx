@@ -11,6 +11,7 @@ import { useSession } from "@/store/session";
 import { Button, StatusBadge } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
+import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import { etaText, kes } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 
@@ -20,6 +21,7 @@ export default function MatchingStep() {
 function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
   const [requested, setRequested] = useState(false);
   const [noDrivers, setNoDrivers] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const requestedRef = useRef(false);
 
   // the shipment is created in PaymentStep; if missing (e.g. cash flow skipped) request directly
@@ -93,7 +95,7 @@ function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
             </div>
             <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">Looking for the best match near {s.route.pickup.area}.</p>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
-              <div className="h-full w-1/3 animate-[mz-slide_1.2s_ease-in-out_infinite_alternate] rounded-full bg-[var(--brand)]" style={{ animation: "mz-pulse 1.4s ease-in-out infinite", width: "62%" }} />
+              <div className="h-full rounded-full bg-[var(--brand)]" style={{ animation: "mz-pulse 1.4s ease-in-out infinite", width: "62%" }} />
             </div>
             <button
               onClick={async () => {
@@ -153,10 +155,11 @@ function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
               <Button variant="outline" onClick={() => toast({ title: "Calling driver", description: `Connecting you to ${s.driver!.name.split(" ")[0]}… (sandbox)` })}>
                 <Phone size={16} /> Call
               </Button>
-              <Button variant="outline" onClick={() => toast({ title: "Chat opened", description: "Quick messages ready (sandbox)." })}>
+              <Button variant="outline" onClick={() => setChatOpen(true)}>
                 <MessageCircle size={16} /> Message
               </Button>
             </div>
+            {focusShipmentId && chatOpen && <ChatSheet shipmentId={focusShipmentId} role="CUSTOMER" onClose={() => setChatOpen(false)} />}
           </div>
         )}
       </div>

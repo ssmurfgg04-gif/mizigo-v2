@@ -150,6 +150,7 @@ function PageContent() {
                     ["01", "Know the price", "Fare locked before you commit — no haggling, no surprises."],
                     ["02", "Know the driver", "Verified operators, documents on file, network-rated."],
                     ["03", "Know the delivery", "Live tracking and proof of delivery, every trip."],
+                    ["04", "Covered in transit", "Goods-in-transit cover on every booked delivery."],
                   ].map(([n, title, body]) => (
                     <div key={n} className="flex items-start gap-3">
                       <span className="mt-0.5 font-mono text-[10px] font-bold tracking-[0.14em] text-white/30">{n}</span>
@@ -188,10 +189,9 @@ function PageContent() {
       {/* offline banner */}
       {!online && (
         <div className="fixed inset-x-0 top-0 z-[100] flex items-center justify-center gap-2 bg-[var(--warn)] px-4 py-2.5 text-[12.5px] font-bold text-white">
-          <WifiOff size={14} /> No connection · showing cached delivery · will sync automatically
+          <WifiOff size={14} /> No connection — check your network and try again
         </div>
       )}
-      {online && surface === "customer" && null /* Wifi icon reserved */}
     </div>
     </Providers>
   );

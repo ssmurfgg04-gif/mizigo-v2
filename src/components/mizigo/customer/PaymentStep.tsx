@@ -128,9 +128,14 @@ export default function PaymentStep() {
           </div>
 
           {phase === "stk" && (
-            <Button variant="brand" className="w-full max-w-[300px]" onClick={openPin}>
-              Simulate phone prompt
-            </Button>
+            <div className="w-full max-w-[300px]">
+              <Button variant="brand" className="w-full" onClick={openPin}>
+                Simulate phone prompt
+              </Button>
+              <button onClick={() => setPhase("review")} className="mt-2.5 w-full text-[12.5px] font-bold text-[var(--ink-3)] underline underline-offset-4">
+                Back — pay another way
+              </button>
+            </div>
           )}
 
           {phase === "pin" && (

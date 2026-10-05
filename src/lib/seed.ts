@@ -166,7 +166,7 @@ export async function seedAll(): Promise<void> {
       { key: "advanceBookingDays", value: "14" },   // how far ahead scheduled bookings are allowed
       { key: "autoDispatch", value: "true" },        // false → MATCHING waits for manual dispatch
       { key: "quoteExpiryMinutes", value: "60" },    // quote marketplace expiry
-      { key: "supportPhone", value: "0800 000 000" },
+      { key: "supportPhone", value: "0800 724 343" },
     ],
   });
 

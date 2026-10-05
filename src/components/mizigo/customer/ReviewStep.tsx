@@ -224,6 +224,9 @@ export default function ReviewStep() {
         <p className="mt-1 flex items-center gap-1.5 text-[12px] font-bold text-[var(--success)]">
           <Lock size={12} /> {t("booking.priceLocked", lang)}
         </p>
+        <p className="mt-1 text-[11.5px] font-semibold text-[var(--ink-3)]">
+          Covered in transit — goods-in-transit cover rides with every booked delivery.
+        </p>
 
         {/* promo (plan §75) */}
         <div className="mt-2.5 border-t border-[var(--line)] pt-2.5">

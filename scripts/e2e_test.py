@@ -150,8 +150,12 @@ r = call(f"/api/shipments/{sid}/action", "POST", {"action": "arriving"}, sess=as
 check("arriving", r["shipment"]["status"] == "ARRIVING")
 r = call(f"/api/shipments/{sid}/action", "POST", {"action": "deliver"}, sess=assigned)
 check("deliver → DELIVERED", r["shipment"]["status"] == "DELIVERED")
-r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "recipient": "Mary Wanjiru", "otp": "8821", "photo": True}, sess=assigned)
-check("POD captured", r["shipment"]["status"] == "POD_CONFIRMED" and r["shipment"]["pod"]["recipient"] == "Mary Wanjiru")
+# drop-off handshake (plan §13): the code is generated at booking, verified at POD
+check("delivery code generated at booking", isinstance(s1["shipment"].get("deliveryCode"), str) and len(s1["shipment"]["deliveryCode"]) == 4, str(s1["shipment"].get("deliveryCode")))
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "recipient": "Mary Wanjiru", "otp": "0000", "photo": True}, sess=assigned)
+check("wrong delivery code rejected", r.get("_status") == 400, r.get("error", "")[:60])
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "recipient": "Mary Wanjiru", "otp": s1["shipment"]["deliveryCode"], "photo": True}, sess=assigned)
+check("POD captured (code verified)", r["shipment"]["status"] == "POD_CONFIRMED" and r["shipment"]["pod"]["recipient"] == "Mary Wanjiru")
 
 r = call(f"/api/shipments/{sid}/action", "POST", {"action": "rate", "stars": 5, "tags": ["Arrived on time", "Careful with cargo"]}, sess=CUST)
 check("rating → COMPLETED", r["shipment"]["status"] == "COMPLETED")
