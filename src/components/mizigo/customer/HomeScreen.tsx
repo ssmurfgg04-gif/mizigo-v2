@@ -8,6 +8,7 @@ import { api } from "@/lib/api-client";
 import type { CustomerHome } from "@/lib/types";
 import { kes, etaText, relTimeEAT, fmtTimeEAT } from "@/lib/format";
 import { useSession } from "@/store/session";
+import { t } from "@/lib/i18n";
 import { Button, ChevronLink, EmptyState, ListSkeleton, SectionTitle, StatusBadge, toneForStatus, Stars } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
@@ -21,7 +22,7 @@ const SHORTCUTS = [
 ];
 
 export default function HomeScreen() {
-  const { user, setBookingStep, setCustomerTab, setFocusShipment, setSurface } = useSession();
+  const { user, setBookingStep, setCustomerTab, setFocusShipment, setSurface, draft, patchDraft, lang } = useSession();
   const q = useQuery({
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>(`/api/customer?userId=${user!.id}`),
@@ -42,6 +43,7 @@ export default function HomeScreen() {
 
   const active = d?.active;
   const recent = (d?.trips ?? []).filter((t) => !["CANCELLED"].includes(t.status)).slice(0, 3);
+  const isQuoted = active?.status === "QUOTED";
 
   return (
     <div className="flex flex-col gap-5 pb-6">
@@ -65,6 +67,24 @@ export default function HomeScreen() {
       {/* active delivery dominates when present */}
       {q.isLoading ? (
         <div className="h-40 animate-pulse rounded-[16px] bg-[var(--surface-2)]" />
+      ) : isQuoted && active ? (
+        /* quote collection card (plan §33) */
+        <button
+          onClick={() => { setFocusShipment(active.id); setBookingStep("quotes"); }}
+          className="w-full rounded-[16px] border-2 border-[var(--brand)] bg-[var(--surface)] p-4 text-left transition active:translate-y-px"
+        >
+          <div className="flex items-center justify-between">
+            <StatusBadge tone="active">Collecting driver quotes</StatusBadge>
+            <span className="tnum text-[12px] font-bold text-[var(--ink-3)]">{active.code}</span>
+          </div>
+          <p className="mt-2.5 text-[15.5px] font-extrabold tracking-tight">{active.route.pickup.area} → {active.route.dropoff.area}</p>
+          <p className="mt-0.5 text-[12.5px] font-semibold text-[var(--ink-2)]">
+            {active.quotes.filter((x) => x.status === "PENDING").length} quote{active.quotes.filter((x) => x.status === "PENDING").length === 1 ? "" : "s"} so far · {active.category.name} job
+          </p>
+          <span className="mt-2.5 inline-flex items-center gap-1 text-[13px] font-bold text-[var(--brand)]">
+            Compare quotes <ChevronRight size={14} strokeWidth={2.8} />
+          </span>
+        </button>
       ) : active ? (
         <button
           onClick={() => { setFocusShipment(active.id); setBookingStep("active"); }}
@@ -95,6 +115,9 @@ export default function HomeScreen() {
               {active.driver && <>· {active.driver.name.split(" ")[0]} · {active.category.name} · </>}
               {active.route.pickup.area} → {active.route.dropoff.area}
             </p>
+            {active.scheduledAt && active.status === "MATCHING" && (
+              <p className="mt-1 text-[12px] font-bold text-[var(--ink-3)]">Scheduled · {fmtTimeEAT(active.scheduledAt)}</p>
+            )}
             <span className="mt-3 inline-flex items-center gap-1.5 text-[13.5px] font-bold text-[var(--brand)]">
               Track delivery <ChevronRight size={15} strokeWidth={2.8} />
             </span>
@@ -103,8 +126,8 @@ export default function HomeScreen() {
       ) : (
         /* booking card */
         <section className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-5 brand-shadow">
-          <h2 className="text-[21px] font-extrabold leading-tight tracking-tight">What are you moving?</h2>
-          <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">Tell us the cargo first. We&apos;ll pick the right vehicle for it.</p>
+          <h2 className="text-[21px] font-extrabold leading-tight tracking-tight">{t("home.heroTitle", lang)}</h2>
+          <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">{t("home.heroSub", lang)}</p>
 
           <button
             onClick={() => startBooking()}
@@ -128,18 +151,24 @@ export default function HomeScreen() {
           </button>
 
           <div className="mt-3.5 grid grid-cols-2 gap-2.5">
-            <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3.5 py-3">
+            <button
+              onClick={() => { patchDraft({ when: "NOW", scheduledAt: null }); startBooking(); }}
+              className={`rounded-[12px] border-2 bg-[var(--surface-2)] px-3.5 py-3 text-left transition ${draft.when === "NOW" ? "border-[var(--brand)]" : "border-[var(--line)]"}`}
+            >
               <span className="text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">How soon?</span>
-              <p className="mt-0.5 flex items-center gap-1.5 text-[13.5px] font-bold"><Clock3 size={13} /> Now</p>
-            </div>
-            <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3.5 py-3">
+              <p className="mt-0.5 flex items-center gap-1.5 text-[13.5px] font-bold"><Clock3 size={13} /> {t("home.now", lang)}</p>
+            </button>
+            <button
+              onClick={() => { patchDraft({ when: "SCHEDULE" }); startBooking(); }}
+              className={`rounded-[12px] border-2 bg-[var(--surface-2)] px-3.5 py-3 text-left transition ${draft.when === "SCHEDULE" ? "border-[var(--brand)]" : "border-[var(--line)]"}`}
+            >
               <span className="text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Schedule</span>
-              <p className="mt-0.5 text-[13.5px] font-bold text-[var(--ink-2)]">Choose date &amp; time</p>
-            </div>
+              <p className="mt-0.5 text-[13.5px] font-bold text-[var(--ink-2)]">{t("home.schedule", lang)}</p>
+            </button>
           </div>
 
           <Button variant="brand" className="mt-4 w-full" onClick={() => startBooking()}>
-            Start a delivery <ArrowRight size={16} strokeWidth={2.6} />
+            {t("home.startDelivery", lang)} <ArrowRight size={16} strokeWidth={2.6} />
           </Button>
         </section>
       )}
@@ -180,7 +209,7 @@ export default function HomeScreen() {
 
       {/* recent deliveries */}
       <section>
-        <SectionTitle action={<ChevronLink onClick={() => setCustomerTab("trips")}>All deliveries</ChevronLink>}>Recent deliveries</SectionTitle>
+        <SectionTitle action={<ChevronLink onClick={() => setCustomerTab("trips")}>All deliveries</ChevronLink>}>{t("home.recent", lang)}</SectionTitle>
         <div className="mt-3">
           {q.isLoading ? (
             <ListSkeleton rows={2} />

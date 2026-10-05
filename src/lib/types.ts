@@ -5,6 +5,7 @@ export interface FareLine { key: string; label: string; amount: number }
 export interface Fare {
   base: number; distance: number; duration: number; loading: number; stops: number; platform: number;
   total: number; minimumApplied: boolean; lines: FareLine[]; driverEarnings: number; commission: number;
+  discount?: number; promoCode?: string | null;
 }
 
 export interface PlaceHit {
@@ -20,6 +21,7 @@ export interface CategoryQuote {
 
 export interface QuoteResponse {
   distanceKm: number; durationMin: number; weightKg: number; recommendedKey: string; peak: boolean;
+  promo: { code: string; discount: number } | { code: string; error: string } | null;
   quotes: CategoryQuote[];
   nearby: { driverId: string; name: string; lat: number; lng: number; rating: number; vehicle: string; categoryKey: string; distanceKm: number }[];
 }
@@ -35,6 +37,7 @@ export interface ShipmentDTO {
   route: {
     pickup: { name: string; area: string; lat: number; lng: number; note: string | null; contact: string | null; phone: string | null };
     dropoff: { name: string; area: string; lat: number; lng: number; note: string | null; contact: string | null; phone: string | null };
+    stops: { name: string; area?: string; lat: number; lng: number }[];
     polyline: { lat: number; lng: number }[];
     distanceKm: number; durationMin: number;
   };
@@ -43,11 +46,14 @@ export interface ShipmentDTO {
   category: { key: string; name: string; capacityKg: number; bodyType: string };
   driver: { id: string; name: string; rating: number; trips: number; phone: string; licenceClass: string; initials: string } | null;
   customer: { id: string; name: string; phone: string; business: string | null };
-  fare: { base: number; distance: number; duration: number; loading: number; stops: number; platform: number; total: number; driverEarnings: number; commission: number };
+  fare: { base: number; distance: number; duration: number; loading: number; stops: number; platform: number; discount: number; promoCode: string | null; total: number; driverEarnings: number; commission: number };
+  pricingMode: string;
   payment: { method: string; status: string; ref: string | null; paidAt: string | null };
   pod: { recipient: string; verifiedAt: string; lat: number | null; lng: number | null; photo: boolean } | null;
   cancelledBy: string | null; cancelReason: string | null;
   events: { id: string; type: string; label: string; actor: string; lat: number | null; lng: number | null; at: string }[];
+  quotes: { id: string; driverId: string; amount: number; etaText: string; message: string | null; status: string; expiresAt: string; driver: { name: string; rating: number; trips: number } | null; vehicle: { make: string; model: string; registration: string } | null }[];
+  messages: { id: string; senderRole: string; body: string; at: string }[];
   ratings: { byRole: string; stars: number; tags: string[]; comment: string | null }[];
   live: LivePosition | null;
 }
@@ -57,7 +63,8 @@ export interface CustomerHome {
   active: ShipmentDTO | null;
   trips: ShipmentDTO[];
   saved: { id: string; label: string; name: string; area: string; lat: number; lng: number }[];
-  notifications: { id: string; title: string; body: string; createdAt: string; read: boolean }[];
+  notifications: { id: string; title: string; body: string; createdAt: string; read: boolean; shipmentCode: string | null }[];
+  invoices: { month: string; deliveries: number; net: number; vat: number; total: number }[];
   stats: { completed: number; spent: number };
 }
 
@@ -75,6 +82,7 @@ export interface DriverHome {
   };
   active: ShipmentDTO | null;
   history: ShipmentDTO[];
+  quoteJobs: (ShipmentDTO & { quotedByMe: boolean; quoteCount: number })[];
   earnings: {
     today: number; week: number; month: number; todayTrips: number; avgPerTrip: number;
     chart: { day: string; earnings: number; trips: number }[];

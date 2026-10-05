@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, BarChart3, Ban, Banknote, CheckCircle2, FileWarning, LayoutDashboard,
-  Loader2, Map as MapIcon, Package, Pencil, Search, Settings, ShieldCheck, Truck, Users, XCircle,
+  LifeBuoy, Loader2, Map as MapIcon, Package, Pencil, Plus, Search, Settings, ShieldCheck, Tag, Truck, Users, Wallet, XCircle,
 } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { AdminOverview, ShipmentDTO } from "@/lib/types";
@@ -22,10 +22,15 @@ const NAV = [
   { key: "shipments", label: "Bookings", icon: Package },
   { key: "drivers", label: "Drivers", icon: Users },
   { key: "vehicles", label: "Vehicles", icon: Truck },
+  { key: "customers", label: "Customers", icon: Users },
   { key: "pricing", label: "Pricing", icon: Banknote },
   { key: "payments", label: "Payments", icon: Banknote },
+  { key: "payouts", label: "Payouts", icon: Wallet },
   { key: "disputes", label: "Disputes", icon: FileWarning },
+  { key: "support", label: "Support", icon: LifeBuoy },
+  { key: "promotions", label: "Promotions", icon: Tag },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
+  { key: "settings", label: "Settings", icon: Settings },
   { key: "audit", label: "Audit Log", icon: ShieldCheck },
 ] as const;
 
@@ -72,10 +77,15 @@ export default function AdminApp() {
         {adminTab === "shipments" && <ShipmentsTab />}
         {adminTab === "drivers" && <DriversTab />}
         {adminTab === "vehicles" && <VehiclesTab />}
+        {adminTab === "customers" && <CustomersTab />}
         {adminTab === "pricing" && <PricingTab />}
         {adminTab === "payments" && <PaymentsTab />}
+        {adminTab === "payouts" && <PayoutsTab />}
         {adminTab === "disputes" && <DisputesTab />}
+        {adminTab === "support" && <SupportTab />}
+        {adminTab === "promotions" && <PromotionsTab />}
         {adminTab === "analytics" && <AnalyticsTab />}
+        {adminTab === "settings" && <SettingsTab />}
         {adminTab === "audit" && <AuditTab />}
       </main>
     </div>
@@ -220,11 +230,26 @@ function ShipmentsTab() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("ALL");
   const [detail, setDetail] = useState<ShipmentDTO | null>(null);
+  const qc = useQueryClient();
+  const [assignOpen, setAssignOpen] = useState(false);
   const { data } = useQuery({
     queryKey: ["admin-shipments", status, q],
-    queryFn: () => api<{ shipments: ShipmentDTO[] }>(`/api/admin?tab=shipments&status=${status}&q=${encodeURIComponent(q)}`),
+    queryFn: () => api<{ shipments: ShipmentDTO[]; dispatchDrivers: { id: string; name: string; rating: number; vehicle: string; registration: string; categories: string[] }[] }>(`/api/admin?tab=shipments&status=${status}&q=${encodeURIComponent(q)}`),
     refetchInterval: 6000,
   });
+
+  const assign = async (driverId: string) => {
+    if (!detail) return;
+    try {
+      await post("/api/admin/action", { action: "assign-driver", shipmentId: detail.id, driverId });
+      await qc.invalidateQueries({ queryKey: ["admin-shipments"] });
+      setAssignOpen(false);
+      setDetail(null);
+      toast({ title: "Driver dispatched", description: `${detail.code} assigned manually — driver has been notified.` });
+    } catch (e) {
+      toast({ title: "Couldn't assign driver", description: (e as Error).message, variant: "destructive" });
+    }
+  };
 
   return (
     <div className="p-6">
@@ -236,7 +261,7 @@ function ShipmentsTab() {
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ID, phone, plate, name…" className="h-full w-full bg-transparent text-[13px] font-semibold outline-none" />
           </div>
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-10 rounded-[8px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] font-bold outline-none">
-            {["ALL", "MATCHING", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "IN_TRANSIT", "COMPLETED", "CANCELLED"].map((s) => (
+            {["ALL", "QUOTED", "MATCHING", "NO_DRIVERS", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "IN_TRANSIT", "COMPLETED", "CANCELLED"].map((s) => (
               <option key={s} value={s}>{s === "ALL" ? "All statuses" : STATUS_LABEL[s] ?? s}</option>
             ))}
           </select>
@@ -292,6 +317,42 @@ function ShipmentsTab() {
                 <Row label="Payment" value={`${detail.payment.method} · ${detail.payment.status}`} />
                 <Row label="Total" value={kes(detail.fare.total)} strong />
               </div>
+              {(detail.status === "MATCHING" || detail.status === "NO_DRIVERS") && (
+                <div className="rounded-[12px] border-2 border-dashed border-[var(--brand)] p-4">
+                  <SectionTitle>Manual dispatch</SectionTitle>
+                  <p className="mt-1 text-[12.5px] font-medium text-[var(--ink-2)]">Assign a verified online driver — the human-ops path (final brief §19).</p>
+                  <div className="mt-2.5 space-y-2">
+                    {(data?.dispatchDrivers ?? []).filter((d) => d.categories.includes(detail.category.key)).map((d) => (
+                      <button key={d.id} onClick={() => assign(d.id)} className="flex w-full items-center gap-3 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-2.5 text-left transition hover:bg-[var(--brand-soft)]">
+                        <span className="flex-1">
+                          <span className="block text-[13px] font-extrabold">{d.name} · ★ {d.rating.toFixed(1)}</span>
+                          <span className="block text-[11.5px] font-semibold text-[var(--ink-3)]">{d.vehicle} · {d.registration}</span>
+                        </span>
+                        <span className="text-[11.5px] font-extrabold text-[var(--brand)]">Assign</span>
+                      </button>
+                    ))}
+                    {(data?.dispatchDrivers ?? []).filter((d) => d.categories.includes(detail.category.key)).length === 0 && (
+                      <p className="text-[12.5px] font-medium text-[var(--ink-2)]">No online {detail.category.name} drivers right now.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {detail.quotes?.length > 0 && (
+                <div className="rounded-[12px] border border-[var(--line)] p-4">
+                  <SectionTitle>Driver quotes</SectionTitle>
+                  <div className="mt-2 divide-y divide-[var(--line)]">
+                    {detail.quotes.map((qt) => (
+                      <div key={qt.id} className="flex items-center justify-between py-2 text-[12.5px]">
+                        <span className="font-bold">{qt.driver?.name ?? "Driver"} <span className="font-medium text-[var(--ink-3)]">· ★ {qt.driver?.rating.toFixed(1)} · {qt.vehicle ? `${qt.vehicle.make} ${qt.vehicle.registration}` : ""}</span></span>
+                        <span className="flex items-center gap-2">
+                          <span className="tnum font-extrabold">{kes(qt.amount)}</span>
+                          <StatusBadge tone={qt.status === "ACCEPTED" ? "success" : qt.status === "PENDING" ? "active" : "warn"}>{qt.status[0] + qt.status.slice(1).toLowerCase()}</StatusBadge>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="rounded-[12px] border border-[var(--line)] p-4">
                 <SectionTitle>Chain of custody</SectionTitle>
                 <div className="mt-3">
@@ -581,45 +642,109 @@ function PricingTab() {
 function PaymentsTab() {
   const { data } = useQuery({
     queryKey: ["admin-payments"],
-    queryFn: () => api<{ payments: { id: string; code: string; method: string; amount: number; status: string; mpesaReceipt: string | null; createdAt: string }[]; payouts: { id: string; driverId: string; amount: number; status: string; ref: string | null; createdAt: string }[] }>("/api/admin?tab=payments"),
+    queryFn: () => api<{ payments: { id: string; code: string; customer: string; method: string; amount: number; status: string; mpesaReceipt: string | null; createdAt: string }[] }>("/api/admin?tab=payments"),
     refetchInterval: 8000,
   });
-  const total = (data?.payments ?? []).filter((p) => p.status === "CONFIRMED").reduce((a, p) => a + p.amount, 0);
+  const confirmed = (data?.payments ?? []).filter((p) => p.status === "CONFIRMED");
+  const total = confirmed.reduce((a, p) => a + p.amount, 0);
+  const failed = (data?.payments ?? []).filter((p) => ["FAILED", "TIMEOUT", "REFUNDED"].includes(p.status));
   return (
     <div className="p-6">
       <div className="flex items-baseline justify-between">
         <h1 className="text-[22px] font-extrabold tracking-tight">Payments</h1>
-        <p className="text-[13px] font-semibold text-[var(--ink-2)]">Collected: <span className="tnum font-extrabold text-[var(--ink)]">{kes(total)}</span></p>
+        <p className="text-[13px] font-semibold text-[var(--ink-2)]">
+          Collected: <span className="tnum font-extrabold text-[var(--ink)]">{kes(total)}</span> · Exceptions: <span className="tnum font-extrabold text-[var(--danger)]">{failed.length}</span>
+        </p>
+      </div>
+      <div className="mt-4 overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)]">
+        <div className="border-b border-[var(--line)] px-4 py-3"><SectionTitle>Customer payments · C2B</SectionTitle></div>
+        <div className="max-h-[620px] divide-y divide-[var(--line)] overflow-y-auto thin-scrollbar">
+          {(data?.payments ?? []).length === 0 && <p className="px-4 py-10 text-center text-[13px] font-medium text-[var(--ink-2)]">No payments yet.</p>}
+          {(data?.payments ?? []).map((p) => (
+            <div key={p.id} className="flex items-center justify-between px-4 py-3 text-[13px]">
+              <div>
+                <p className="tnum font-extrabold">{p.code} <span className="font-semibold text-[var(--ink-2)]">· {p.customer}</span></p>
+                <p className="text-[11.5px] font-semibold text-[var(--ink-3)]">{p.method} · {p.mpesaReceipt ?? "—"} · {relTimeEAT(p.createdAt)}</p>
+              </div>
+              <div className="text-right">
+                <p className="tnum font-extrabold">{kes(p.amount)}</p>
+                <StatusBadge tone={p.status === "CONFIRMED" ? "success" : p.status === "PENDING" ? "active" : "danger"}>{p.status[0] + p.status.slice(1).toLowerCase()}</StatusBadge>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Payouts (plan §48) ───
+function PayoutsTab() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["admin-payouts"],
+    queryFn: () => api<{
+      payouts: { id: string; driver: string; amount: number; method: string; status: string; ref: string | null; createdAt: string }[];
+      ledger: { id: string; code: string; driver: string; customer: string; gross: number; commission: number; net: number }[];
+    }>("/api/admin?tab=payouts"),
+    refetchInterval: 10000,
+  });
+  const [busy, setBusy] = useState<string | null>(null);
+  const payNow = async (payoutId: string) => {
+    setBusy(payoutId);
+    try {
+      await post("/api/admin/action", { action: "payout-pay", payoutId });
+      await qc.invalidateQueries({ queryKey: ["admin-payouts"] });
+      toast({ title: "Payout released", description: "M-PESA B2C disbursement marked paid (sandbox)." });
+    } catch (e) {
+      toast({ title: "Couldn't release payout", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const totalPaid = (data?.payouts ?? []).filter((p) => p.status === "PAID").reduce((a, p) => a + p.amount, 0);
+  return (
+    <div className="p-6">
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-[22px] font-extrabold tracking-tight">Driver payouts</h1>
+        <p className="text-[13px] font-semibold text-[var(--ink-2)]">Paid out: <span className="tnum font-extrabold text-[var(--ink)]">{kes(totalPaid)}</span></p>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-4">
         <div className="overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)]">
-          <div className="border-b border-[var(--line)] px-4 py-3"><SectionTitle>Customer payments</SectionTitle></div>
+          <div className="border-b border-[var(--line)] px-4 py-3"><SectionTitle>Withdrawals · B2C</SectionTitle></div>
           <div className="max-h-[560px] divide-y divide-[var(--line)] overflow-y-auto thin-scrollbar">
-            {(data?.payments ?? []).map((p) => (
+            {(data?.payouts ?? []).length === 0 && <p className="px-4 py-8 text-center text-[13px] font-medium text-[var(--ink-2)]">No payouts yet.</p>}
+            {(data?.payouts ?? []).map((p) => (
               <div key={p.id} className="flex items-center justify-between px-4 py-3 text-[13px]">
                 <div>
-                  <p className="tnum font-extrabold">{p.code}</p>
-                  <p className="text-[11.5px] font-semibold text-[var(--ink-3)]">{p.method} · {p.mpesaReceipt ?? "—"} · {relTimeEAT(p.createdAt)}</p>
+                  <p className="font-extrabold">{p.driver}</p>
+                  <p className="tnum text-[11.5px] font-semibold text-[var(--ink-3)]">{kes(p.amount)} · {p.method} · {p.ref ?? "—"} · {relTimeEAT(p.createdAt)}</p>
                 </div>
-                <div className="text-right">
-                  <p className="tnum font-extrabold">{kes(p.amount)}</p>
-                  <StatusBadge tone={p.status === "CONFIRMED" ? "success" : p.status === "PENDING" ? "active" : "danger"}>{p.status[0] + p.status.slice(1).toLowerCase()}</StatusBadge>
+                <div className="flex items-center gap-2.5">
+                  {p.status !== "PAID" && (
+                    <Button variant="outline" className="h-8 text-[11.5px]" loading={busy === p.id} onClick={() => payNow(p.id)}>Release</Button>
+                  )}
+                  <StatusBadge tone={p.status === "PAID" ? "success" : p.status === "PROCESSING" ? "active" : "warn"}>{p.status[0] + p.status.slice(1).toLowerCase()}</StatusBadge>
                 </div>
               </div>
             ))}
           </div>
         </div>
         <div className="overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)]">
-          <div className="border-b border-[var(--line)] px-4 py-3"><SectionTitle>Driver payouts · B2C</SectionTitle></div>
+          <div className="border-b border-[var(--line)] px-4 py-3"><SectionTitle>Trip ledger · commission per trip</SectionTitle></div>
           <div className="max-h-[560px] divide-y divide-[var(--line)] overflow-y-auto thin-scrollbar">
-            {(data?.payouts ?? []).length === 0 && <p className="px-4 py-8 text-center text-[13px] font-medium text-[var(--ink-2)]">No payouts yet.</p>}
-            {(data?.payouts ?? []).map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-4 py-3 text-[13px]">
+            {(data?.ledger ?? []).length === 0 && <p className="px-4 py-8 text-center text-[13px] font-medium text-[var(--ink-2)]">No completed trips yet.</p>}
+            {(data?.ledger ?? []).map((l) => (
+              <div key={l.id} className="flex items-center justify-between px-4 py-3 text-[13px]">
                 <div>
-                  <p className="tnum font-extrabold">{kes(p.amount)}</p>
-                  <p className="text-[11.5px] font-semibold text-[var(--ink-3)]">M-PESA · {p.ref ?? "—"} · {relTimeEAT(p.createdAt)}</p>
+                  <p className="tnum font-extrabold">{l.code}</p>
+                  <p className="text-[11.5px] font-semibold text-[var(--ink-3)]">{l.driver} · {l.customer}</p>
                 </div>
-                <StatusBadge tone="success">{p.status[0] + p.status.slice(1).toLowerCase()}</StatusBadge>
+                <div className="flex items-center gap-4 text-right">
+                  <span className="tnum text-[12px] font-semibold text-[var(--ink-2)]">gross {kes(l.gross)}</span>
+                  <span className="tnum text-[12px] font-semibold text-[var(--brand)]">platform {kes(l.commission)}</span>
+                  <span className="tnum font-extrabold">net {kes(l.net)}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -696,7 +821,7 @@ function DisputesTab() {
 function AnalyticsTab() {
   const { data } = useQuery({
     queryKey: ["admin-analytics"],
-    queryFn: () => api<{ days: { day: string; bookings: number; revenue: number; completed: number; cancelled: number }[]; topRoutes: { route: string; count: number }[]; categories: { name: string; count: number }[]; totals: { gmv: number; platform: number; avgFare: number; avgDistance: number } }>("/api/admin?tab=analytics"),
+    queryFn: () => api<{ days: { day: string; bookings: number; revenue: number; completed: number; cancelled: number }[]; topRoutes: { route: string; count: number }[]; categories: { name: string; count: number }[]; topDrivers: { name: string; trips: number; revenue: number }[]; totals: { gmv: number; platform: number; avgFare: number; avgDistance: number; cancellationPct: number; onTimePct: number } }>("/api/admin?tab=analytics"),
   });
   const maxRev = Math.max(...(data?.days ?? []).map((d) => d.revenue), 1);
   const maxCat = Math.max(...(data?.categories ?? []).map((c) => c.count), 1);
@@ -704,12 +829,14 @@ function AnalyticsTab() {
   return (
     <div className="p-6">
       <h1 className="text-[22px] font-extrabold tracking-tight">Analytics</h1>
-      <div className="mt-4 grid grid-cols-4 gap-3">
+      <div className="mt-4 grid grid-cols-6 gap-3">
         {[
           { label: "GMV (all time)", value: kes(data?.totals.gmv ?? 0, { compact: true }) },
           { label: "Platform revenue", value: kes(data?.totals.platform ?? 0, { compact: true }) },
           { label: "Avg fare", value: kes(data?.totals.avgFare ?? 0) },
           { label: "Avg distance", value: `${data?.totals.avgDistance ?? 0} km` },
+          { label: "Cancellation", value: `${data?.totals.cancellationPct ?? 0}%` },
+          { label: "On-time delivery", value: `${data?.totals.onTimePct ?? 0}%` },
         ].map((k) => (
           <div key={k.label} className="rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-4">
             <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">{k.label}</p>
@@ -760,6 +887,306 @@ function AnalyticsTab() {
           ))}
         </div>
       </div>
+
+      <div className="mt-5 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-5">
+        <SectionTitle>Top drivers (plan §79)</SectionTitle>
+        <div className="mt-3 overflow-hidden rounded-[10px] border border-[var(--line)]">
+          <table className="w-full text-left text-[13px]">
+            <thead>
+              <tr className="border-b border-[var(--line)] text-[11px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">
+                <th className="px-4 py-2.5">Driver</th><th className="px-4 py-2.5 text-right">Completed trips</th><th className="px-4 py-2.5 text-right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--line)]">
+              {(data?.topDrivers ?? []).map((d) => (
+                <tr key={d.name}>
+                  <td className="px-4 py-2.5 font-bold">{d.name}</td>
+                  <td className="tnum px-4 py-2.5 text-right font-semibold">{d.trips}</td>
+                  <td className="tnum px-4 py-2.5 text-right font-extrabold">{kes(d.revenue)}</td>
+                </tr>
+              ))}
+              {(data?.topDrivers ?? []).length === 0 && <tr><td colSpan={3} className="px-4 py-6 text-center font-medium text-[var(--ink-2)]">No completed trips yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Customers (plan §41 Customers/Businesses) ───
+function CustomersTab() {
+  const [filter, setFilter] = useState<"ALL" | "PERSONAL" | "BUSINESS">("ALL");
+  const { data } = useQuery({
+    queryKey: ["admin-customers"],
+    queryFn: () => api<{ customers: { id: string; name: string; phone: string; accountType: string; businessName: string | null; shipments: number; completed: number; spent: number; cancelled: number; joined: string }[] }>("/api/admin?tab=customers"),
+    refetchInterval: 15000,
+  });
+  const rows = (data?.customers ?? []).filter((c) => (filter === "ALL" ? true : c.accountType === filter));
+  const business = (data?.customers ?? []).filter((c) => c.accountType === "BUSINESS");
+  return (
+    <div className="p-6">
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-[22px] font-extrabold tracking-tight">Customers</h1>
+        <div className="flex gap-1.5">
+          {(["ALL", "PERSONAL", "BUSINESS"] as const).map((f) => (
+            <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3.5 py-1.5 text-[12px] font-bold transition ${filter === f ? "bg-[var(--ink)] text-white" : "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink-2)]"}`}>
+              {f === "ALL" ? `All (${data?.customers.length ?? 0})` : f === "BUSINESS" ? `Businesses (${business.length})` : "Personal"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)]">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-[var(--line)] text-[11px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">
+              <th className="px-4 py-3">Name</th><th className="px-4 py-3">Phone</th><th className="px-4 py-3">Account</th>
+              <th className="px-4 py-3 text-right">Deliveries</th><th className="px-4 py-3 text-right">Completed</th>
+              <th className="px-4 py-3 text-right">Cancelled</th><th className="px-4 py-3 text-right">Spent</th><th className="px-4 py-3 text-right">Joined</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--line)]">
+            {rows.map((c) => (
+              <tr key={c.id} className="text-[13px] transition hover:bg-[var(--surface-2)]">
+                <td className="px-4 py-3 font-extrabold">
+                  {c.name}
+                  {c.businessName && <span className="ml-1.5 rounded-full bg-[var(--brand-soft)] px-2 py-0.5 text-[10.5px] font-extrabold text-[var(--brand-ink)]">{c.businessName}</span>}
+                </td>
+                <td className="tnum px-4 py-3 font-semibold">0{c.phone.slice(1)}</td>
+                <td className="px-4 py-3">
+                  <StatusBadge tone={c.accountType === "BUSINESS" ? "active" : "neutral"}>{c.accountType === "BUSINESS" ? "Business" : "Personal"}</StatusBadge>
+                </td>
+                <td className="tnum px-4 py-3 text-right font-semibold">{c.shipments}</td>
+                <td className="tnum px-4 py-3 text-right font-semibold text-[var(--success)]">{c.completed}</td>
+                <td className="tnum px-4 py-3 text-right font-semibold text-[var(--danger)]">{c.cancelled}</td>
+                <td className="tnum px-4 py-3 text-right font-extrabold">{kes(c.spent)}</td>
+                <td className="px-4 py-3 text-right text-[12px] font-medium text-[var(--ink-3)]">{relTimeEAT(c.joined)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={8} className="py-10 text-center text-[13px] font-medium text-[var(--ink-2)]">No customers yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Support: exception inbox (final brief §19 human dispatch) ───
+function SupportTab() {
+  const { data } = useQuery({
+    queryKey: ["admin-support"],
+    queryFn: () => api<{ queue: { id: string; kind: string; shipmentId: string; code: string; customer: string; detail: string; at: string }[]; supportPhone: string }>("/api/admin?tab=support"),
+    refetchInterval: 6000,
+  });
+  const tone: Record<string, "danger" | "warn" | "active"> = { CARGO_MISMATCH: "warn", NO_DRIVERS: "danger", AWAITING_DISPATCH: "active", PAYMENT_TIMEOUT: "warn", DISPUTE: "danger" };
+  return (
+    <div className="p-6">
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-[22px] font-extrabold tracking-tight">Support · exception queue</h1>
+        <p className="text-[13px] font-semibold text-[var(--ink-2)]">Hotline <span className="tnum font-extrabold text-[var(--ink)]">{data?.supportPhone ?? "0800 000 000"}</span> · {data?.queue.length ?? 0} open</p>
+      </div>
+      <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">Automate the boring 90%, human-manage the exceptions — every item links to its booking.</p>
+      <div className="mt-4 space-y-2">
+        {(data?.queue ?? []).map((x) => (
+          <div key={x.id} className="flex items-center gap-4 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]"><LifeBuoy size={15} className="text-[var(--ink-2)]" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-2 text-[13.5px] font-extrabold">
+                {x.code}
+                <StatusBadge tone={tone[x.kind] ?? "warn"}>{x.kind.replace(/_/g, " ")}</StatusBadge>
+              </p>
+              <p className="truncate text-[12.5px] font-semibold text-[var(--ink-2)]">{x.customer} · {x.detail}</p>
+            </div>
+            <span className="shrink-0 text-[11.5px] font-semibold text-[var(--ink-3)]">{relTimeEAT(x.at)}</span>
+          </div>
+        ))}
+        {(data?.queue ?? []).length === 0 && (
+          <p className="rounded-[14px] border border-dashed border-[var(--line)] bg-[var(--surface)] py-12 text-center text-[13.5px] font-semibold text-[var(--ink-2)]">All clear — no exceptions right now.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Promotions (plan §75) ───
+function PromotionsTab() {
+  const qc = useQueryClient();
+  const [code, setCode] = useState("");
+  const [kind, setKind] = useState<"FLAT" | "PERCENT">("FLAT");
+  const [value, setValue] = useState("");
+  const [minFare, setMinFare] = useState("");
+  const [firstOnly, setFirstOnly] = useState(false);
+  const [bizOnly, setBizOnly] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const { data } = useQuery({
+    queryKey: ["admin-promotions"],
+    queryFn: () => api<{ promos: { id: string; code: string; kind: string; value: number; minFare: number; firstBookingOnly: boolean; businessOnly: boolean; active: boolean; expiresAt: string | null; uses: number }[] }>("/api/admin?tab=promotions"),
+    refetchInterval: 15000,
+  });
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      await post("/api/admin/action", { action: "promo-create", code, kind, value: Number(value), minFare: Number(minFare) || 0, firstBookingOnly: firstOnly, businessOnly: bizOnly });
+      await qc.invalidateQueries({ queryKey: ["admin-promotions"] });
+      setCode(""); setValue(""); setMinFare(""); setFirstOnly(false); setBizOnly(false);
+      toast({ title: "Promo created", description: `${code.toUpperCase()} is live for customers.` });
+    } catch (e) {
+      toast({ title: "Couldn't create promo", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = async (promoId: string) => {
+    await post("/api/admin/action", { action: "promo-toggle", promoId }).catch(() => null);
+    await qc.invalidateQueries({ queryKey: ["admin-promotions"] });
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-[22px] font-extrabold tracking-tight">Promotions</h1>
+      <div className="mt-4 grid grid-cols-3 gap-4">
+        {/* create form */}
+        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-5">
+          <SectionTitle>Create promo code</SectionTitle>
+          <label className="mt-3 block">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Code</span>
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="e.g. WESTLANDS500" className="mt-1 h-10 w-full rounded-[8px] border border-[var(--line)] bg-[var(--paper)] px-3 text-[13px] font-bold tracking-wide outline-none focus:border-[var(--brand)]" />
+          </label>
+          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+            <label className="block">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Type</span>
+              <select value={kind} onChange={(e) => setKind(e.target.value as "FLAT" | "PERCENT")} className="mt-1 h-10 w-full rounded-[8px] border border-[var(--line)] bg-[var(--paper)] px-2.5 text-[13px] font-bold outline-none">
+                <option value="FLAT">KES off</option>
+                <option value="PERCENT">% off</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">{kind === "FLAT" ? "Amount (KES)" : "Percent"}</span>
+              <input value={value} onChange={(e) => setValue(e.target.value.replace(/\D/g, ""))} placeholder="500" inputMode="numeric" className="tnum mt-1 h-10 w-full rounded-[8px] border border-[var(--line)] bg-[var(--paper)] px-3 text-[13px] font-bold outline-none focus:border-[var(--brand)]" />
+            </label>
+          </div>
+          <label className="mt-2.5 block">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Minimum fare (KES)</span>
+            <input value={minFare} onChange={(e) => setMinFare(e.target.value.replace(/\D/g, ""))} placeholder="0" inputMode="numeric" className="tnum mt-1 h-10 w-full rounded-[8px] border border-[var(--line)] bg-[var(--paper)] px-3 text-[13px] font-bold outline-none focus:border-[var(--brand)]" />
+          </label>
+          <div className="mt-3 space-y-2">
+            <label className="flex items-center gap-2.5 text-[12.5px] font-bold">
+              <input type="checkbox" checked={firstOnly} onChange={(e) => setFirstOnly(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
+              First booking only
+            </label>
+            <label className="flex items-center gap-2.5 text-[12.5px] font-bold">
+              <input type="checkbox" checked={bizOnly} onChange={(e) => setBizOnly(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
+              Business accounts only
+            </label>
+          </div>
+          <Button variant="brand" className="mt-4 w-full" disabled={!code || !value} loading={busy} onClick={create}>
+            <Plus size={15} /> Create promo
+          </Button>
+        </div>
+
+        {/* list */}
+        <div className="col-span-2 overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)]">
+          <div className="border-b border-[var(--line)] px-4 py-3"><SectionTitle>Codes · usage</SectionTitle></div>
+          <div className="divide-y divide-[var(--line)]">
+            {(data?.promos ?? []).map((p) => (
+              <div key={p.id} className="flex items-center gap-4 px-4 py-3.5">
+                <span className="tnum w-36 text-[14px] font-extrabold tracking-wide">{p.code}</span>
+                <span className="flex-1 text-[12.5px] font-semibold text-[var(--ink-2)]">
+                  {p.kind === "PERCENT" ? `${p.value}% off` : `${kes(p.value)} off`}
+                  {p.minFare > 0 && ` · min ${kes(p.minFare)}`}
+                  {p.firstBookingOnly && " · first booking"}
+                  {p.businessOnly && " · business only"}
+                </span>
+                <span className="tnum text-[12.5px] font-bold text-[var(--ink-2)]">{p.uses} uses</span>
+                <button onClick={() => toggle(p.id)} className={`h-8 rounded-full px-3.5 text-[11.5px] font-extrabold transition ${p.active ? "bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--surface-2)] text-[var(--ink-3)]"}`}>
+                  {p.active ? "Active" : "Paused"}
+                </button>
+              </div>
+            ))}
+            {(data?.promos ?? []).length === 0 && <p className="px-4 py-10 text-center text-[13px] font-medium text-[var(--ink-2)]">No promos yet.</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Settings (plan §34/§41) ───
+function SettingsTab() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["admin-settings"],
+    queryFn: () => api<{ settings: { key: string; value: string; updatedAt: string }[] }>("/api/admin?tab=settings"),
+  });
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const META: Record<string, { label: string; hint: string; type: "number" | "text" | "toggle" }> = {
+    advanceBookingDays: { label: "Advance booking window (days)", hint: "How far ahead customers can schedule deliveries (plan §34)", type: "number" },
+    autoDispatch: { label: "Auto-dispatch matching", hint: "Off = bookings wait in MATCHING for manual dispatch (final brief §19)", type: "toggle" },
+    quoteExpiryMinutes: { label: "Quote expiry (minutes)", hint: "How long marketplace quotes stay valid (plan §33)", type: "number" },
+    supportPhone: { label: "Support hotline", hint: "Shown on customer + driver help screens", type: "text" },
+  };
+
+  const save = async (key: string) => {
+    setBusy(key);
+    try {
+      await post("/api/admin/action", { action: "setting-update", key, value: drafts[key] });
+      await qc.invalidateQueries({ queryKey: ["admin-settings"] });
+      toast({ title: "Setting saved", description: `${META[key]?.label ?? key} updated.` });
+    } catch (e) {
+      toast({ title: "Couldn't save", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-[22px] font-extrabold tracking-tight">Platform settings</h1>
+      <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">Live configuration — changes apply immediately and are written to the audit log.</p>
+      <div className="mt-4 max-w-2xl space-y-3">
+        {(data?.settings ?? []).map((s) => {
+          const meta = META[s.key] ?? { label: s.key, hint: "", type: "text" as const };
+          const draftVal = drafts[s.key] ?? s.value;
+          const dirty = draftVal !== s.value;
+          return (
+            <div key={s.key} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[14px] font-extrabold">{meta.label}</p>
+                  <p className="text-[12px] font-medium text-[var(--ink-2)]">{meta.hint}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2.5">
+                  {meta.type === "toggle" ? (
+                    <button
+                      onClick={() => setDrafts({ ...drafts, [s.key]: draftVal === "true" ? "false" : "true" })}
+                      className={`h-9 w-[74px] rounded-full px-1 transition ${draftVal === "true" ? "bg-[var(--success)]" : "bg-[var(--line)]"}`}
+                      aria-pressed={draftVal === "true"}
+                    >
+                      <span className={`block h-7 w-7 rounded-full bg-white shadow transition-transform ${draftVal === "true" ? "translate-x-[38px]" : ""}`} />
+                    </button>
+                  ) : (
+                    <input
+                      value={draftVal}
+                      onChange={(e) => setDrafts({ ...drafts, [s.key]: e.target.value })}
+                      inputMode={meta.type === "number" ? "numeric" : "text"}
+                      className="tnum h-10 w-40 rounded-[8px] border border-[var(--line)] bg-[var(--paper)] px-3 text-[13.5px] font-bold outline-none focus:border-[var(--brand)]"
+                    />
+                  )}
+                  {dirty && (
+                    <Button variant="brand" className="h-9 text-[12px]" loading={busy === s.key} onClick={() => save(s.key)}>Save</Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-6 text-[12px] font-medium text-[var(--ink-3)]">Vehicle capacity, zone tariffs and category pricing live in the Pricing tab. Every change is audited.</p>
     </div>
   );
 }

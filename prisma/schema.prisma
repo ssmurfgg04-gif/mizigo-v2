@@ -106,6 +106,7 @@ model Driver {
   user           User     @relation(fields: [userId], references: [id])
   vehicles       Vehicle[]
   shipments      Shipment[] @relation("DriverShipments")
+  quotes         Quote[]
 }
 
 model Vehicle {
@@ -205,6 +206,10 @@ model Shipment {
   podLat        Float?
   podLng        Float?
 
+  // promotions
+  promoCode    String?
+  fareDiscount Int     @default(0)
+
   cancelledBy  String?
   cancelReason String?
 
@@ -217,6 +222,7 @@ model Shipment {
   payments PaymentEvent[]
   ratings  Rating[]
   disputes Dispute[]
+  messages ChatMessage[]
 
   @@index([status])
   @@index([customerId])
@@ -251,11 +257,15 @@ model Quote {
   id         String   @id @default(cuid())
   shipmentId String
   driverId   String
+  vehicleId  String?
   amount     Int
   etaText    String
+  message    String?  // optional driver note
   status     String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | EXPIRED
   expiresAt  DateTime
+  createdAt  DateTime @default(now())
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  driver     Driver?  @relation(fields: [driverId], references: [id])
 }
 
 model PaymentEvent {
@@ -311,6 +321,39 @@ model Notification {
   shipmentCode String?
   read    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// customer ↔ driver quick-message chat (numbers stay masked)
+model ChatMessage {
+  id         String   @id @default(cuid())
+  shipmentId String
+  senderRole String   // CUSTOMER | DRIVER
+  body       String
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+// admin-configurable promotions (plan §75)
+model PromoCode {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  kind            String   @default("FLAT") // FLAT | PERCENT
+  value           Int      // KES amount or percent
+  minFare         Int      @default(0)
+  firstBookingOnly Boolean @default(false)
+  businessOnly    Boolean @default(false)
+  active          Boolean  @default(true)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+}
+
+// key/value platform settings, editable in admin (plan §34, §41 Settings)
+model PlatformSetting {
+  key        String   @id
+  value      String
+  updatedAt  DateTime @updatedAt
 }
 
 model AuditLog {

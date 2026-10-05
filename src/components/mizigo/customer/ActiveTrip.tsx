@@ -1,15 +1,17 @@
 "use client";
 // Active trip — the signature "cargo command center": live map, status,
 // timeline, driver, price locked, share tracking, cancel policy, POD reveal.
+// Chat + help centre wired in (plan §37/§77), stops shown (plan §35).
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ChevronDown, MessageCircle, Phone, Share2, ShieldCheck, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, LifeBuoy, MessageCircle, Phone, Share2, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, Row, StatusBadge, toneForStatus } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
+import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import { CUSTOMER_TIMELINE, STATUS_LABEL } from "@/lib/state-machine";
 import { etaText, fmtDateTimeEAT, fmtPhone, kes, minutesAgoEAT } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
@@ -19,6 +21,8 @@ export default function ActiveTrip() {
   const { focusShipmentId, setBookingStep, setCustomerTab, setTrackToken } = useSession();
   const [expanded, setExpanded] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["shipment", focusShipmentId, "auto"],
@@ -118,13 +122,18 @@ export default function ActiveTrip() {
           <Button variant="outline" className="h-12 px-0 text-[13px]" onClick={() => toast({ title: "Calling driver", description: `Connecting to ${fmtPhone(s.driver!.phone)} (sandbox)` })}>
             <Phone size={15} /> Call
           </Button>
-          <Button variant="outline" className="h-12 px-0 text-[13px]" onClick={() => toast({ title: "Chat", description: "Quick messages ready (sandbox)." })}>
+          <Button variant="outline" className="h-12 px-0 text-[13px]" onClick={() => setChatOpen(true)}>
             <MessageCircle size={15} /> Chat
           </Button>
           <Button variant="outline" className="h-12 px-0 text-[13px]" onClick={() => { setTrackToken(s.shareToken); toast({ title: "Tracking link copied", description: "Anyone with the link can follow this delivery. No account needed." }); setTimeout(() => useSession.getState().setSurface("customer"), 50); navigator.clipboard?.writeText(`${location.origin}/?view=track&token=${s.shareToken}`).catch(() => {}); }}>
             <Share2 size={15} /> Share
           </Button>
         </div>
+        {(s.messages?.length ?? 0) > 0 && (
+          <button onClick={() => setChatOpen(true)} className="mt-2 w-full rounded-[10px] bg-[var(--brand-soft)] px-3.5 py-2 text-left text-[12.5px] font-bold text-[var(--brand-ink)]">
+            {s.driver?.name.split(" ")[0]}: “{s.messages![s.messages!.length - 1].body}”
+          </button>
+        )}
 
         {/* timeline */}
         <div className="mt-3 border-t border-[var(--line)] pt-3.5">
@@ -175,7 +184,18 @@ export default function ActiveTrip() {
             </div>
             {s.route.pickup.note && <Row label="Pickup note" value={s.route.pickup.note} />}
             {s.route.dropoff.note && <Row label="Drop-off note" value={s.route.dropoff.note} />}
+            {s.route.stops?.length > 0 && (
+              <div>
+                <p className="mt-1 text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Stops</p>
+                {s.route.stops.map((st, i) => {
+                  const done = s.events.some((e) => e.type === "STOP_COMPLETED" && e.label.includes(st.name));
+                  return <Row key={i} label={`${done ? "✓" : "○"} Stop ${i + 1}`} value={st.name} />;
+                })}
+              </div>
+            )}
             <Row label="Payment" value={s.payment.method === "MPESA" ? `M-PESA · ${s.payment.status === "CONFIRMED" ? "PAID" : s.payment.status}` : "Cash on delivery"} />
+            {s.fare.promoCode && <Row label="Promo" value={`${s.fare.promoCode} · -${kes(s.fare.discount)}`} />}
+            {s.scheduledAt && <Row label="Scheduled" value={fmtDateTimeEAT(s.scheduledAt)} />}
             <Row label="Booked" value={fmtDateTimeEAT(s.createdAt)} />
             <Row label="Delivery ID" value={s.code} strong />
           </div>
@@ -184,7 +204,47 @@ export default function ActiveTrip() {
         <p className="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] font-semibold text-[var(--ink-3)]">
           <ShieldCheck size={12} /> Your trip is tracked from pickup to delivery.
         </p>
+        <button onClick={() => setHelpOpen(true)} className="mt-1.5 flex w-full items-center justify-center gap-1.5 text-[12.5px] font-bold text-[var(--brand)]">
+          <LifeBuoy size={13} /> Get help with this delivery
+        </button>
       </div>
+
+      {/* chat sheet (plan §77) */}
+      {chatOpen && <ChatSheet shipmentId={s.id} role="CUSTOMER" onClose={() => setChatOpen(false)} />}
+
+      {/* help centre (plan §37/§76) */}
+      {helpOpen && (
+        <div className="absolute inset-0 z-30 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => setHelpOpen(false)}>
+          <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[17px] font-extrabold tracking-tight">Get help</p>
+            <p className="tnum mt-0.5 text-[12px] font-semibold text-[var(--ink-3)]">Booking {s.code} · {s.route.pickup.area} → {s.route.dropoff.area} · {s.driver ? s.driver.name : "driver pending"}</p>
+            <div className="mt-4 space-y-2.5">
+              <button onClick={() => { setHelpOpen(false); toast({ title: "Calling support", description: "0800 000 000 · free from Safaricom lines (sandbox)" }); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Phone size={16} /></span>
+                <span className="flex-1">
+                  <span className="block text-[14px] font-extrabold">Call support</span>
+                  <span className="block text-[12px] font-medium text-[var(--ink-2)]">0800 000 000 · 24/7</span>
+                </span>
+              </button>
+              <button onClick={() => { setHelpOpen(false); setChatOpen(true); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><MessageCircle size={16} /></span>
+                <span className="flex-1">
+                  <span className="block text-[14px] font-extrabold">Message your driver</span>
+                  <span className="block text-[12px] font-medium text-[var(--ink-2)]">Quick messages · numbers stay private</span>
+                </span>
+              </button>
+              <button onClick={() => { setHelpOpen(false); setBookingStep("problem"); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--warn-soft)] text-[var(--warn)]"><TriangleAlert size={16} /></span>
+                <span className="flex-1">
+                  <span className="block text-[14px] font-extrabold">Report a problem</span>
+                  <span className="block text-[12px] font-medium text-[var(--ink-2)]">Damaged or missing cargo · wrong delivery</span>
+                </span>
+              </button>
+            </div>
+            <Button variant="ghost" className="mt-3 w-full" onClick={() => setHelpOpen(false)}>Close</Button>
+          </div>
+        </div>
+      )}
 
       {/* cancel sheet */}
       {cancelOpen && (

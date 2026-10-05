@@ -97,8 +97,8 @@ export default function MapCanvas({
   const small = scale > 2.4;
 
   return (
-    <div className={`relative overflow-hidden ${className}`} style={{ background: C.surface2 }} aria-label="Map of Nairobi" role="img">
-      <svg viewBox={viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+    <div className={`${className.includes("absolute") ? "" : "relative"} overflow-hidden ${className}`} style={{ background: C.surface2 }} aria-label="Map of Nairobi" role="img">
+      <svg viewBox={viewBox} className="pointer-events-none h-full w-full" preserveAspectRatio="xMidYMid slice">
         <defs>
           <radialGradient id={`bg-${uid}`} cx="50%" cy="42%" r="75%">
             <stop offset="0%" stopColor={C.surface} />

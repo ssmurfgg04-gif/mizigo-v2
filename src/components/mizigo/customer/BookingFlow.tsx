@@ -1,5 +1,5 @@
 "use client";
-// Booking flow shell — cargo → pickup → dropoff → vehicle → review → payment.
+// Booking flow shell — cargo → pickup → dropoff → vehicle → review → (quotes | payment).
 // Cargo-first per the product brief: the customer describes WHAT before WHERE.
 
 import { useQuery } from "@tanstack/react-query";
@@ -7,17 +7,19 @@ import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api-client";
 import type { Bootstrap } from "@/lib/types";
 import { useSession } from "@/store/session";
+import { t } from "@/lib/i18n";
 import CargoStep from "./CargoStep";
 import LocationStep from "./LocationStep";
 import VehicleStep from "./VehicleStep";
 import ReviewStep from "./ReviewStep";
 import PaymentStep from "./PaymentStep";
 import MatchingStep from "./MatchingStep";
+import QuoteMarketStep from "./QuoteMarketStep";
 
 const STEPS = ["cargo", "pickup", "dropoff", "vehicle", "review", "payment", "matching"] as const;
 
 export default function BookingFlow() {
-  const { bookingStep, setBookingStep, draft, patchDraft } = useSession();
+  const { bookingStep, setBookingStep, draft, lang } = useSession();
   const stepIdx = STEPS.indexOf(bookingStep as (typeof STEPS)[number]);
 
   const { data: boot } = useQuery({
@@ -27,14 +29,15 @@ export default function BookingFlow() {
   });
 
   const titles: Record<string, string> = {
-    cargo: draft.category ? "How much are you moving?" : "What are you moving?",
-    pickup: "Where are we picking up?",
-    dropoff: "Where is it going?",
-    vehicle: "What should carry it?",
-    review: "Confirm your delivery",
-    payment: "How would you like to pay?",
+    cargo: draft.category ? t("booking.howMuch", lang) : t("booking.whatAreYouMoving", lang),
+    pickup: t("booking.pickupTitle", lang),
+    dropoff: t("booking.dropoffTitle", lang),
+    vehicle: t("booking.vehicleTitle", lang),
+    review: t("booking.reviewTitle", lang),
+    payment: t("booking.paymentTitle", lang),
   };
 
+  if (bookingStep === "quotes") return <QuoteMarketStep />;
   if (["matching", "active", "receipt", "rate", "problem"].includes(bookingStep)) {
     // matching and live screens are full-bleed
     if (bookingStep === "matching") return <MatchingStep />;

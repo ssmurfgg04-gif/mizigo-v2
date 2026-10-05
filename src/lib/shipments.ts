@@ -6,7 +6,7 @@ import { db } from "./db";
 import { canTransition, type Role } from "./state-machine";
 import { buildRoute, alongPolyline, routeLengthKm, haversineKm, SPEED } from "./geo";
 import { shareToken, shipmentCode } from "./format";
-import type { Prisma, Shipment, VehicleCategory, Vehicle, Driver, User } from "@prisma/client";
+import type { Prisma, Shipment, VehicleCategory, Vehicle, Driver, User, Quote } from "@prisma/client";
 
 type ShipmentWithRelations = Shipment & {
   category: VehicleCategory;
@@ -16,6 +16,8 @@ type ShipmentWithRelations = Shipment & {
   items: { id: string; name: string; qty: number; weightKg: number }[];
   events: { id: string; type: string; label: string; actor: string; lat: number | null; lng: number | null; createdAt: Date }[];
   ratings: { id: string; byRole: string; stars: number; tags: string; comment: string | null; createdAt: Date }[];
+  quotes?: (Quote & { driver: (Driver & { user: User | null; vehicles: Vehicle[] }) | null })[];
+  messages?: { id: string; senderRole: string; body: string; createdAt: Date }[];
 };
 
 export interface LivePosition {
@@ -92,6 +94,8 @@ export async function getShipmentFull(where: Prisma.ShipmentWhereUniqueInput): P
       items: true,
       events: { orderBy: { createdAt: "asc" } },
       ratings: true,
+      quotes: { orderBy: { amount: "asc" }, include: { driver: { include: { user: true, vehicles: true } } } },
+      messages: { orderBy: { createdAt: "asc" } },
     },
   });
 }
@@ -192,6 +196,7 @@ export function shipmentDTO(s: ShipmentWithRelations) {
     route: {
       pickup: { name: s.pickupName, area: s.pickupArea, lat: s.pickupLat, lng: s.pickupLng, note: s.pickupNote, contact: s.pickupContact, phone: s.pickupPhone },
       dropoff: { name: s.dropoffName, area: s.dropoffArea, lat: s.dropoffLat, lng: s.dropoffLng, note: s.dropoffNote, contact: s.dropoffContact, phone: s.dropoffPhone },
+      stops: JSON.parse(s.stops || "[]") as { name: string; area?: string; lat: number; lng: number }[],
       polyline: routePolyline(s),
       distanceKm: s.distanceKm, durationMin: s.durationMin,
     },
@@ -200,11 +205,17 @@ export function shipmentDTO(s: ShipmentWithRelations) {
     category: { key: s.category.key, name: s.category.name, capacityKg: s.category.capacityKg, bodyType: s.category.bodyType },
     driver: s.driver && s.driver.user ? { id: s.driver.id, name: s.driver.user.name, rating: s.driver.rating, trips: s.driver.tripsCompleted, phone: s.driver.user.phone, licenceClass: s.driver.licenceClass, initials: s.driver.user.name.split(" ").slice(0, 2).map((w) => w[0]).join("") } : null,
     customer: { id: s.customer.id, name: s.customer.name, phone: s.customer.phone, business: s.customer.accountType === "BUSINESS" ? s.customer.businessName : null },
-    fare: { base: s.fareBase, distance: s.fareDistance, duration: s.fareDuration, loading: s.fareLoading, stops: s.fareStops, platform: s.farePlatform, total: s.fareTotal, driverEarnings: s.driverEarnings, commission: s.commission },
+    fare: { base: s.fareBase, distance: s.fareDistance, duration: s.fareDuration, loading: s.fareLoading, stops: s.fareStops, platform: s.farePlatform, discount: s.fareDiscount, promoCode: s.promoCode, total: s.fareTotal, driverEarnings: s.driverEarnings, commission: s.commission },
+    pricingMode: s.pricingMode,
     payment: { method: s.paymentMethod, status: s.paymentStatus, ref: s.paymentRef, paidAt: s.paidAt?.toISOString() ?? null },
     pod: s.podVerifiedAt ? { recipient: s.podRecipient, verifiedAt: s.podVerifiedAt.toISOString(), lat: s.podLat, lng: s.podLng, photo: s.podPhotoTaken } : null,
     cancelledBy: s.cancelledBy, cancelReason: s.cancelReason,
     events: s.events.map((e) => ({ id: e.id, type: e.type, label: e.label, actor: e.actor, lat: e.lat, lng: e.lng, at: e.createdAt.toISOString() })),
+    quotes: s.quotes?.map((q) => {
+      const v = q.driver?.vehicles?.find((x) => x.categoryId === s.categoryId) ?? q.driver?.vehicles?.[0] ?? null;
+      return { id: q.id, driverId: q.driverId, amount: q.amount, etaText: q.etaText, message: q.message, status: q.status, expiresAt: q.expiresAt.toISOString(), driver: q.driver?.user ? { name: q.driver.user.name, rating: q.driver.rating, trips: q.driver.tripsCompleted } : null, vehicle: v ? { make: v.make, model: v.model, registration: v.registration } : null };
+    }) ?? [],
+    messages: s.messages?.map((m) => ({ id: m.id, senderRole: m.senderRole, body: m.body, at: m.createdAt.toISOString() })) ?? [],
     ratings: s.ratings.map((r) => ({ byRole: r.byRole, stars: r.stars, tags: JSON.parse(r.tags || "[]"), comment: r.comment })),
     live,
   };
@@ -216,7 +227,7 @@ export type ShipmentDTO = ReturnType<typeof shipmentDTO>;
 export async function activeShipments() {
   const rows = await db.shipment.findMany({
     where: { status: { in: ["MATCHING", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "DRIVER_ARRIVED", "LOADING", "LOADED", "IN_TRANSIT", "ARRIVING", "DELIVERED", "POD_CONFIRMED"] } },
-    include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: { orderBy: { createdAt: "asc" } }, ratings: true },
+    include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: { orderBy: { createdAt: "asc" } }, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } }, messages: { orderBy: { createdAt: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
   return rows.map((r) => shipmentDTO(r));

@@ -5,12 +5,13 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { PlaceHit } from "@/lib/types";
+import type { Lang } from "@/lib/i18n";
 
 export type Surface = "welcome" | "customer" | "driver" | "admin" | "track";
 export type CustomerTab = "home" | "trips" | "wallet" | "account";
 export type DriverTab = "home" | "requests" | "trips" | "earnings" | "account";
 export type BookingStep =
-  | "idle" | "cargo" | "pickup" | "dropoff" | "vehicle" | "review" | "payment"
+  | "idle" | "cargo" | "pickup" | "dropoff" | "vehicle" | "review" | "payment" | "quotes"
   | "matching" | "active" | "receipt" | "rate" | "problem";
 
 export interface DraftItem { name: string; qty: number; weightKg: number }
@@ -47,12 +48,17 @@ interface SessionState {
     dropoffNote: string;
     dropoffContact: string;
     dropoffPhone: string;
+    stops: PlaceHit[];
     when: "NOW" | "SCHEDULE";
     scheduledAt: string | null;
     selectedVehicle: string | null;
     paymentMethod: "MPESA" | "CASH" | "CARD";
+    promoCode: string;
+    quoteMode: boolean;
     repeatOf: string | null;
   };
+  lang: Lang;
+  setLang: (l: Lang) => void;
   setSurface: (s: Surface) => void;
   setTrackToken: (t: string | null) => void;
   setUser: (u: SessionUser | null, driverId?: string | null) => void;
@@ -84,10 +90,13 @@ const emptyDraft = () => ({
   dropoffNote: "",
   dropoffContact: "",
   dropoffPhone: "",
+  stops: [] as PlaceHit[],
   when: "NOW" as const,
   scheduledAt: null,
   selectedVehicle: null,
   paymentMethod: "MPESA" as const,
+  promoCode: "",
+  quoteMode: false,
   repeatOf: null,
 });
 
@@ -103,6 +112,8 @@ export const useSession = create<SessionState>()(
       adminTab: "overview",
       bookingStep: "idle",
       focusShipmentId: null,
+      lang: "en" as Lang,
+      setLang: (lang) => set({ lang }),
       draft: emptyDraft(),
       setSurface: (surface) => set({ surface }),
       setTrackToken: (trackToken) => set({ trackToken, surface: trackToken ? "track" : get().surface }),
@@ -119,7 +130,7 @@ export const useSession = create<SessionState>()(
     {
       name: "mizigo-session",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ surface: s.surface, user: s.user, driverId: s.driverId, customerTab: s.customerTab, driverTab: s.driverTab, adminTab: s.adminTab }),
+      partialize: (s) => ({ surface: s.surface, user: s.user, driverId: s.driverId, customerTab: s.customerTab, driverTab: s.driverTab, adminTab: s.adminTab, lang: s.lang }),
     }
   )
 );

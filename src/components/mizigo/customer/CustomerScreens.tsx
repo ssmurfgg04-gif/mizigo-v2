@@ -2,8 +2,8 @@
 // Trips, Wallet, Account — the secondary customer surfaces.
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Banknote, Bell, ChevronRight, CreditCard, LogOut, MapPin, PackageOpen, Smartphone, ChevronDown } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Banknote, Bell, ChevronRight, CreditCard, FileText, Languages, LogOut, MapPin, PackageOpen, Smartphone, Trash2, ChevronDown } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { CustomerHome, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -12,6 +12,7 @@ import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import { kes, fmtDateTimeEAT, relTimeEAT } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
+import { LANGUAGES, t } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 
 // ─── Trips ───
@@ -87,9 +88,62 @@ export function TripsScreen() {
 }
 
 function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: () => void }) {
-  const { setBookingStep, setFocusShipment, setTrackToken } = useSession();
+  const { setBookingStep, setFocusShipment, setTrackToken, patchDraft, resetDraft } = useSession();
   const [podOpen, setPodOpen] = useState(true);
   const canRepeat = s.status === "COMPLETED";
+
+  // plan §70 Book again: preload locations, cargo and vehicle from this trip
+  const bookAgain = () => {
+    resetDraft(true);
+    patchDraft({
+      repeatOf: s.id,
+      category: s.cargo.category,
+      items: s.cargo.items.map((i) => ({ name: i.name, qty: i.qty, weightKg: i.weightKg })),
+      load: s.cargo.load,
+      helpers: s.cargo.helpers,
+      special: s.cargo.special,
+      pickup: { name: s.route.pickup.name, area: s.route.pickup.area, category: "saved", lat: s.route.pickup.lat, lng: s.route.pickup.lng },
+      dropoff: { name: s.route.dropoff.name, area: s.route.dropoff.area, category: "saved", lat: s.route.dropoff.lat, lng: s.route.dropoff.lng },
+      selectedVehicle: s.category.key,
+      promoCode: "",
+      quoteMode: false,
+    });
+    setBookingStep("review");
+    toast({ title: "Delivery pre-filled", description: `Same cargo and route as ${s.code}. Review and confirm.` });
+  };
+
+  const downloadPod = () => {
+    const pod = [
+      "MIZIGO — PROOF OF DELIVERY",
+      `Delivery ID: ${s.code}`,
+      `Date: ${fmtDateTimeEAT(s.pod?.verifiedAt ?? s.createdAt)}`,
+      `Customer: ${s.customer.name}`,
+      `Driver: ${s.driver?.name ?? "—"}`,
+      `Vehicle: ${s.vehicle ? `${s.vehicle.make} ${s.vehicle.model} · ${s.vehicle.registration}` : "—"}`,
+      `Pickup: ${s.route.pickup.name}`,
+      `Destination: ${s.route.dropoff.name}`,
+      "",
+      "CARGO",
+      ...s.cargo.items.map((i) => `  ${i.name} × ${i.qty}${i.weightKg ? ` (${i.weightKg} kg)` : ""}`),
+      "",
+      "DELIVERY STATUS: COMPLETED",
+      `Received by: ${s.pod?.recipient ?? "—"}`,
+      `OTP: verified`,
+      `Time: ${s.pod ? fmtDateTimeEAT(s.pod.verifiedAt) : "—"}`,
+      "Location: GPS recorded",
+      `Photos: ${s.pod?.photo ? "attached" : "—"}`,
+      "",
+      `TOTAL: ${kes(s.fare.total)} · ${s.payment.method === "MPESA" ? "M-PESA" : s.payment.method} ${s.payment.ref ? `· ${s.payment.ref}` : ""}`,
+    ].join("\n");
+    const blob = new Blob([pod], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `MIZIGO-POD-${s.code}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "POD downloaded", description: `${s.code} · delivery record saved.` });
+  };
 
   return (
     <div className="space-y-4 pb-6">
@@ -128,7 +182,12 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
       {/* POD */}
       {s.pod && (
         <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
-          <SectionTitle>Proof of delivery</SectionTitle>
+          <div className="flex items-center justify-between">
+            <SectionTitle>Proof of delivery</SectionTitle>
+            <button onClick={downloadPod} className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand)]">
+              <FileText size={13} /> Download
+            </button>
+          </div>
           <div className="mt-2">
             <Row label="Received by" value={s.pod.recipient} />
             <Row label="Time" value={fmtDateTimeEAT(s.pod.verifiedAt)} />
@@ -163,7 +222,7 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
 
       <div className="grid grid-cols-2 gap-2.5">
         {canRepeat && (
-          <Button variant="outline" onClick={() => toast({ title: "Book again", description: "Locations, vehicle and cargo pre-filled." })}>
+          <Button variant="brand" className={s.status === "DISPUTED" ? "col-span-2" : ""} onClick={bookAgain}>
             Book again
           </Button>
         )}
@@ -171,18 +230,36 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
           Share tracking
         </Button>
       </div>
+
+      {!["CANCELLED"].includes(s.status) && (
+        <button onClick={() => setBookingStep("problem")} className="w-full text-center text-[12.5px] font-bold text-[var(--ink-3)] underline decoration-dotted underline-offset-4">
+          Something wrong? Report a problem
+        </button>
+      )}
     </div>
   );
 }
 
 // ─── Wallet ───
 export function WalletScreen() {
-  const { user } = useSession();
+  const { user, setFocusShipment, setCustomerTab } = useSession();
   const { data } = useQuery({
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>(`/api/customer?userId=${user!.id}`),
     enabled: !!user,
   });
+
+  // plan §40: deep-link a notification into the relevant trip
+  const openNotification = (code: string | null) => {
+    if (!code) return;
+    const target = [...(data?.active ? [data.active] : []), ...(data?.trips ?? [])].find((t) => t.code === code);
+    if (target) {
+      setFocusShipment(target.id);
+      setCustomerTab("trips");
+    } else {
+      toast({ title: "Delivery not found", description: "This delivery may have been removed." });
+    }
+  };
 
   return (
     <div className="space-y-4 pb-6">
@@ -214,14 +291,19 @@ export function WalletScreen() {
           <EmptyState icon={<Bell size={22} />} title="You're all caught up" body="Delivery updates will appear here." />
         ) : (
           data!.notifications.map((n) => (
-            <div key={n.id} className="flex items-start gap-3 border-b border-[var(--line)] px-4 py-3.5 last:border-b-0">
+            <button
+              key={n.id}
+              onClick={() => openNotification(n.shipmentCode)}
+              className="flex w-full items-start gap-3 border-b border-[var(--line)] px-4 py-3.5 text-left transition last:border-b-0 hover:bg-[var(--surface-2)]"
+            >
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Bell size={14} /></span>
               <span className="flex-1">
                 <span className="block text-[13.5px] font-bold">{n.title}</span>
                 <span className="block text-[12px] font-medium text-[var(--ink-2)]">{n.body}</span>
-                <span className="block text-[11px] font-semibold text-[var(--ink-3)]">{relTimeEAT(n.createdAt)}</span>
+                <span className="block text-[11px] font-semibold text-[var(--ink-3)]">{relTimeEAT(n.createdAt)}{n.shipmentCode && n.shipmentCode !== "recent" ? ` · ${n.shipmentCode}` : ""}</span>
               </span>
-            </div>
+              <ChevronRight size={15} className="mt-1.5 shrink-0 text-[var(--ink-3)]" />
+            </button>
           ))
         )}
       </div>
@@ -231,13 +313,26 @@ export function WalletScreen() {
 
 // ─── Account ───
 export function AccountScreen() {
-  const { user, logout, setSurface, setCustomerTab } = useSession();
+  const { user, logout, setSurface, setCustomerTab, lang, setLang } = useSession();
+  const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>(`/api/customer?userId=${user!.id}`),
     enabled: !!user,
   });
   const u = data?.user;
+
+  const removePlace = async (placeId: string) => {
+    if (!user) return;
+    try {
+      await post("/api/customer", { action: "remove-place", userId: user.id, placeId });
+      await qc.invalidateQueries({ queryKey: ["customer-home"] });
+      await qc.invalidateQueries({ queryKey: ["locations"] });
+      toast({ title: "Place removed" });
+    } catch (e) {
+      toast({ title: "Couldn't remove place", description: (e as Error).message, variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-5 pb-6">
@@ -250,7 +345,7 @@ export function AccountScreen() {
         <div className="flex-1">
           <p className="text-[17px] font-extrabold tracking-tight">{u?.name}</p>
           <p className="tnum text-[13px] font-semibold text-[var(--ink-2)]">0{u?.phone.slice(1) ?? ""}</p>
-          {u?.business && <p className="text-[12px] font-bold text-[var(--brand)]">{u.business} · Business</p>}
+          {u?.businessName && <p className="text-[12px] font-bold text-[var(--brand)]">{u.businessName} · Business</p>}
         </div>
       </div>
 
@@ -272,19 +367,67 @@ export function AccountScreen() {
         <div className="border-b border-[var(--line)] px-4 py-4">
           <p className="text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Saved places</p>
           {(data?.saved?.length ?? 0) === 0 ? (
-            <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">No saved places yet.</p>
+            <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">No saved places yet. Star a location while booking to save it.</p>
           ) : (
             <div className="mt-2 space-y-1.5">
               {data!.saved.map((sp) => (
                 <div key={sp.id} className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[10.5px] font-extrabold text-[var(--brand-ink)]">{sp.label.slice(0, 2)}</span>
-                  <span className="flex-1 text-[13.5px] font-bold">{sp.name}</span>
-                  <span className="text-[12px] font-medium text-[var(--ink-3)]">{sp.area}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-bold">{sp.name}</span>
+                    <span className="block text-[12px] font-medium text-[var(--ink-3)]">{sp.label} · {sp.area}</span>
+                  </span>
+                  <button onClick={() => removePlace(sp.id)} className="text-[var(--ink-3)] transition hover:text-[var(--danger)]" aria-label={`Remove ${sp.name}`}>
+                    <Trash2 size={15} />
+                  </button>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {/* business invoices (plan §23) */}
+        {u?.accountType === "BUSINESS" && (
+          <div className="border-b border-[var(--line)] px-4 py-4">
+            <p className="text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Monthly invoices · VAT</p>
+            {(data?.invoices?.length ?? 0) === 0 ? (
+              <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">Invoices appear after your first completed delivery.</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {data!.invoices.map((inv) => (
+                  <div key={inv.month} className="rounded-[12px] bg-[var(--surface-2)] px-3.5 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13.5px] font-extrabold">{new Date(inv.month + "-01").toLocaleDateString("en-KE", { month: "long", year: "numeric" })}</span>
+                      <span className="text-[11px] font-bold text-[var(--success)]">{inv.deliveries} deliveries</span>
+                    </div>
+                    <div className="mt-1.5">
+                      <Row label="Net" value={kes(inv.net)} />
+                      <Row label="VAT (16%)" value={kes(inv.vat)} />
+                      <Row label="Total due" value={kes(inv.total)} strong />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* language (plan §62) */}
+        <div className="border-b border-[var(--line)] px-4 py-4">
+          <p className="flex items-center gap-1.5 text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]"><Languages size={12} /> {t("account.language", lang)}</p>
+          <div className="mt-2 flex gap-2">
+            {LANGUAGES.map((l) => (
+              <button
+                key={l.key}
+                onClick={() => setLang(l.key)}
+                className={`flex-1 rounded-[10px] border-2 px-3 py-2.5 text-[13px] font-bold transition ${lang === l.key ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-ink)]" : "border-[var(--line)] text-[var(--ink-2)]"}`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="px-4 py-4">
           <p className="text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Help &amp; support</p>
           <div className="mt-2 space-y-2">
@@ -302,7 +445,7 @@ export function AccountScreen() {
           <LogOut size={15} /> Log out
         </Button>
       </div>
-      <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo · Nairobi, Kenya · v0.1 sandbox</p>
+      <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo · Nairobi, Kenya · v2 sandbox</p>
     </div>
   );
 }

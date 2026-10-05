@@ -20,18 +20,24 @@ export async function GET(req: Request) {
   });
   if (!driver) return NextResponse.json({ error: "Driver not found" }, { status: 404 });
 
-  const [active, history, payouts] = await Promise.all([
+  const [active, history, payouts, quoteJobs] = await Promise.all([
     db.shipment.findFirst({
       where: { driverId, status: { in: ["DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "DRIVER_ARRIVED", "LOADING", "LOADED", "IN_TRANSIT", "ARRIVING", "DELIVERED", "POD_CONFIRMED"] } },
-      include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true },
+      include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } }, messages: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     }),
     db.shipment.findMany({
       where: { driverId, status: { in: [...ACTIVE_STATES, "COMPLETED", "CANCELLED"] } },
-      include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true },
+      include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, messages: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     }),
     db.payout.findMany({ where: { driverId }, orderBy: { createdAt: "desc" } }),
+    // open quote-marketplace jobs for this driver's vehicle categories (plan §33)
+    db.shipment.findMany({
+      where: { status: "QUOTED", categoryId: { in: driver.vehicles.map((v) => v.categoryId) } },
+      include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } } },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   const completed = history.filter((h) => h.status === "COMPLETED");
@@ -45,7 +51,7 @@ export async function GET(req: Request) {
   const todayEarnings = todayTrips.reduce((a, c) => a + c.driverEarnings, 0);
 
   // 7-day chart
-  const chart = [];
+  const chart: { day: string; earnings: number; trips: number }[] = [];
   for (let i = 6; i >= 0; i--) {
     const dayStart = new Date(todayStart.getTime() - i * DAY);
     const dayEnd = new Date(dayStart.getTime() + DAY);
@@ -74,6 +80,13 @@ export async function GET(req: Request) {
     },
     active: active ? shipmentDTO(active) : null,
     history: history.map(shipmentDTO),
+    quoteJobs: quoteJobs
+      .filter((j) => !j.quotes.some((q) => q.driverId === driverId))
+      .map((j) => ({
+        ...shipmentDTO(j),
+        quotedByMe: j.quotes.some((q) => q.driverId === driverId),
+        quoteCount: j.quotes.filter((q) => q.status === "PENDING").length,
+      })),
     earnings: {
       today: todayEarnings, week: sum(weekStart), month: sum(monthStart),
       todayTrips: todayTrips.length, avgPerTrip: todayTrips.length ? Math.round(todayEarnings / todayTrips.length) : 0,

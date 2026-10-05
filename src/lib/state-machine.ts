@@ -3,7 +3,7 @@
 // allowed actor roles, and appends chain-of-custody events.
 
 export type ShipmentState =
-  | "DRAFT" | "PRICED" | "PAYMENT_PENDING" | "PAYMENT_CONFIRMED"
+  | "DRAFT" | "PRICED" | "QUOTED" | "PAYMENT_PENDING" | "PAYMENT_CONFIRMED"
   | "MATCHING" | "DRIVER_ASSIGNED" | "DRIVER_EN_ROUTE" | "DRIVER_ARRIVED"
   | "LOADING" | "LOADED" | "IN_TRANSIT" | "ARRIVING" | "DELIVERED"
   | "POD_CONFIRMED" | "COMPLETED"
@@ -22,6 +22,8 @@ export interface TransitionRule {
 }
 
 export const TRANSITIONS: TransitionRule[] = [
+  { from: ["PRICED"], to: "QUOTED", action: "request-quotes", actors: ["CUSTOMER", "ADMIN"], label: "Driver quotes requested", type: "QUOTES_REQUESTED" },
+  { from: ["QUOTED"], to: "PAYMENT_PENDING", action: "accept-quote", actors: ["CUSTOMER", "ADMIN"], label: "Quote accepted · fare locked", type: "QUOTE_ACCEPTED" },
   { from: ["PRICED", "PAYMENT_PENDING"], to: "PAYMENT_CONFIRMED", action: "payment-confirmed", actors: ["SYSTEM"], label: "Payment confirmed", type: "PAYMENT_CONFIRMED" },
   { from: ["PRICED", "PAYMENT_CONFIRMED"], to: "MATCHING", action: "request", actors: ["CUSTOMER", "ADMIN"], label: "Finding a vehicle", type: "MATCHING_STARTED" },
   { from: ["MATCHING"], to: "DRIVER_ASSIGNED", action: "assign", actors: ["SYSTEM"], label: "Driver matched", type: "DRIVER_ASSIGNED" },
@@ -35,7 +37,8 @@ export const TRANSITIONS: TransitionRule[] = [
   { from: ["DELIVERED"], to: "POD_CONFIRMED", action: "pod", actors: ["DRIVER", "SYSTEM"], label: "Proof of delivery captured", type: "POD_CONFIRMED" },
   { from: ["POD_CONFIRMED", "DELIVERED"], to: "COMPLETED", action: "complete", actors: ["SYSTEM"], label: "Delivery completed · receipt ready", type: "COMPLETED" },
   { from: ["MATCHING"], to: "NO_DRIVERS", action: "matching-failed", actors: ["SYSTEM"], label: "No suitable vehicle found right now", type: "MATCHING_FAILED" },
-  { from: ["PRICED", "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "MATCHING", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE"], to: "CANCELLED", action: "cancel", actors: ["CUSTOMER", "DRIVER", "ADMIN"], label: "Delivery cancelled", type: "CANCELLED" },
+  { from: ["PRICED", "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "MATCHING", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "QUOTED"], to: "CANCELLED", action: "cancel", actors: ["CUSTOMER", "DRIVER", "ADMIN"], label: "Delivery cancelled", type: "CANCELLED" },
+  { from: ["DELIVERED", "POD_CONFIRMED", "COMPLETED", "CANCELLED"], to: "DISPUTED", action: "dispute-open", actors: ["CUSTOMER", "ADMIN"], label: "Dispute opened", type: "DISPUTE_OPENED" },
 ];
 
 export function canTransition(state: string, action: string, actor: Role): TransitionRule | null {
@@ -64,6 +67,7 @@ export const ACTIVE_STATES = [
 export const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft", PRICED: "Priced", PAYMENT_PENDING: "Awaiting payment",
   PAYMENT_CONFIRMED: "Payment confirmed", MATCHING: "Finding vehicle",
+  QUOTED: "Collecting quotes",
   DRIVER_ASSIGNED: "Driver assigned", DRIVER_EN_ROUTE: "Driver en route",
   DRIVER_ARRIVED: "Driver arrived", LOADING: "Loading", LOADED: "Cargo loaded",
   IN_TRANSIT: "In transit", ARRIVING: "Arriving", DELIVERED: "Unloading",

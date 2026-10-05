@@ -22,12 +22,12 @@ export async function ensureSeed(): Promise<void> {
 export async function seedAll(): Promise<void> {
   // wipe (dev convenience)
   await db.$transaction([
-    db.shipmentEvent.deleteMany(), db.shipmentItem.deleteMany(), db.quote.deleteMany(),
+    db.shipmentEvent.deleteMany(), db.shipmentItem.deleteMany(), db.quote.deleteMany(), db.chatMessage.deleteMany(),
     db.paymentEvent.deleteMany(), db.rating.deleteMany(), db.dispute.deleteMany(),
     db.payout.deleteMany(), db.notification.deleteMany(), db.savedPlace.deleteMany(),
     db.auditLog.deleteMany(), db.shipment.deleteMany(), db.vehicle.deleteMany(),
     db.driver.deleteMany(), db.user.deleteMany(), db.vehicleCategory.deleteMany(),
-    db.pricingZone.deleteMany(), db.place.deleteMany(),
+    db.pricingZone.deleteMany(), db.place.deleteMany(), db.promoCode.deleteMany(), db.platformSetting.deleteMany(),
   ]);
 
   // ── Vehicle categories (rates are illustrative and admin-editable) ──
@@ -62,6 +62,7 @@ export async function seedAll(): Promise<void> {
     { phone: "0744000066", name: "Kevin Otieno", status: "ONLINE", rating: 4.8, tripsCompleted: 122, acceptanceRate: 0.92, onTimePickup: 0.93, onTimeDelivery: 0.91, cancellationRate: 0.025, incidents: 0, lat: -1.2840, lng: 36.8330, vehicle: { make: "Piaggio", model: "Tuk-tuk", registration: "KCT 234M", category: "tuktuk", capacityKg: 300 }, licenceExpiry: ago(-250 * D) },
     { phone: "0755000077", name: "James Mutua", status: "ONLINE", rating: 4.9, tripsCompleted: 502, acceptanceRate: 0.97, onTimePickup: 0.96, onTimeDelivery: 0.97, cancellationRate: 0.01, incidents: 0, lat: -1.3155, lng: 36.8230, vehicle: { make: "Mitsubishi", model: "Fuso 7T", registration: "KBX 567K", category: "lorry_7t", capacityKg: 7000 }, licenceExpiry: ago(-500 * D) },
     { phone: "0766000088", name: "Faith Chebet", status: "ONLINE", rating: 4.6, tripsCompleted: 88, acceptanceRate: 0.88, onTimePickup: 0.9, onTimeDelivery: 0.88, cancellationRate: 0.04, incidents: 0, lat: -1.2613, lng: 36.8027, vehicle: { make: "Nissan", model: "Vanette", registration: "KCF 890L", category: "van", capacityKg: 800 }, licenceExpiry: ago(-150 * D) },
+    { phone: "0777000099", email: "samuel@mizigo.demo", name: "Samuel Kiprop", status: "ONLINE", rating: 4.8, tripsCompleted: 341, acceptanceRate: 0.94, onTimePickup: 0.95, onTimeDelivery: 0.96, cancellationRate: 0.015, incidents: 0, lat: -1.2990, lng: 36.8760, vehicle: { make: "Isuzu", model: "FVR 10T", registration: "KCA 234N", category: "lorry_10t", capacityKg: 10000 }, licenceExpiry: ago(-350 * D) },
   ];
   const drivers = await Promise.all(driverDefs.map(async (d) => {
     const u = await db.user.create({ data: { phone: d.phone, email: d.email, name: d.name, role: "DRIVER", accountType: "PERSONAL", avatarSeed: d.name.split(" ")[0].toLowerCase(), rating: d.rating, verified: true } });
@@ -156,6 +157,26 @@ export async function seedAll(): Promise<void> {
       await db.paymentEvent.create({ data: { shipmentId: s.id, checkoutReqId: `ws_CO_${s.code}`, method: "MPESA", amount: h.total, status: "CONFIRMED", mpesaReceipt: mpesaRef(), createdAt: ago((h.hoursAgo - 2.4) * H) } });
     }
   }
+
+  // ── Platform settings (admin-editable, plan §34/§41) ──
+  await db.platformSetting.createMany({
+    data: [
+      { key: "advanceBookingDays", value: "14" },   // how far ahead scheduled bookings are allowed
+      { key: "autoDispatch", value: "true" },        // false → MATCHING waits for manual dispatch
+      { key: "quoteExpiryMinutes", value: "60" },    // quote marketplace expiry
+      { key: "supportPhone", value: "0800 000 000" },
+    ],
+  });
+
+  // ── Demo promo codes (plan §75) ──
+  await db.promoCode.createMany({
+    data: [
+      { code: "WELCOME500", kind: "FLAT", value: 500, minFare: 1500, firstBookingOnly: true, active: true, expiresAt: ago(-60 * D) },
+      { code: "BIZ10", kind: "PERCENT", value: 10, minFare: 3000, businessOnly: true, active: true, expiresAt: ago(-90 * D) },
+      { code: "MOVE200", kind: "FLAT", value: 200, minFare: 1000, active: true, expiresAt: ago(-30 * D) },
+      { code: "RAMADHAN", kind: "PERCENT", value: 15, minFare: 2000, active: false, expiresAt: ago(10 * D) },
+    ],
+  });
 
   // ── Driver payouts (withdrawal history) ──
   await db.payout.createMany({

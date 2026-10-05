@@ -83,7 +83,7 @@ export function RateScreen() {
 }
 
 export function ReceiptScreen() {
-  const { focusShipmentId, setBookingStep, setCustomerTab, resetDraft, setFocusShipment } = useSession();
+  const { focusShipmentId, setBookingStep, setCustomerTab, resetDraft, setFocusShipment, setTrackToken } = useSession();
 
   const { data } = useQuery({
     queryKey: ["shipment", focusShipmentId],
@@ -93,6 +93,55 @@ export function ReceiptScreen() {
   const s = data?.shipment;
 
   if (!s) return <div className="h-full animate-pulse bg-[var(--surface-2)]" />;
+
+  const isBusiness = !!s.customer.business;
+  const net = Math.round(s.fare.total / 1.16);
+  const vat = s.fare.total - net;
+
+  const download = () => {
+    const lines = [
+      "MIZIGO — DELIVERY RECEIPT",
+      `Delivery ${s.code}`,
+      `Date: ${fmtDateTimeEAT(s.createdAt)}`,
+      isBusiness ? `Billed to: ${s.customer.business}` : `Customer: ${s.customer.name}`,
+      isBusiness ? "PIN: P051234567X (demo)" : "",
+      "",
+      `Pickup: ${s.route.pickup.name}`,
+      `Drop-off: ${s.route.dropoff.name}`,
+      `Vehicle: ${s.category.name}`,
+      `Cargo: ${s.cargo.items.reduce((a, i) => a + i.qty, 0)} items`,
+      s.driver ? `Driver: ${s.driver.name}` : "",
+      "",
+      s.fare.base > 0 ? `Transport: KES ${s.fare.base.toLocaleString()}` : "",
+      s.fare.distance > 0 ? `Distance (${s.route.distanceKm.toFixed(1)} km): KES ${s.fare.distance.toLocaleString()}` : "",
+      s.fare.duration > 0 ? `Time on road: KES ${s.fare.duration.toLocaleString()}` : "",
+      s.fare.loading > 0 ? `Loading assistance: KES ${s.fare.loading.toLocaleString()}` : "",
+      s.fare.stops > 0 ? `Extra stops: KES ${s.fare.stops.toLocaleString()}` : "",
+      s.fare.discount > 0 ? `Promo ${s.fare.promoCode}: -KES ${s.fare.discount.toLocaleString()}` : "",
+      s.fare.platform > 0 ? `Platform fee: KES ${s.fare.platform.toLocaleString()}` : "",
+      "",
+      `TOTAL: KES ${s.fare.total.toLocaleString()}`,
+      isBusiness ? `  (incl. VAT 16% = KES ${vat.toLocaleString()})` : "",
+      "",
+      `Payment: ${s.payment.method === "MPESA" ? "M-PESA" : s.payment.method}`,
+      s.payment.ref ? `Receipt: ${s.payment.ref}` : "",
+      `Status: ${s.payment.status === "CONFIRMED" ? "PAID" : s.payment.status}`,
+    ].filter(Boolean);
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `MIZIGO-RECEIPT-${s.code}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Receipt downloaded", description: `${s.code} · saved to your device.` });
+  };
+
+  const share = () => {
+    setTrackToken(s.shareToken);
+    navigator.clipboard?.writeText(`${location.origin}/?view=track&token=${s.shareToken}`).catch(() => {});
+    toast({ title: "Share", description: "Tracking link copied — anyone can follow this delivery." });
+  };
 
   const close = () => {
     resetDraft();
@@ -110,10 +159,13 @@ export function ReceiptScreen() {
         </div>
         <div className="mt-4 border-t border-dashed border-[var(--line)] pt-3">
           <Row label="Date" value={fmtDateTimeEAT(s.createdAt)} />
+          {isBusiness && <Row label="Billed to" value={s.customer.business ?? ""} />}
+          {isBusiness && <Row label="PIN" value="P051234567X" />}
           <Row label="Pickup" value={s.route.pickup.name} />
           <Row label="Drop-off" value={s.route.dropoff.name} />
           <Row label="Vehicle" value={s.category.name} />
           <Row label="Cargo" value={`${s.cargo.items.reduce((a, i) => a + i.qty, 0)} items`} />
+          {s.route.stops?.length > 0 && <Row label="Stops" value={`${s.route.stops.length} on the way`} />}
           {s.driver && <Row label="Driver" value={`${s.driver.name.split(" ")[0]} ${s.driver.name.split(" ")[1]?.[0]}.`} />}
         </div>
         <div className="mt-3 border-t border-dashed border-[var(--line)] pt-3">
@@ -121,7 +173,10 @@ export function ReceiptScreen() {
           {s.fare.distance > 0 && <Row label={`Distance · ${s.route.distanceKm.toFixed(1)} km`} value={kes(s.fare.distance)} />}
           {s.fare.duration > 0 && <Row label="Time on road" value={kes(s.fare.duration)} />}
           {s.fare.loading > 0 && <Row label="Loading assistance" value={kes(s.fare.loading)} />}
+          {s.fare.stops > 0 && <Row label="Extra stops" value={kes(s.fare.stops)} />}
+          {s.fare.discount > 0 && <Row label={`Promo ${s.fare.promoCode}`} value={`- ${kes(s.fare.discount)}`} />}
           {s.fare.platform > 0 && <Row label="Platform fee" value={kes(s.fare.platform)} />}
+          {isBusiness && <Row label="VAT (16% incl.)" value={kes(vat)} />}
         </div>
         <div className="mt-3 flex items-baseline justify-between border-t-2 border-[var(--ink)] pt-3">
           <span className="text-[15px] font-extrabold">TOTAL</span>
@@ -139,10 +194,10 @@ export function ReceiptScreen() {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2.5">
-        <Button variant="outline" onClick={() => toast({ title: "Receipt saved", description: "PDF download starts in production." })}>
+        <Button variant="outline" onClick={download}>
           <Download size={16} /> Download
         </Button>
-        <Button variant="outline" onClick={() => toast({ title: "Share", description: "Receipt link copied (sandbox)." })}>
+        <Button variant="outline" onClick={share}>
           Share
         </Button>
       </div>

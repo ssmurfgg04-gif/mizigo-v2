@@ -2,7 +2,7 @@
 // MIZIGO — single-route shell. Surfaces switch client-side (?role=customer|driver|admin,
 // ?view=track&token=…). Customer/driver are presented in a phone frame on desktop.
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Building2, Smartphone, Truck, ArrowRight, Wifi, WifiOff } from "lucide-react";
 import { useSession } from "@/store/session";
@@ -14,6 +14,15 @@ import TrackView from "@/components/mizigo/customer/TrackView";
 import { Logo } from "@/components/mizigo/shared/ui";
 
 export default function Page() {
+  // useSearchParams needs a Suspense boundary for static prerender
+  return (
+    <Suspense fallback={<div className="min-h-[100dvh] bg-[var(--night)]" />}>
+      <PageContent />
+    </Suspense>
+  );
+}
+
+function PageContent() {
   const params = useSearchParams();
   const { surface, setSurface, setTrackToken } = useSession();
   const [online, setOnline] = useState(true);

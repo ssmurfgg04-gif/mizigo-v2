@@ -45,3 +45,44 @@ Stage Summary:
 - 37/37 e2e tests green; lint clean; DB reseeded to clean demo state
 - Git: 2 commits on main (a172808 initial, 4acb867 MVP). GitHub push BLOCKED: provided token rejected (401 Bad credentials — likely revoked). Need fresh token + repo name to push.
 - Artifacts: download/MIZIGO_DEMO_GUIDE.md, docs/*, scripts/e2e_test.py + reseed.ts + round.sh
+
+---
+Task ID: 2
+Agent: Super Z (main agent)
+Task: Final review + finish all pending plan items (v2), 10 VLM verification rounds, push to GitHub as mizigo-v2.
+
+Work Log:
+- Verified new GitHub token (user ssmurfgg04-gif, repo+workflow scopes, valid until 2026-11-01)
+- Full plan re-read (11,818 lines) + gap audit against the v1 implementation
+- Prisma v2 models: ChatMessage, PromoCode, PlatformSetting; Shipment promoCode/fareDiscount; Quote driver relation + message/vehicleId/createdAt; db push + client regen
+- State machine: QUOTED state + request-quotes/accept-quote/dispute-open transitions; cancel extended to QUOTED
+- New server features:
+  * Chat: chat action (quick messages + free text, numbers masked), notifications to other party
+  * Quote marketplace: request-quotes / driver-quote (dup-guard, min KES 500) / accept-quote (fare locked to quote, quoting driver reserved, others declined); request action honors reserved driver; sandbox auto-quote simulation on polled GET
+  * Promos: server-side validation (active/expiry/minFare/firstBooking/businessOnly) + discount applied at booking; preview in /api/quote
+  * Multi-stop: stops persisted, per-stop fee, stop-done action appends chain-of-custody event
+  * Scheduling: scheduledAt validated against admin-set advanceBookingDays
+  * Platform settings: advanceBookingDays / autoDispatch / quoteExpiryMinutes / supportPhone — enforced live
+  * Manual dispatch: admin assign-driver for MATCHING/NO_DRIVERS (auto-dispatch off keeps bookings in MATCHING)
+  * Customer route: save-place/remove-place + monthly business invoices (VAT 16%) aggregation
+  * Admin route: customers / payouts (ledger) / support (exception queue) / promotions / settings tabs; analytics topDrivers + cancellation + on-time; dispatch drivers payload in shipments tab
+  * Admin actions: assign-driver, payout-pay, promo-create, promo-toggle, setting-update (all audited)
+- Customer UI: QuoteMarketStep (compare/select quotes), interactive Now/Schedule on home + review (chips + datetime), stops UI in LocationStep (+add/remove) and review, promo input with live preview, dispute ProblemScreen, real Book again prefill, save-place star, notification deep-links, help centre in ActiveTrip, ChatSheet integration, business VAT receipts + invoices, real receipt/POD download (Blob), Kiswahili switcher (i18n core)
+- Driver UI: quote jobs list + submit-quote sheet, stops sequence with Mark done, chat sheet + last-message banner, cargo issue report sheet (mismatch/too-large/loading-fee), real documents sheet with expiry + badges, nav safe-area class bug fixed
+- Admin UI: 5 new tabs (Customers, Payouts, Support, Promotions, Settings), manual dispatch in bookings drawer, QUOTED filter + quote list in detail, analytics extras
+- Seed: 7th driver (Samuel Kiprop, Isuzu FVR 10T) so lorry marketplace has supply; 4 demo promo codes; 4 platform settings; reseed script updated
+- Fixed ~40 pre-existing TypeScript errors (latent under SWC dev): await-null-assertion precedence, Prisma include typing, geo nearestRoadPoint narrowing, ChevronLink props, broken pb-ax() nav class, useSearchParams Suspense boundary for production build
+- 10 VLM verification rounds (80+ feature checks) — found & fixed 4 real bugs:
+  1. MapCanvas SVG rect intercepted clicks on Save-place (svg now pointer-events-none)
+  2. MapCanvas relative+absolute class conflict made canvas overflow its card (conditional relative)
+  3. Driver cargo verify: photo click skipped the "loaded" server transition → start-trip 409 (now chained loaded→start-trip)
+  4. Driver chat banner labeled driver's own messages with customer name (sender-aware label)
+- e2e suite extended 37 → 80 checks (promos, stops, scheduling, quote marketplace, manual dispatch, disputes, saved places, admin tabs/payouts/promotions/settings, notifications) — ALL PASS on fresh seed
+- Lint clean; tsc --noEmit clean; production build green; dev server restarted & verified
+
+Stage Summary:
+- MIZIGO v2 complete: every plan feature implemented or architecturally stubbed-and-labeled; no pending work or open items
+- Deliverable: 3 surfaces + public tracking + quote marketplace + promos + multi-stop + scheduling + chat + disputes + i18n + 15-tab admin
+- 80/80 e2e green; lint/tsc/build green; 10 VLM rounds pass post-fix
+- Artifacts: docs/DEMO_GUIDE.md, download/MIZIGO_DEMO_GUIDE.md, README v2, scripts/e2e_test.py (80 checks)
+- Next: git commit, create GitHub repo mizigo-v2 under ssmurfgg04-gif, push with provided token

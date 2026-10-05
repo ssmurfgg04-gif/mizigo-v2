@@ -6,6 +6,7 @@ import { useSession } from "@/store/session";
 import Onboarding from "./Onboarding";
 import BookingFlow from "./BookingFlow";
 import ActiveTrip from "./ActiveTrip";
+import ProblemScreen from "./ProblemScreen";
 import { RateScreen, ReceiptScreen } from "./ReceiptFlow";
 import { TripsScreen, WalletScreen, AccountScreen } from "./CustomerScreens";
 import HomeScreen from "./HomeScreen";
@@ -27,6 +28,8 @@ export default function CustomerApp() {
   // Full-bleed live screens
   if (bookingStep === "active") return <ActiveTrip />;
   if (bookingStep === "matching") return <BookingFlow />;
+  if (bookingStep === "quotes") return <BookingFlow />;
+  if (bookingStep === "problem") return <ProblemScreen />;
 
   return (
     <div className="flex h-full flex-col bg-[var(--paper)]">

@@ -182,13 +182,15 @@ export const ROADS: Road[] = [
 
 function nearestRoadPoint(p: LatLng, maxKm = 3.5): { pt: LatLng; roadIdx: number; vIdx: number } | null {
   let best: { pt: LatLng; roadIdx: number; vIdx: number; d: number } | null = null;
-  ROADS.forEach((r, ri) => {
-    r.pts.forEach((v, vi) => {
+  for (let ri = 0; ri < ROADS.length; ri++) {
+    const r = ROADS[ri];
+    for (let vi = 0; vi < r.pts.length; vi++) {
+      const v = r.pts[vi];
       const d = haversineKm(p, v);
-      if (d <= maxKm && (!best || d < best.d)) best = { pt: v, roadIdx: ri, vIdx: vi, d };
-    });
-  });
-  return best ? { pt: best!.pt, roadIdx: best!.roadIdx, vIdx: best!.vIdx } : null;
+      if (d <= maxKm && (best === null || d < best.d)) best = { pt: v, roadIdx: ri, vIdx: vi, d };
+    }
+  }
+  return best ? { pt: best.pt, roadIdx: best.roadIdx, vIdx: best.vIdx } : null;
 }
 
 function roadSegment(a: { roadIdx: number; vIdx: number }, b: { roadIdx: number; vIdx: number }): LatLng[] {

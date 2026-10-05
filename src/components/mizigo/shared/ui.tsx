@@ -172,12 +172,12 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
-export function ChevronLink({ children }: { children: ReactNode }) {
+export function ChevronLink({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
   return (
-    <span className="inline-flex items-center gap-0.5 text-[13px] font-bold text-[var(--brand)]">
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-0.5 text-[13px] font-bold text-[var(--brand)]">
       {children}
       <ChevronRight size={14} strokeWidth={2.6} />
-    </span>
+    </button>
   );
 }
 

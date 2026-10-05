@@ -12,7 +12,9 @@ interface QuoteBody {
   pickup: { name: string; area?: string; lat: number; lng: number };
   dropoff: { name: string; area?: string; lat: number; lng: number };
   stops?: { name: string; lat: number; lng: number }[];
-  cargo: { items: CargoItem[]; load: string; helpers: number; special?: string[] };
+  cargo: { category?: string; items: CargoItem[]; load: string; helpers: number; special?: string[] };
+  promoCode?: string;
+  customerId?: string;
 }
 
 export async function POST(req: Request) {
@@ -41,10 +43,36 @@ export async function POST(req: Request) {
   const peak = new Date().getDay() >= 4 && new Date().getHours() >= 16; // Thu+ evenings (mock demand signal)
 
   const recommendedKey = recommendCategory(weightKg, categories, body.cargo.category);
+
+  // ── promo preview (validated again server-side at booking) ──
+  let promo: { code: string; discount: number } | { code: string; error: string } | null = null;
+  const rawPromo = String(body.promoCode ?? "").trim().toUpperCase();
+  if (rawPromo) {
+    const promoRow = await db.promoCode.findUnique({ where: { code: rawPromo } });
+    const customer = body.customerId ? await db.user.findUnique({ where: { id: body.customerId } }) : null;
+    const firstTrip = body.customerId
+      ? !(await db.shipment.count({ where: { customerId: body.customerId, status: { in: ["COMPLETED", "IN_TRANSIT", "ARRIVING", "DELIVERED", "POD_CONFIRMED"] } } }))
+      : false;
+    if (!promoRow || !promoRow.active) promo = { code: rawPromo, error: "That promo code isn't valid." };
+    else if (promoRow.expiresAt && promoRow.expiresAt < new Date()) promo = { code: rawPromo, error: "That promo code has expired." };
+    else if (promoRow.firstBookingOnly && !firstTrip) promo = { code: rawPromo, error: "Only for first deliveries." };
+    else if (promoRow.businessOnly && customer?.accountType !== "BUSINESS") promo = { code: rawPromo, error: "For business accounts." };
+    else promo = { code: promoRow.code, discount: promoRow.kind === "PERCENT" ? promoRow.value : promoRow.value }; // % or flat resolved per quote below
+  }
+  const promoRow = promo && "discount" in promo ? await db.promoCode.findUnique({ where: { code: promo.code } }) : null;
+
   const quotes = categories
     .filter((c) => !(needsCovered && c.bodyType === "open"))
     .map((c) => {
       const fare = priceFor(c, zone, { distanceKm, durationMin, helpers: body.cargo.helpers ?? 0, extraStops, peak });
+      // apply promo preview to this quote's total
+      let discount = 0;
+      if (promo && "discount" in promo && promoRow) {
+        if (promoRow.minFare <= fare.total) {
+          discount = promoRow.kind === "PERCENT" ? Math.round((fare.total * promoRow.value) / 100) : promoRow.value;
+          discount = Math.min(discount, fare.total);
+        }
+      }
       const supply = driversRaw.filter((d) => d.status === "ONLINE" && d.vehicles.some((v) => v.categoryId === c.id)).length;
       // arrival estimate: nearest online driver of this category
       const cands = driversRaw.filter((d) => d.status === "ONLINE" && d.verification === "VERIFIED");
@@ -57,7 +85,8 @@ export async function POST(req: Request) {
         key: c.key, name: c.name, description: c.description, capacityKg: c.capacityKg,
         bodyType: c.bodyType, dimensions: `${c.lengthM} × ${c.widthM} × ${c.heightM} m`,
         volumeM3: c.volumeM3,
-        fare, etaMin, supply,
+        fare: discount > 0 ? { ...fare, total: fare.total - discount, discount, promoCode: promo?.code ?? null } : { ...fare, discount: 0, promoCode: null },
+        etaMin, supply,
         recommended: c.key === recommendedKey,
         fits,
         oversized: weightKg > c.capacityKg,
@@ -67,6 +96,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     distanceKm, durationMin, weightKg, recommendedKey,
     peak,
+    promo,
     quotes,
     nearby: nearbyDrivers(
       driversRaw.map((d) => ({ ...d, user: d.user ? { name: d.user.name } : null })),

@@ -2,10 +2,13 @@
 // Payment step — M-Pesa STK-push simulation (Daraja-shaped, sandbox).
 // Creates the shipment (idempotent), initiates payment, simulates the phone
 // prompt, and confirms server-side. Cash skips straight to matching.
+// Quote-marketplace bookings arrive here with the shipment already created
+// and the fare locked to the accepted quote.
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Smartphone } from "lucide-react";
-import { post } from "@/lib/api-client";
+import { post, api } from "@/lib/api-client";
 import type { ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, Row } from "@/components/mizigo/shared/ui";
@@ -13,33 +16,50 @@ import { kes } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 
 export default function PaymentStep() {
-  const { draft, user, setBookingStep, setFocusShipment } = useSession();
+  const { draft, user, setBookingStep, setFocusShipment, focusShipmentId } = useSession();
   const [phase, setPhase] = useState<"review" | "stk" | "pin" | "confirming" | "done">("review");
   const [shipment, setShipment] = useState<ShipmentDTO | null>(null);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // quote-mode: the shipment exists already (fare locked to the accepted quote)
+  const { data: existing } = useQuery({
+    queryKey: ["shipment", focusShipmentId, "pay"],
+    queryFn: () => api<{ shipment: ShipmentDTO }>(`/api/shipments/${focusShipmentId}`),
+    enabled: !!focusShipmentId && draft.quoteMode,
+  });
+
   const initPayment = async () => {
     if (!user || !draft.selectedVehicle) return;
     setBusy(true);
     try {
-      // create (idempotent by draftId) then pay
-      const created = await post<{ shipment: ShipmentDTO }>("/api/shipments", {
-        draftId: draft.draftId, customerId: user.id,
-        pickup: draft.pickup, dropoff: draft.dropoff,
-        cargo: { category: draft.category, items: draft.items, load: draft.load, helpers: draft.helpers, special: draft.special, notes: draft.notes },
-        categoryKey: draft.selectedVehicle, paymentMethod: draft.paymentMethod,
-        scheduledAt: draft.when === "SCHEDULE" ? draft.scheduledAt : null,
-      });
-      setShipment(created.shipment);
-      setFocusShipment(created.shipment.id);
+      let s = shipment;
+      if (!s) {
+        if (draft.quoteMode && existing?.shipment && existing.shipment.status === "PAYMENT_PENDING") {
+          s = existing.shipment;
+        } else {
+          // create (idempotent by draftId) then pay
+          const created = await post<{ shipment: ShipmentDTO }>("/api/shipments", {
+            draftId: draft.draftId, customerId: user.id,
+            pickup: draft.pickup, dropoff: draft.dropoff,
+            stops: draft.stops.map((st) => ({ name: st.name, lat: st.lat, lng: st.lng })),
+            cargo: { category: draft.category, items: draft.items, load: draft.load, helpers: draft.helpers, special: draft.special, notes: draft.notes },
+            categoryKey: draft.selectedVehicle, paymentMethod: draft.paymentMethod,
+            scheduledAt: draft.when === "SCHEDULE" ? draft.scheduledAt : null,
+            promoCode: draft.promoCode || undefined,
+          });
+          s = created.shipment;
+        }
+        setShipment(s);
+        setFocusShipment(s.id);
+      }
 
       if (draft.paymentMethod === "CASH") {
-        const req = await post(`/api/shipments/${created.shipment.id}/action`, { action: "request", actor: "CUSTOMER" });
+        const req = await post(`/api/shipments/${s.id}/action`, { action: "request", actor: "CUSTOMER" });
         setBookingStep("matching");
         return;
       }
-      await post(`/api/shipments/${created.shipment.id}/action`, { action: "pay" });
+      await post(`/api/shipments/${s.id}/action`, { action: "pay" });
       setPhase("stk");
     } catch (e) {
       toast({ title: "Couldn't start payment", description: (e as Error).message, variant: "destructive" });
@@ -78,6 +98,12 @@ export default function PaymentStep() {
                 ? `We'll send a payment request to ${user?.phone ? `0${user.phone.slice(1)}` : "your phone"}. Check your phone and enter your PIN.`
                 : "You'll pay the driver when the delivery is completed."}
             </p>
+            {draft.quoteMode && existing?.shipment && (
+              <div className="mt-2.5 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-2.5">
+                <Row label="Accepted quote" value={kes(existing.shipment.fare.total)} strong />
+                <Row label="Delivery" value={existing.shipment.code} />
+              </div>
+            )}
           </div>
           <Button variant="brand" className="w-full" onClick={initPayment} loading={busy}>
             {draft.paymentMethod === "MPESA" ? "Pay with M-PESA" : "Request vehicle"}

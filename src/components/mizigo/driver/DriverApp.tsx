@@ -1,12 +1,14 @@
 "use client";
 // Driver app — action-first, one-handed, high information at decision points.
+// Includes quote-marketplace jobs (plan §33), chat (plan §77), stops (plan §35),
+// cargo issue reporting (plan §15) and the documents screen (plan §29).
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Banknote, BriefcaseBusiness, CheckCircle2, ChevronRight, Clock3,
-  FileCheck2, LogOut, MapPin, Navigation, PackageOpen, Phone, Power, Star,
-  TriangleAlert, Truck, User, Wallet,
+  FileCheck2, LogOut, MapPin, MessageCircle, Navigation, PackageOpen, Phone, Power, Star,
+  TriangleAlert, Truck, User, Wallet, X,
 } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { DriverHome, ShipmentDTO } from "@/lib/types";
@@ -14,6 +16,7 @@ import { useSession } from "@/store/session";
 import { Button, EmptyState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus, AvatarInitials } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
+import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import { kes, etaText, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
@@ -135,7 +138,7 @@ function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: 
   );
 }
 
-// ─── Requests (offer + trip flow) ───
+// ─── Requests (offer + trip flow + quote jobs) ───
 function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => void }) {
   const s = data.active;
   const [busy, setBusy] = useState(false);
@@ -143,7 +146,11 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
   const [podPhase, setPodPhase] = useState<"info" | "otp">("info");
   const [podOtp, setPodOtp] = useState("");
   const [recipient, setRecipient] = useState("");
-
+  const [chatOpen, setChatOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportKind, setReportKind] = useState<string | null>(null);
+  const [reportNote, setReportNote] = useState("");
+  const [doneStops, setDoneStops] = useState<number[]>([]);
   if (!s) {
     return <EmptyState icon={<PackageOpen size={22} />} title="No active job" body="When you accept a delivery it will guide you step by step." action={<Button variant="outline" onClick={onDone}>Back home</Button>} />;
   }
@@ -248,9 +255,44 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
           <Row label="Customer" value={s.customer.name} />
           <Row label="Pickup" value={s.route.pickup.name} />
           <Row label="Drop-off" value={s.route.dropoff.name} />
+          {s.route.stops?.length > 0 && (
+            <div className="mt-2 border-t border-[var(--line)] pt-2">
+              <p className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Stop sequence</p>
+              {s.route.stops.map((st, i) => {
+                const serverDone = s.events.some((e) => e.type === "STOP_COMPLETED" && e.label.includes(st.name));
+                const done = serverDone || doneStops.includes(i);
+                return (
+                  <div key={i} className="mt-1.5 flex items-center gap-2.5">
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${done ? "bg-[var(--success)] text-white" : "bg-[var(--ink)] text-white"}`}>{done ? "✓" : i + 1}</span>
+                    <span className={`flex-1 text-[13px] font-bold ${done ? "text-[var(--ink-3)] line-through" : ""}`}>{st.name}</span>
+                    {!done && ["IN_TRANSIT", "ARRIVING"].includes(s.status) && (
+                      <button
+                        onClick={() => { setDoneStops([...doneStops, i]); act("stop-done", { stopIndex: i }); }}
+                        className="rounded-full bg-[var(--brand)] px-3 py-1.5 text-[11.5px] font-extrabold text-white"
+                      >
+                        Mark done
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {s.route.pickup.note && <Row label="Instructions" value={s.route.pickup.note} />}
           <Row label="Earnings" value={kes(s.fare.driverEarnings)} strong />
         </div>
+
+        {/* chat + last message */}
+        {(s.messages?.length ?? 0) > 0 ? (
+          <button onClick={() => setChatOpen(true)} className="mt-3 flex w-full items-center gap-2.5 rounded-[10px] bg-[var(--brand-soft)] px-3.5 py-2.5 text-left">
+            <MessageCircle size={15} className="shrink-0 text-[var(--brand)]" />
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold text-[var(--brand-ink)]">{s.messages![s.messages!.length - 1].senderRole === "DRIVER" ? "You" : s.customer.name.split(" ")[0]}: “{s.messages![s.messages!.length - 1].body}”</span>
+          </button>
+        ) : (
+          <button onClick={() => setChatOpen(true)} className="mt-3 flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand)]">
+            <MessageCircle size={14} /> Message the customer
+          </button>
+        )}
 
         {/* stage actions */}
         <div className="mt-4 space-y-2.5">
@@ -270,7 +312,7 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
                 <Phone size={16} /> Call customer
               </Button>
               <Button variant="brand" className="w-full" onClick={() => act("start-loading")} loading={busy}>Start loading</Button>
-              <button onClick={() => toast({ title: "Report sent to support", description: "Ops will review the cargo details." })} className="w-full text-[12.5px] font-bold text-[var(--warn)] underline underline-offset-4">
+              <button onClick={() => setReportOpen(true)} className="w-full text-[12.5px] font-bold text-[var(--warn)] underline underline-offset-4">
                 Cargo differs from the booking?
               </button>
             </>
@@ -307,7 +349,16 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
           {stage === "VERIFY" && cargoCheck && (
             <>
               <p className="flex items-center gap-2 text-[13.5px] font-bold text-[var(--success)]"><CheckCircle2 size={16} /> {cargoCheck.photos} photos attached · condition: {cargoCheck.condition}</p>
-              <Button variant="brand" className="w-full" onClick={() => act("start-trip")} loading={busy}>Start delivery</Button>
+              <Button
+                variant="brand" className="w-full" loading={busy}
+                onClick={async () => {
+                  // confirm loaded with ops, then start the delivery leg
+                  await act("loaded");
+                  await act("start-trip");
+                }}
+              >
+                Start delivery
+              </Button>
             </>
           )}
 
@@ -365,6 +416,53 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
           )}
         </div>
       </div>
+
+      {/* chat sheet (plan §77) */}
+      {chatOpen && s && <ChatSheet shipmentId={s.id} role="DRIVER" onClose={() => setChatOpen(false)} />}
+
+      {/* cargo issue report (plan §15) */}
+      {reportOpen && s && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => { setReportOpen(false); setReportKind(null); setReportNote(""); }}>
+          <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[17px] font-extrabold tracking-tight">Report a cargo issue</p>
+            <p className="mt-0.5 text-[12.5px] font-medium text-[var(--ink-2)]">Ops is notified immediately and the report is added to {s.code}&apos;s chain of custody.</p>
+            <div className="mt-3.5 space-y-2">
+              {[
+                { key: "mismatch", label: "Cargo differs from the booking", hint: "Wrong items or quantities" },
+                { key: "too-large", label: "Cargo too large for my vehicle", hint: "Needs a bigger vehicle or a second trip" },
+                { key: "loading-fee", label: "Request an extra loading fee", hint: "Heavy lifting beyond what was booked" },
+              ].map((o) => {
+                const on = reportKind === o.key;
+                return (
+                  <button key={o.key} onClick={() => setReportKind(o.key)} className={`flex w-full items-center gap-3 rounded-[12px] border-2 px-4 py-3 text-left transition ${on ? "border-[var(--brand)] bg-[var(--brand-soft)]" : "border-[var(--line)]"}`}>
+                    <span className="flex-1">
+                      <span className="block text-[13.5px] font-extrabold">{o.label}</span>
+                      <span className="block text-[11.5px] font-medium text-[var(--ink-2)]">{o.hint}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              value={reportNote}
+              onChange={(e) => setReportNote(e.target.value.slice(0, 200))}
+              placeholder="Add a note (optional)"
+              className="mt-3 h-12 w-full rounded-[10px] border border-[var(--line)] bg-[var(--paper)] px-3.5 text-[13.5px] font-semibold outline-none focus:border-[var(--brand)]"
+            />
+            <Button
+              variant="brand" className="mt-3 w-full" disabled={!reportKind}
+              onClick={async () => {
+                const labels: Record<string, string> = { mismatch: "Cargo differs from booking", "too-large": "Cargo too large for vehicle", "loading-fee": "Extra loading fee requested" };
+                await act("report-mismatch", { reason: reportNote ? `${labels[reportKind!]} · ${reportNote}` : labels[reportKind!] });
+                setReportOpen(false); setReportKind(null); setReportNote("");
+                toast({ title: "Report sent", description: "Ops will review and adjust if needed." });
+              }}
+            >
+              Send report to ops
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -521,6 +619,11 @@ function DriverEarningsScreen({ data }: { data: DriverHome }) {
 function DriverAccountScreen({ data }: { data: DriverHome }) {
   const { logout } = useSession();
   const v = data.driver.vehicles[0];
+  const [docsOpen, setDocsOpen] = useState(false);
+
+  const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "—");
+  const docTone = (status: string) => (status === "VERIFIED" ? "success" : status === "PENDING" ? "warn" : "danger");
+
   return (
     <div className="space-y-4 pb-6">
       <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">Account</h1>
@@ -568,10 +671,10 @@ function DriverAccountScreen({ data }: { data: DriverHome }) {
 
       <div className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">
         {[
-          { icon: FileCheck2, label: "Documents", desc: "Licence · insurance · inspection" },
-          { icon: TriangleAlert, label: "Report a problem", desc: "Support is one tap away" },
+          { icon: FileCheck2, label: "Documents", desc: "Licence · insurance · inspection", action: () => setDocsOpen(true) },
+          { icon: TriangleAlert, label: "Report a problem", desc: "Support is one tap away", action: () => toast({ title: "Support", description: "Reach us on 0800 000 000 (sandbox) — ops sees your active trip." }) },
         ].map((r) => (
-          <button key={r.label} onClick={() => toast({ title: r.label, description: "Sandbox screen." })} className="flex w-full items-center gap-3.5 border-b border-[var(--line)] px-4 py-4 text-left last:border-b-0 transition hover:bg-[var(--surface-2)]">
+          <button key={r.label} onClick={r.action} className="flex w-full items-center gap-3.5 border-b border-[var(--line)] px-4 py-4 text-left last:border-b-0 transition hover:bg-[var(--surface-2)]">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--ink-2)]"><r.icon size={16} /></span>
             <span className="flex-1">
               <span className="block text-[14.5px] font-bold">{r.label}</span>
@@ -582,8 +685,41 @@ function DriverAccountScreen({ data }: { data: DriverHome }) {
         ))}
       </div>
 
+      {/* documents sheet (plan §29) */}
+      {docsOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => setDocsOpen(false)}>
+          <div className="max-h-[80%] w-full animate-mz-slide-up overflow-y-auto rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5 thin-scrollbar" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="text-[17px] font-extrabold tracking-tight">Documents</p>
+              <button onClick={() => setDocsOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface-2)] text-[13px] font-extrabold" aria-label="Close">✕</button>
+            </div>
+            <p className="mt-0.5 text-[12.5px] font-medium text-[var(--ink-2)]">Expired documents pause new jobs automatically. Keep them current.</p>
+            <div className="mt-4 space-y-2.5">
+              {[
+                { label: "Driving licence", detail: `Class ${data.driver.licenceClass}`, status: "VERIFIED", expiry: data.driver.licenceExpiry },
+                ...(v ? [
+                  { label: "Vehicle registration", detail: `${v.make} ${v.model} · ${v.registration}`, status: v.docs.registration, expiry: null },
+                  { label: "Insurance", detail: "Commercial cover", status: v.docs.insurance, expiry: v.insuranceExpiry },
+                  { label: "Inspection", detail: "Annual roadworthiness", status: v.docs.inspection, expiry: v.inspectionExpiry },
+                ] : []),
+              ].map((doc) => (
+                <div key={doc.label} className="flex items-center gap-3.5 rounded-[14px] border border-[var(--line)] bg-[var(--paper)] px-4 py-3.5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]"><FileCheck2 size={16} className="text-[var(--ink-2)]" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-extrabold">{doc.label}</span>
+                    <span className="block text-[12px] font-medium text-[var(--ink-2)]">{doc.detail}</span>
+                    <span className="block text-[11.5px] font-semibold text-[var(--ink-3)]">Expires {fmtDate(doc.expiry)}</span>
+                  </span>
+                  <StatusBadge tone={docTone(doc.status) as "success" | "warn" | "danger"}>{doc.status === "VERIFIED" ? "✓ Verified" : doc.status}</StatusBadge>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <Button variant="ghost" className="w-full" onClick={logout}><LogOut size={15} /> Log out</Button>
-      <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo Driver · v0.1 sandbox</p>
+      <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo Driver · v2 sandbox</p>
     </div>
   );
 }
@@ -606,6 +742,97 @@ function useDriverActions() {
       }
     },
   };
+}
+
+// ─── quote marketplace jobs (plan §33: "Potential job" cards) ───
+function DriverQuoteJobsScreen({ data }: { data: DriverHome }) {
+  const { driverId } = useSession();
+  const qc = useQueryClient();
+  const [openJob, setOpenJob] = useState<string | null>(null);
+  const [amount, setAmount] = useState("");
+  const [etaText, setEtaText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const jobs = data.quoteJobs ?? [];
+
+  const submitQuote = async (jobId: string) => {
+    if (!driverId) return;
+    const amt = Number(amount);
+    if (!amt || amt < 500) {
+      toast({ title: "Enter a quote of KES 500 or more" });
+      return;
+    }
+    setBusy(true);
+    try {
+      await post(`/api/shipments/${jobId}/action`, { action: "driver-quote", actor: "DRIVER", driverId, amount: amt, etaText: etaText || "Within the hour" });
+      await qc.invalidateQueries({ queryKey: ["driver-home", driverId] });
+      setOpenJob(null); setAmount(""); setEtaText("");
+      toast({ title: "Quote submitted", description: `KES ${amt.toLocaleString()} — the customer has been notified.` });
+    } catch (e) {
+      toast({ title: "Couldn't submit quote", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (jobs.length === 0) {
+    return <EmptyState icon={<PackageOpen size={22} />} title="No open jobs" body="Quote requests for your vehicle class will appear here. Stay online." />;
+  }
+
+  return (
+    <div className="space-y-4 pb-6">
+      <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">Potential jobs</h1>
+      <p className="-mt-2 px-1 text-[12.5px] font-medium text-[var(--ink-2)]">Customers waiting for transporter quotes. Quote your price — they pick the best offer.</p>
+      <div className="space-y-2.5">
+        {jobs.map((j) => (
+          <div key={j.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
+            <div className="flex items-center justify-between">
+              <StatusBadge tone="active">Open for quotes</StatusBadge>
+              <span className="tnum text-[12px] font-bold text-[var(--ink-3)]">{j.code}</span>
+            </div>
+            <p className="mt-2.5 text-[15.5px] font-extrabold tracking-tight">{j.route.pickup.area} → {j.route.dropoff.area}</p>
+            <div className="mt-2 rounded-[12px] bg-[var(--surface-2)] px-4 py-3">
+              <Row label="Cargo" value={`${j.cargo.items.reduce((a, i) => a + i.qty, 0)} items · ${j.cargo.category}`} />
+              <Row label="Vehicle" value={j.category.name} />
+              <Row label="Distance" value={`${j.route.distanceKm.toFixed(1)} km`} />
+              <Row label="Instant estimate" value={kes(j.fare.total)} />
+              {j.quoteCount > 0 && <Row label="Competing quotes" value={`${j.quoteCount}`} />}
+            </div>
+            {openJob === j.id ? (
+              <div className="mt-3 animate-mz-fade-in space-y-2.5">
+                <label className="block">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Your quote (KES)</span>
+                  <input
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                    placeholder="e.g. 32000"
+                    inputMode="numeric"
+                    className="tnum mt-1.5 h-14 w-full rounded-[10px] border border-[var(--line)] bg-[var(--paper)] px-4 text-[18px] font-extrabold outline-none focus:border-[var(--brand)]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Arrival (optional)</span>
+                  <input
+                    value={etaText}
+                    onChange={(e) => setEtaText(e.target.value.slice(0, 30))}
+                    placeholder="e.g. Tomorrow 08:00"
+                    className="mt-1.5 h-12 w-full rounded-[10px] border border-[var(--line)] bg-[var(--paper)] px-3.5 text-[14px] font-semibold outline-none focus:border-[var(--brand)]"
+                  />
+                </label>
+                <div className="flex gap-2.5">
+                  <Button variant="brand" className="flex-1" loading={busy} onClick={() => submitQuote(j.id)}>Submit quote</Button>
+                  <Button variant="ghost" onClick={() => { setOpenJob(null); setAmount(""); }}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="brand" className="mt-3 w-full" onClick={() => setOpenJob(j.id)}>
+                Quote this job
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ─── shell ───
@@ -644,7 +871,13 @@ export default function DriverApp() {
         ) : (
           <div className="mx-auto w-full max-w-[480px] px-5 pt-2">
             {driverTab === "home" && <DriverHomeScreen data={data} onOpenTrip={() => setTripOpen(true)} />}
-            {driverTab === "requests" && (hasActive ? <DriverTripScreen data={data} onDone={() => setTripOpen(false)} /> : <EmptyState icon={<PackageOpen size={22} />} title="No active job" body="Accept a request to see the step-by-step trip guide." />)}
+            {driverTab === "requests" && (
+              hasActive ? (
+                <DriverTripScreen data={data} onDone={() => setTripOpen(false)} />
+              ) : (
+                <DriverQuoteJobsScreen data={data} />
+              )
+            )}
             {driverTab === "trips" && <DriverTripsScreen data={data} />}
             {driverTab === "earnings" && <DriverEarningsScreen data={data} />}
             {driverTab === "account" && <DriverAccountScreen data={data} />}
@@ -657,7 +890,7 @@ export default function DriverApp() {
           <div className="mx-auto flex max-w-[480px]">
             {DRIVER_TABS.map((t) => {
               const active = driverTab === t.key;
-              const dot = t.key === "requests" && hasActive;
+              const dot = (t.key === "requests" && hasActive) || (t.key === "requests" && (data.quoteJobs?.length ?? 0) > 0);
               return (
                 <button key={t.key} onClick={() => setDriverTab(t.key)} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5" aria-current={active ? "page" : undefined}>
                   <t.icon size={20} strokeWidth={active ? 2.4 : 2} className={active ? "text-[var(--ink)]" : "text-[var(--ink-3)]"} />
