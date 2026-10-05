@@ -16,14 +16,29 @@ On the first request after a deploy, the API bootstraps itself: SQLite is create
 
 Prisma query engines for the Netlify function runtime are prebuilt via `binaryTargets` in `prisma/schema.prisma`.
 
-Local production-parity check: `rm -f /tmp/mizigo.db && NETLIFY=1 npm run build:netlify && NETLIFY=1 DATABASE_URL=file:/tmp/mizigo.db npx next start -p 3100` — the app self-bootstraps from an empty `/tmp` (80/80 e2e green against it).
+Local production-parity check: `bash scripts/prod_sim.sh` — builds with `NETLIFY=1`, boots a fresh `/tmp` SQLite and runs the full 147-check e2e against the production server (then restarts dev).
+
+## Security model (public-deploy ready)
+
+The sandbox keeps honest mocks, but the trust boundaries are real:
+
+- **Sessions** — login issues an HMAC-SHA256–signed, HttpOnly cookie (`src/lib/security.ts`); every protected route derives identity from the session, never from the client. Logout revokes server-side.
+- **OTP** — the mock SMS provider *does* verify: codes are server-generated, expire in 5 minutes, allow 5 attempts, and are consumed on use (the sandbox displays the code in-app — that's the labeled mock).
+- **Authorization** — role checks on admin/driver surfaces; the unified action endpoint enforces a per-action matrix (customer / assigned driver / admin; QUOTED marketplace jobs accept any driver's quote). IDOR tested and closed (cross-customer reads, share-link minting, chat, driver-station actions all 403).
+- **Rate limiting** — sliding-window limits per IP on every mutating route (auth, bookings, quotes, actions, return-load claims).
+- **Validation** — coordinates bounded to the service region, quantities/weights clamped, string/array caps everywhere (fuzz-tested: NaN/1e308/out-of-region → 400).
+- **Atomicity** — state transitions use a conditional-update claim (exactly one winner under concurrency; races return 409); pay-confirm is idempotent under concurrent calls; return-load claims are atomic.
+- **Headers** — CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy (Next config + netlify.toml).
+- **Public tracking** — hashed capabilities only; no phones, notes or customer names leave the public surface (verified by tests).
+
+The e2e suite includes a 46-check security matrix + stress section (concurrency, malformed bodies, rate-limit floods) — `python3 scripts/e2e_test.py`.
 
 ## What's inside
 
 | Surface | Entry | Highlights |
 |---|---|---|
-| **Customer app** | `/?role=customer` (demo login: John K.) | Cargo-first booking flow, vehicle recommendation with locked upfront price, **multi-stop deliveries**, **scheduled bookings**, **promo codes**, **quote marketplace for large loads**, M-PESA STK simulation, live tracking, **in-app chat with quick messages**, **help centre**, POD, rating, receipt (+ **VAT invoices for business accounts**), trip history, **Book again**, **saved places**, notification deep-links, **English/Kiswahili switcher**, business account demo (ABC Traders) |
-| **Driver app** | `/?role=driver` (demo: Peter Kamau) | Online/offline, earnings today + 7-day chart, demand map, job offers with full earnings disclosure, step-by-step trip flow with cargo verification + POD capture, **quote submission for marketplace jobs**, **stop sequence with mark-done**, **chat with the customer**, **cargo issue reporting to ops**, **documents screen** (licence/insurance/inspection with expiry), wallet + M-PESA withdrawals |
+| **Customer app** | `/?role=customer` (demo login: John K.) | Cargo-first booking flow, vehicle recommendation with locked upfront price, **multi-stop deliveries**, **scheduled bookings**, **promo codes**, **quote marketplace for large loads**, M-PESA STK simulation, live tracking, **delivery-code POD handshake**, **safety centre + goods-in-transit cover copy**, **notification centre**, in-app chat with quick messages, help centre, rating, receipt (+ **VAT invoices for business accounts**), trip history, **Book again**, **saved places**, **English/Kiswahili switcher**, business account demo (ABC Traders) |
+| **Driver app** | `/?role=driver` (demo: Peter Kamau) | Online/offline, earnings today + 7-day chart, demand map, job offers with full earnings disclosure + **customer ratings**, step-by-step trip flow with cargo verification, **delivery-code verification at POD**, quote submission for marketplace jobs, stop sequence with mark-done, chat with the customer, cargo issue reporting, documents screen, wallet + balance-checked M-PESA withdrawals |
 | **Admin console** | `/?role=admin` | KPI dashboard, live network map, bookings table + chain-of-custody drawers, **manual dispatch (assign driver)**, driver management with document verification, **customer/business accounts**, **live pricing editor** (zone + per-vehicle-category, no redeploy), payments, **payout ledger (B2C)**, disputes, **support exception queue**, **promotions manager**, analytics (+ **top drivers**), **platform settings** (advance-booking window, auto-dispatch toggle, quote expiry, hotline), audit log |
 | **Public tracking** | `/?view=track&token=…` | No-login recipient page: driver first name, vehicle, ETA, status, journey timeline. No phones or private data. |
 
