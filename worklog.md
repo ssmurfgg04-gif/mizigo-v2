@@ -135,3 +135,33 @@ Stage Summary:
 - MIZIGO v2 is Netlify-ready: connect repo → deploy, API self-bootstraps SQLite in /tmp (no DB service needed for the sandbox)
 - New route-M brand system end-to-end (app + favicons + PWA + OG), premium vehicle illustration set, cinematic yet light (109KB) login
 - Fully responsive: SE → tablet → desktop; 80/80 e2e green on dev and simulated serverless
+
+---
+Task ID: 5
+Agent: Super Z (main agent)
+Task: Mine the REAL v1 (github.com/ssmurfgg04-gif/mizigo-v1) into v2 — merge all its goodness.
+
+Work Log:
+- User corrected: the wrong v1 had been mined (an old commit inside v2's own history). Cloned the real mizigo-v1 (449-commit Fastify+PostgreSQL monorepo, Leaflet/OSM/Photon/OSRM zero-key stack) to mine/mizigo-v1 (gitignored)
+- Deep-read all of v1: README/PRODUCT/DESIGN/AGENTS + 6 docs + all domain/repo code + all 6 web pages + admin + 23 SQL migrations. Extracted the full goodness inventory
+- Merged 6 v1 features v2 lacked:
+  1. Return-load/empty-leg marketplace (v1 flagship): ReturnLoad model + DDL, GET /api/return-loads, atomic-claim book endpoint (real shipment at empty-leg price, driver pre-assigned), publish/cancel driver actions, customer deals rail + booking sheet, driver "Sell your return leg" publisher, admin KPI (legs live · −NN%), 4 seeded legs with honest tariff-based savings, i18n en+sw
+  2. Two-sided reputation: driver Rate-customer UI in Trips tab + customer rating roll on server
+  3. Night surcharge (×1.12) + planned-delivery discount (−5%): DB-driven zone fields, fare lines, quote/shipment/receipt/admin-pricing wired, isNightHour against scheduled time
+  4. Reliability score (v1 formula 0.45·completion+0.35·rating+0.20·onTime−incidents): 18% of dispatch score + Network reliability row in driver Account
+  5. Hashed share tokens (v1 security lesson): src/lib/tokens.ts — 24-byte tokens stored as sha256 only, track lookup by hash, share-link mint-on-demand action, Share button via Web Share API
+  6. v1 trust copy: 01 Know the price / 02 Know the driver / 03 Know the delivery trio + "Built for Kenya · Architected for East Africa" on the desktop shell
+- Schema: PricingZone.nightMultiplier/scheduledDiscount, Shipment.fareNight/fareSchedule/returnLoadId, ReturnLoad model; db push + client regen + make_ddl.py (35 statements)
+- tsconfig excludes mine/ (v1 clone was polluting typecheck)
+- QA: eslint clean, tsc clean, production build green
+- e2e extended 74 checks (was ~60): +driver-rates-customer, +return-load market/publish/book/double-claim/KPI, +night surcharge line, +planned discount line, +share-link mint, +stale token rejected
+- Fixed reseed flow (dev server caches ensureDB promise — restart server between wipe and bootstrap)
+- VLM 4 rounds ALL PASS: deals rail+sheet, driver publisher+rate-customer, admin KPI+desktop trust trio, welcome non-regression+public track (no phone leak)
+- Netlify sim: fresh /tmp SQLite → cold-start DDL+seed → 74/74 e2e ALL PASS on NETLIFY=1 production build (:3100)
+- Docs: docs/MINING.md (full mining log), README core-engineering + docs sections updated
+
+Stage Summary:
+- The REAL v1 mined: return-load marketplace, two-sided reputation, night/planned pricing, reliability score, hashed tokens, trust copy — all merged on v2's stack, all verified
+- 74/74 e2e green on dev AND Netlify production sim; 4 VLM rounds pass; lint/tsc/build green
+- Netlify-ready: cold-start self-bootstrap includes the new ReturnLoad table
+- Next: commit + push to ssmurfgg04-gif/mizigo-v2

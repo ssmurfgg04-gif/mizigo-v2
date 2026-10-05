@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   if (tab === "overview") {
     const DAY = 86400_000;
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
-    const [active, todayBookings, drivers, vehicles, payments, disputes, completed] = await Promise.all([
+    const [active, todayBookings, drivers, vehicles, payments, disputes, completed, returnLoads] = await Promise.all([
       activeShipments(),
       db.shipment.findMany({ where: { createdAt: { gte: todayStart } }, include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true } }),
       db.driver.findMany({ include: { user: true, vehicles: true } }),
@@ -25,6 +25,7 @@ export async function GET(req: Request) {
       db.paymentEvent.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
       db.dispute.findMany({ where: { status: { in: ["OPEN", "RESOLVING"] } } }),
       db.shipment.findMany({ where: { status: "COMPLETED" }, select: { fareTotal: true, farePlatform: true, commission: true, distanceKm: true, driverEarnings: true, createdAt: true, durationMin: true } }),
+      db.returnLoad.findMany({ where: { status: "AVAILABLE" } }),
     ]);
     const todayCompleted = todayBookings.filter((b) => b.status === "COMPLETED");
     const onlineDrivers = drivers.filter((d) => d.status === "ONLINE");
@@ -43,6 +44,8 @@ export async function GET(req: Request) {
         avgDeliveryTime: completed.length ? Math.round(completed.reduce((a, c) => a + c.durationMin, 0) / completed.length) : 0,
         completedTotal: completed.length,
         pendingDisputes: disputes.length,
+        returnLoadsLive: returnLoads.length,
+        returnLoadsAvgDiscount: returnLoads.length ? Math.round(returnLoads.reduce((a, l) => a + (1 - l.priceKes / Math.max(1, l.normalPriceKes)), 0) / returnLoads.length * 100) : 0,
       },
       live: active,
       drivers: drivers.map((d) => ({

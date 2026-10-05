@@ -17,6 +17,8 @@ import { Button, EmptyState, ListSkeleton, Row, SectionTitle, StatusBadge, toneF
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ChatSheet from "@/components/mizigo/shared/ChatSheet";
+import ReturnLoadPublisher from "./ReturnLoadPublisher";
+import { driverReliability } from "@/lib/matching";
 import { kes, etaText, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
@@ -122,6 +124,9 @@ function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: 
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[var(--success)]" /> Steady</span>
         </div>
       </div>
+
+      {/* return-capacity marketplace (v1 goodness) */}
+      <ReturnLoadPublisher data={data} />
 
       {/* reputation strip */}
       <div className="flex items-center gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
@@ -472,7 +477,28 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
 // ─── Trips ───
 function DriverTripsScreen({ data }: { data: DriverHome }) {
   const [tab, setTab] = useState<"ALL" | "COMPLETED" | "CANCELLED">("ALL");
+  const [rating, setRating] = useState<null | { shipmentId: string; stars: number }>(null);
+  const [busy, setBusy] = useState(false);
+  const qc = useQueryClient();
   const filtered = data.history.filter((t) => (tab === "ALL" ? true : t.status === tab));
+
+  const rateCustomer = async (shipmentId: string, stars: number) => {
+    setBusy(true);
+    try {
+      await post(`/api/shipments/${shipmentId}/action`, {
+        action: "rate", actor: "DRIVER", stars,
+        tags: stars >= 4 ? ["On site ready", "Cargo as booked"] : [],
+      });
+      toast({ title: "Customer rated", description: "Thanks. Your rating keeps the network reliable for every driver." });
+      setRating(null);
+      qc.invalidateQueries({ queryKey: ["driver"] });
+    } catch (e) {
+      toast({ title: "Rating failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-4 pb-6">
       <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">My trips</h1>
@@ -487,7 +513,9 @@ function DriverTripsScreen({ data }: { data: DriverHome }) {
         <EmptyState icon={<PackageOpen size={22} />} title="No trips yet" body="Go online to start receiving delivery requests." />
       ) : (
         <div className="space-y-2.5">
-          {filtered.map((t) => (
+          {filtered.map((t) => {
+            const iRated = t.ratings.some((r) => r.byRole === "DRIVER");
+            return (
             <div key={t.id} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4">
               <div className="flex items-center justify-between">
                 <span className="tnum text-[11.5px] font-bold text-[var(--ink-3)]">{t.code} · {relTimeEAT(t.createdAt)}</span>
@@ -498,8 +526,40 @@ function DriverTripsScreen({ data }: { data: DriverHome }) {
                 <span className="text-[12.5px] font-medium text-[var(--ink-2)]">{t.route.distanceKm.toFixed(1)} km · {t.cargo.items.reduce((a, i) => a + i.qty, 0)} items</span>
                 <span className="tnum text-[15px] font-extrabold">{kes(t.fare.driverEarnings)}</span>
               </div>
+              {t.status === "COMPLETED" && !iRated && (
+                <div className="mt-3 border-t border-dashed border-[var(--line)] pt-3">
+                  <p className="text-[12px] font-bold text-[var(--ink-2)]">How was {t.customer.name.split(" ")[0]} to work with?</p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((v) => (
+                      <button
+                        key={v}
+                        disabled={busy}
+                        onClick={() => setRating({ shipmentId: t.id, stars: v })}
+                        className={`text-[24px] leading-none transition ${rating?.shipmentId === t.id && rating.stars >= v ? "text-[var(--brand)]" : "text-[var(--line)]"} hover:text-[var(--brand)]`}
+                        aria-label={`${v} star${v === 1 ? "" : "s"}`}
+                      >
+                        <Star className="fill-current" size={22} />
+                      </button>
+                    ))}
+                    <Button
+                      variant="brand"
+                      className="ml-auto h-9 px-4 text-[12px]"
+                      disabled={busy || rating?.shipmentId !== t.id}
+                      onClick={() => rating && rateCustomer(t.id, rating.stars)}
+                    >
+                      {busy ? "Saving…" : "Rate customer"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {t.status === "COMPLETED" && iRated && (
+                <p className="mt-2.5 flex items-center gap-1.5 border-t border-dashed border-[var(--line)] pt-2.5 text-[11.5px] font-bold text-[var(--ink-3)]">
+                  <Star size={12} className="fill-[var(--brand)] text-[var(--brand)]" /> You rated this customer
+                </p>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -660,13 +720,17 @@ function DriverAccountScreen({ data }: { data: DriverHome }) {
       <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
         <SectionTitle>Reliability</SectionTitle>
         <div className="mt-2">
+          <Row label="Network reliability" value={`${Math.round(driverReliability({ tripsCompleted: data.driver.trips, cancellationRate: data.driver.cancellationRate, incidents: data.driver.incidents, rating: data.driver.rating, onTimeDelivery: data.driver.onTimeDelivery }) * 100)}%`} strong />
           <Row label="On-time pickup" value={`${Math.round(data.driver.onTimePickup * 100)}%`} />
           <Row label="On-time delivery" value={`${Math.round(data.driver.onTimeDelivery * 100)}%`} />
           <Row label="Acceptance" value={`${Math.round(data.driver.acceptanceRate * 100)}%`} />
           <Row label="Cancellations" value={`${(data.driver.cancellationRate * 100).toFixed(1)}%`} />
           <Row label="Cargo incidents" value={`${data.driver.incidents}`} />
-          <Row label="Completed trips" value={`${data.driver.trips}`} strong />
+          <Row label="Completed trips" value={`${data.driver.trips}`} />
         </div>
+        <p className="mt-2 text-[10.5px] font-medium text-[var(--ink-3)]">
+          Reliability blends completion, rating and punctuality, and is docked by incidents — the number dispatch weighs when choosing you.
+        </p>
       </div>
 
       <div className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">

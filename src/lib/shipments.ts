@@ -6,6 +6,7 @@ import { db } from "./db";
 import { canTransition, type Role } from "./state-machine";
 import { buildRoute, alongPolyline, routeLengthKm, haversineKm, SPEED } from "./geo";
 import { shareToken, shipmentCode } from "./format";
+import { hashToken } from "./tokens";
 import type { Prisma, Shipment, VehicleCategory, Vehicle, Driver, User, Quote } from "@prisma/client";
 
 type ShipmentWithRelations = Shipment & {
@@ -181,10 +182,15 @@ export async function newShipmentCode(): Promise<string> {
   while (await db.shipment.findUnique({ where: { code } })) code = shipmentCode();
   return code;
 }
-export async function newShareToken(): Promise<string> {
-  let t = shareToken();
-  while (await db.shipment.findUnique({ where: { shareToken: t } })) t = shareToken();
-  return t;
+export async function newShareToken(): Promise<{ raw: string; hash: string }> {
+  // v1 lesson: only the sha256 of the share token is stored.
+  let raw = shareToken();
+  let hash = hashToken(raw);
+  while (await db.shipment.findUnique({ where: { shareToken: hash } })) {
+    raw = shareToken();
+    hash = hashToken(raw);
+  }
+  return { raw, hash };
 }
 
 export function shipmentDTO(s: ShipmentWithRelations) {
@@ -205,7 +211,7 @@ export function shipmentDTO(s: ShipmentWithRelations) {
     category: { key: s.category.key, name: s.category.name, capacityKg: s.category.capacityKg, bodyType: s.category.bodyType },
     driver: s.driver && s.driver.user ? { id: s.driver.id, name: s.driver.user.name, rating: s.driver.rating, trips: s.driver.tripsCompleted, phone: s.driver.user.phone, licenceClass: s.driver.licenceClass, initials: s.driver.user.name.split(" ").slice(0, 2).map((w) => w[0]).join("") } : null,
     customer: { id: s.customer.id, name: s.customer.name, phone: s.customer.phone, business: s.customer.accountType === "BUSINESS" ? s.customer.businessName : null },
-    fare: { base: s.fareBase, distance: s.fareDistance, duration: s.fareDuration, loading: s.fareLoading, stops: s.fareStops, platform: s.farePlatform, discount: s.fareDiscount, promoCode: s.promoCode, total: s.fareTotal, driverEarnings: s.driverEarnings, commission: s.commission },
+    fare: { base: s.fareBase, distance: s.fareDistance, duration: s.fareDuration, loading: s.fareLoading, stops: s.fareStops, night: s.fareNight, schedule: s.fareSchedule, platform: s.farePlatform, discount: s.fareDiscount, promoCode: s.promoCode, total: s.fareTotal, driverEarnings: s.driverEarnings, commission: s.commission, returnLoad: !!s.returnLoadId },
     pricingMode: s.pricingMode,
     payment: { method: s.paymentMethod, status: s.paymentStatus, ref: s.paymentRef, paidAt: s.paidAt?.toISOString() ?? null },
     pod: s.podVerifiedAt ? { recipient: s.podRecipient, verifiedAt: s.podVerifiedAt.toISOString(), lat: s.podLat, lng: s.podLng, photo: s.podPhotoTaken } : null,

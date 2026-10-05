@@ -125,7 +125,23 @@ export default function ActiveTrip() {
           <Button variant="outline" className="h-12 px-0 text-[13px]" onClick={() => setChatOpen(true)}>
             <MessageCircle size={15} /> Chat
           </Button>
-          <Button variant="outline" className="h-12 px-0 text-[13px]" onClick={() => { setTrackToken(s.shareToken); toast({ title: "Tracking link copied", description: "Anyone with the link can follow this delivery. No account needed." }); setTimeout(() => useSession.getState().setSurface("customer"), 50); navigator.clipboard?.writeText(`${location.origin}/?view=track&token=${s.shareToken}`).catch(() => {}); }}>
+          <Button
+            variant="outline"
+            className="h-12 px-0 text-[13px]"
+            onClick={async () => {
+              // v1 lesson: mint a fresh recipient link on demand — raw tokens are never stored
+              try {
+                const r = await post<{ token: string; url: string }>(`/api/shipments/${s.id}/action`, { action: "share-link", actor: "CUSTOMER" });
+                setTrackToken(r.token);
+                const url = `${location.origin}/?view=track&token=${r.token}`;
+                if (navigator.share) await navigator.share({ title: "Mizigo delivery tracking", text: "Follow this delivery on Mizigo", url }).catch(() => {});
+                else await navigator.clipboard?.writeText(url).catch(() => {});
+                toast({ title: "Tracking link ready", description: "Anyone with the link can follow this delivery. No account needed." });
+              } catch {
+                toast({ title: "Could not create link", variant: "destructive" });
+              }
+            }}
+          >
             <Share2 size={15} /> Share
           </Button>
         </div>

@@ -34,14 +34,18 @@ Local production-parity check: `rm -f /tmp/mizigo.db && NETLIFY=1 npm run build:
 - `docs/ARCHITECTURE.md` — surfaces, stack, state machine, pricing/matching engines, payments (Daraja-shaped mock), failure handling, security model
 - `docs/DESIGN_SYSTEM.md` — tokens, typography (Manrope), spacing/radius locks, status language, motion rules
 - `docs/ENGINEERING_RULES.md` — non-negotiables, file layout, API contract, verification protocol
+- `docs/MINING.md` — what was merged from the mizigo-v1 repo and the lessons adopted
 
 ## Core engineering
 
 - **State machine** (`src/lib/state-machine.ts`) — 15 primary states (incl. `QUOTED` for the marketplace) + exceptions; transitions validated server-side; every transition appends an immutable event (chain of custody)
-- **Pricing engine** (`src/lib/pricing.ts`) — base + per-km + per-min + loading + stops + platform fee from the DB; fare breakdown shown line-by-line; price locked at booking; **promo discounts validated and applied server-side**
+- **Pricing engine** (`src/lib/pricing.ts`) — base + per-km + per-min + loading + stops + platform fee from the DB; fare breakdown shown line-by-line; price locked at booking; **promo discounts validated and applied server-side**; **night surcharge (×1.12) and planned-delivery discount (−5%) factors, both admin-editable** (v1 goodness)
+- **Return-load marketplace** (`/api/return-loads`) — drivers publish empty return legs at a discount; customers reserve them from a deals rail on home (atomic claim → real shipment at the locked empty-leg price with the publishing driver pre-assigned); honest savings computed against the live tariff (v1's "use the empty leg" flagship)
+- **Two-sided reputation** — customers rate drivers *and drivers rate customers*; the driver's Network reliability score (v1 formula: 0.45·completion + 0.35·rating + 0.20·on-time − incident penalty) carries 18% of the dispatch ranking
 - **Quote marketplace** — customers with large/commercial loads request driver quotes instead of instant pricing; verified transporters quote from their app (the sandbox also simulates a few quotes); the accepted quote locks the fare and reserves the quoting driver (plan §33/§36)
 - **Matching engine** (`src/lib/matching.ts`) — filters (online, category, capacity, docs, service area) then ranks (distance, ETA, rating, acceptance, experience); **admin can disable auto-dispatch and assign drivers manually** (final brief §19 human-ops path)
 - **Payments** (`src/app/api/shipments/[id]/action`) — mock M-PESA STK lifecycle with idempotency keys; server-authoritative status; refund on cancel; **B2C payout ledger**
+- **Hashed share tokens** (`src/lib/tokens.ts`) — public tracking links are 24-byte capabilities stored only as sha256; links are minted on demand via the `share-link` action and the Share button uses the Web Share API (v1 security lesson)
 - **Platform settings** (`PlatformSetting`) — advance-booking window (enforced server-side), auto-dispatch toggle, quote expiry, support hotline — editable in admin, audited
 - **i18n** (`src/lib/i18n.ts`) — English-first with a live Kiswahili switcher for the core booking journey (plan §62 pattern)
 - **Movement simulation** (`src/lib/shipments.ts`) — driver GPS derived from state + route + elapsed time (12× time compression in sandbox) so customer, driver and admin views converge on the same truth

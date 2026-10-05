@@ -74,7 +74,7 @@ export async function GET(req: Request) {
       user: { id: driver.user.id, name: driver.user.name, phone: driver.user.phone, avatarSeed: driver.user.avatarSeed },
       vehicles: driver.vehicles.map((v) => ({
         id: v.id, make: v.make, model: v.model, registration: v.registration, bodyType: v.bodyType, capacityKg: v.capacityKg,
-        category: v.category?.name ?? "", docs: { registration: v.docRegistration, insurance: v.docInsurance, inspection: v.docInspection },
+        category: v.category?.name ?? "", categoryKey: v.category?.key ?? "", docs: { registration: v.docRegistration, insurance: v.docInsurance, inspection: v.docInspection },
         insuranceExpiry: v.insuranceExpiry, inspectionExpiry: v.inspectionExpiry,
       })),
     },
@@ -97,6 +97,11 @@ export async function GET(req: Request) {
       commission: completed.filter((c) => new Date(c.stateEnteredAt) >= monthStart).reduce((a, c) => a + c.commission, 0),
     },
     demand: DEMAND_ZONES,
+    returnLoads: await db.returnLoad.findMany({
+      where: { driverId, status: { in: ["AVAILABLE", "BOOKED"] } },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    }),
     notifications: await db.notification.findMany({ where: { userId: driver.userId }, orderBy: { createdAt: "desc" }, take: 10 }),
   });
 }

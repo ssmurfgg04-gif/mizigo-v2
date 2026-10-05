@@ -115,19 +115,27 @@ function PageContent() {
                   Cargo-first booking, price locked before you commit, a driver you can verify,
                   live tracking and proof of delivery. Tuk-tuks to 10-tonne lorries, one network.
                 </p>
-                <div className="mt-7 space-y-3.5">
+                {/* v1 trust architecture: the four promises as numbered truths */}
+                <div className="mt-7 grid gap-2.5">
                   {[
-                    "Tell us what you're moving, we pick the vehicle",
-                    "M-PESA built in, receipts and invoices",
-                    "Recipients track without an account",
-                  ].map((t) => (
-                    <p key={t} className="flex items-center gap-3 text-[13.5px] font-semibold text-white/75">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" /> {t}
-                    </p>
+                    ["01", "Know the price", "Fare locked before you commit — no haggling, no surprises."],
+                    ["02", "Know the driver", "Verified operators, documents on file, network-rated."],
+                    ["03", "Know the delivery", "Live tracking and proof of delivery, every trip."],
+                  ].map(([n, title, body]) => (
+                    <div key={n} className="flex items-start gap-3">
+                      <span className="mt-0.5 font-mono text-[10px] font-bold tracking-[0.14em] text-white/30">{n}</span>
+                      <div>
+                        <p className="text-[13.5px] font-extrabold tracking-tight text-white/85">{title}</p>
+                        <p className="text-[11.5px] font-medium leading-snug text-white/45">{body}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
-                <p className="mt-10 text-[11.5px] font-semibold uppercase tracking-widest text-white/35">
+                <p className="mt-8 text-[11.5px] font-semibold uppercase tracking-widest text-white/35">
                   Sandbox demo · mock payments, simulated GPS
+                </p>
+                <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/25">
+                  Built for Kenya · Architected for East Africa
                 </p>
               </div>
             </aside>

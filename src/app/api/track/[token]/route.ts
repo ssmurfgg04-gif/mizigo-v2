@@ -1,17 +1,19 @@
 // GET /api/track/[token] — public, no-login recipient tracking page data.
 // Deliberately minimal: no phones, no notes, no customer names.
+// The token is looked up by its sha256 — raw tokens are never stored (v1 lesson).
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getShipmentFull, shipmentDTO } from "@/lib/shipments";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { ensureDB } from "@/lib/db-ready";
+import { hashToken } from "@/lib/tokens";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   await ensureDB();
   const { token } = await params;
-  const s = await db.shipment.findUnique({ where: { shareToken: token } });
+  const s = await db.shipment.findUnique({ where: { shareToken: hashToken(token) } });
   if (!s) return NextResponse.json({ error: "Tracking link not found" }, { status: 404 });
   const full = await getShipmentFull({ id: s.id });
   const dto = shipmentDTO(full!);

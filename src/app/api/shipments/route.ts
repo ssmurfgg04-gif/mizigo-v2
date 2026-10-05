@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { newShipmentCode, newShareToken, getShipmentFull, shipmentDTO } from "@/lib/shipments";
-import { priceFor, estimateWeight, recommendCategory } from "@/lib/pricing";
+import { priceFor, estimateWeight, recommendCategory, isNightHour } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,10 @@ export async function POST(req: Request) {
   const durationMin = routeDurationMin(distanceKm);
   const weightKg = estimateWeight(cargo.items ?? [], cargo.load ?? "MEDIUM");
   const extraStops = Math.max(0, waypoints.length - 2);
-  let fare = priceFor(category, zone, { distanceKm, durationMin, helpers: cargo.helpers ?? 0, extraStops });
+  // v1 pricing factors: night surcharge + planned-delivery discount
+  const scheduledDate = scheduledAt ? new Date(scheduledAt) : null;
+  const night = isNightHour(scheduledDate ?? new Date());
+  let fare = priceFor(category, zone, { distanceKm, durationMin, helpers: cargo.helpers ?? 0, extraStops, night, scheduled: !!scheduledDate });
 
   // ── promo validation + server-side discount (plan §75) ──
   let discount = 0;
@@ -81,11 +84,11 @@ export async function POST(req: Request) {
   fare = { ...fare, total: finalTotal, driverEarnings: finalEarnings, commission };
 
   const code = await newShipmentCode();
-  const token = await newShareToken();
+  const token = await newShareToken(); // { raw, hash } — only the hash is stored (v1 lesson)
 
   const s = await db.shipment.create({
     data: {
-      code, shareToken: token, customerId, status: "PRICED", stateEnteredAt: new Date(),
+      code, shareToken: token.hash, customerId, status: "PRICED", stateEnteredAt: new Date(),
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       pickupName: pickup.name, pickupArea: pickup.area ?? "", pickupLat: pickup.lat, pickupLng: pickup.lng,
       pickupNote: pickup.note ?? null, pickupContact: pickup.contact ?? null, pickupPhone: pickup.phone ?? null,
@@ -99,7 +102,7 @@ export async function POST(req: Request) {
       pricingMode: pricingMode === "QUOTE" ? "QUOTE" : "INSTANT",
       promoCode: appliedPromo, fareDiscount: discount,
       fareBase: fare.base, fareDistance: fare.distance, fareDuration: fare.duration,
-      fareLoading: fare.loading, fareStops: fare.stops, farePlatform: fare.platform,
+      fareLoading: fare.loading, fareStops: fare.stops, fareNight: fare.night, fareSchedule: fare.schedule, farePlatform: fare.platform,
       fareTotal: fare.total, driverEarnings: fare.driverEarnings, commission: fare.commission,
       paymentMethod: paymentMethod ?? "MPESA", paymentStatus: "PENDING",
       paymentRef: `DRAFT:${draftId}`, // reserved until payment; replaced by MPESA receipt

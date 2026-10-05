@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
-import { priceFor, estimateWeight, recommendCategory, type CargoItem } from "@/lib/pricing";
+import { priceFor, estimateWeight, recommendCategory, isNightHour, type CargoItem } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin, haversineKm } from "@/lib/geo";
 import { nearbyDrivers } from "@/lib/matching";
 
@@ -15,6 +15,7 @@ interface QuoteBody {
   cargo: { category?: string; items: CargoItem[]; load: string; helpers: number; special?: string[] };
   promoCode?: string;
   customerId?: string;
+  scheduledAt?: string; // ISO datetime when the delivery is planned
 }
 
 export async function POST(req: Request) {
@@ -41,6 +42,11 @@ export async function POST(req: Request) {
   const extraStops = Math.max(0, waypoints.length - 2);
   const needsCovered = (body.cargo.special ?? []).includes("covered");
   const peak = new Date().getDay() >= 4 && new Date().getHours() >= 16; // Thu+ evenings (mock demand signal)
+  // v1 pricing factors: night surcharge + planned-delivery discount
+  const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+  const refHour = scheduledAt ?? new Date();
+  const night = isNightHour(refHour);
+  const scheduled = !!scheduledAt;
 
   const recommendedKey = recommendCategory(weightKg, categories, body.cargo.category);
 
@@ -64,7 +70,7 @@ export async function POST(req: Request) {
   const quotes = categories
     .filter((c) => !(needsCovered && c.bodyType === "open"))
     .map((c) => {
-      const fare = priceFor(c, zone, { distanceKm, durationMin, helpers: body.cargo.helpers ?? 0, extraStops, peak });
+      const fare = priceFor(c, zone, { distanceKm, durationMin, helpers: body.cargo.helpers ?? 0, extraStops, peak, night, scheduled });
       // apply promo preview to this quote's total
       let discount = 0;
       if (promo && "discount" in promo && promoRow) {
@@ -96,6 +102,8 @@ export async function POST(req: Request) {
   return NextResponse.json({
     distanceKm, durationMin, weightKg, recommendedKey,
     peak,
+    night,
+    scheduled,
     promo,
     quotes,
     nearby: nearbyDrivers(

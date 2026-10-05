@@ -62,3 +62,10 @@ agent-ctx/
 download/shots/
 *.pem
 .env.local
+
+# v1 mining clone (temporary)
+/mine/
+
+# runtime artifacts
+netlify-sim.log
+server.log

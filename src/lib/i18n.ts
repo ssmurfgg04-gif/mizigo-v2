@@ -31,6 +31,15 @@ const en: Record<string, string> = {
   // tracking
   "track.inProgress": "Delivery in progress",
   "track.shareTracking": "Share tracking",
+  // return-load deals (v1 goodness)
+  "deals.title": "Return-load deals",
+  "deals.sub": "Vehicles already heading that way · empty-leg prices",
+  "deals.badge": "Empty-leg deal",
+  "deals.capacity": "Capacity",
+  "deals.verified": "Verified operator",
+  "deals.emptyLegPrice": "Empty-leg price",
+  "deals.explain": "This vehicle is already returning empty — you both win.",
+  "deals.reserve": "Reserve this leg",
   // account
   "account.language": "Language",
   "account.english": "English",
@@ -63,6 +72,15 @@ const sw: Record<string, string> = {
   // tracking
   "track.inProgress": "Usafiri unaendelea",
   "track.shareTracking": "Shiriki ufuatiliaji",
+  // return-load deals (v1 goodness)
+  "deals.title": "Safuri za kurudi",
+  "deals.sub": "Magari yanayoenda hiyo njia · bei nafuu",
+  "deals.badge": "Bei ya kurudi",
+  "deals.capacity": "Uwezo",
+  "deals.verified": "Dereva aliyethibitishwa",
+  "deals.emptyLegPrice": "Bei ya kurudi",
+  "deals.explain": "Gari hili linarudi likiwa tupu — mnapata nyote.",
+  "deals.reserve": "Shika nafasi hii",
   // account
   "account.language": "Lugha",
   "account.english": "English",

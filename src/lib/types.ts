@@ -46,7 +46,7 @@ export interface ShipmentDTO {
   category: { key: string; name: string; capacityKg: number; bodyType: string };
   driver: { id: string; name: string; rating: number; trips: number; phone: string; licenceClass: string; initials: string } | null;
   customer: { id: string; name: string; phone: string; business: string | null };
-  fare: { base: number; distance: number; duration: number; loading: number; stops: number; platform: number; discount: number; promoCode: string | null; total: number; driverEarnings: number; commission: number };
+  fare: { base: number; distance: number; duration: number; loading: number; stops: number; night: number; schedule: number; platform: number; discount: number; promoCode: string | null; total: number; driverEarnings: number; commission: number; returnLoad: boolean };
   pricingMode: string;
   payment: { method: string; status: string; ref: string | null; paidAt: string | null };
   pod: { recipient: string; verifiedAt: string; lat: number | null; lng: number | null; photo: boolean } | null;
@@ -76,7 +76,7 @@ export interface DriverHome {
     user: { id: string; name: string; phone: string; avatarSeed: string };
     vehicles: {
       id: string; make: string; model: string; registration: string; bodyType: string; capacityKg: number;
-      category: string; docs: { registration: string; insurance: string; inspection: string };
+      category: string; categoryKey: string; docs: { registration: string; insurance: string; inspection: string };
       insuranceExpiry: string | null; inspectionExpiry: string | null;
     }[];
   };
@@ -91,6 +91,11 @@ export interface DriverHome {
     grossFares: number; commission: number;
   };
   demand: { name: string; level: string }[];
+  returnLoads?: {
+    id: string; fromName: string; fromArea: string; toName: string; toArea: string;
+    categoryKey: string; cargoNote: string; maxWeightKg: number; priceKes: number;
+    normalPriceKes: number; status: string; availableUntil: string | null; createdAt: string;
+  }[];
   notifications: { id: string; title: string; body: string; createdAt: string }[];
 }
 
@@ -99,6 +104,7 @@ export interface AdminOverview {
     activeDeliveries: number; todayBookings: number; revenueToday: number; platformEarningsToday: number;
     onlineDrivers: number; busyDrivers: number; totalDrivers: number; totalVehicles: number;
     cancellationRate: number; avgDeliveryTime: number; completedTotal: number; pendingDisputes: number;
+    returnLoadsLive: number; returnLoadsAvgDiscount: number;
   };
   live: ShipmentDTO[];
   drivers: { id: string; name: string; status: string; rating: number; trips: number; verification: string; lat: number; lng: number; vehicle: string | null; registration: string | null; category: string | null }[];

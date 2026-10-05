@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
   if (action === "pricing-zone") {
     const { id, ...fields } = body;
-    const allowed = ["basePrice", "pricePerKm", "pricePerMin", "minimumPrice", "waitingRateMin", "loadingFee", "extraStopFee", "peakMultiplier", "platformFee", "commissionRate"];
+    const allowed = ["basePrice", "pricePerKm", "pricePerMin", "minimumPrice", "waitingRateMin", "loadingFee", "extraStopFee", "peakMultiplier", "nightMultiplier", "scheduledDiscount", "platformFee", "commissionRate"];
     const data: Record<string, number> = {};
     for (const k of allowed) if (fields[k] !== undefined && !isNaN(Number(fields[k]))) data[k] = Number(fields[k]);
     const z = await db.pricingZone.update({ where: { id }, data });

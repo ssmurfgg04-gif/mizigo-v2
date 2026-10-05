@@ -5,6 +5,7 @@
 import { db } from "./db";
 import { PLACES } from "./geo";
 import { shareToken, shipmentCode, mpesaRef } from "./format";
+import { hashToken } from "./tokens";
 
 const H = 3600_000, M = 60_000, D = 24 * H;
 const ago = (ms: number) => new Date(Date.now() - ms);
@@ -28,6 +29,7 @@ export async function seedAll(): Promise<void> {
     db.auditLog.deleteMany(), db.shipment.deleteMany(), db.vehicle.deleteMany(),
     db.driver.deleteMany(), db.user.deleteMany(), db.vehicleCategory.deleteMany(),
     db.pricingZone.deleteMany(), db.place.deleteMany(), db.promoCode.deleteMany(), db.platformSetting.deleteMany(),
+    db.returnLoad.deleteMany(),
   ]);
 
   // ── Vehicle categories (rates are illustrative and admin-editable) ──
@@ -44,7 +46,7 @@ export async function seedAll(): Promise<void> {
 
   // ── Pricing zone ──
   await db.pricingZone.create({
-    data: { key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, platformFee: 100, commissionRate: 0.15, active: true },
+    data: { key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, nightMultiplier: 1.12, scheduledDiscount: 0.05, platformFee: 100, commissionRate: 0.15, active: true },
   });
 
   // ── Places ──
@@ -113,7 +115,7 @@ export async function seedAll(): Promise<void> {
     const cat = CAT[h.catKey];
     const s = await db.shipment.create({
       data: {
-        code, shareToken: shareToken(), customerId: h.customer, status: h.status,
+        code, shareToken: hashToken(shareToken()), customerId: h.customer, status: h.status,
         stateEnteredAt: ago((h.hoursAgo - 2) * H), createdAt: created, updatedAt: ago((h.hoursAgo - 2) * H),
         pickupName: h.pickupName, pickupArea: h.pickupArea, pickupLat: h.pLat, pickupLng: h.pLng,
         dropoffName: h.dropName, dropoffArea: h.dropArea, dropoffLat: h.dLat, dropoffLng: h.dLng,
@@ -184,6 +186,43 @@ export async function seedAll(): Promise<void> {
       { driverId: peter.id, amount: 4200, method: "MPESA", status: "PAID", ref: mpesaRef(), createdAt: ago(2 * D) },
       { driverId: peter.id, amount: 3500, method: "MPESA", status: "PAID", ref: mpesaRef(), createdAt: ago(4 * D) },
       { driverId: peter.id, amount: 2800, method: "MPESA", status: "PAID", ref: mpesaRef(), createdAt: ago(6 * D) },
+    ],
+  });
+
+  // ── Return-load marketplace (v1 goodness: empty legs at a discount) ──
+  // normalPriceKes mirrors the live tariff math for the same leg so the
+  // savings badge is honest, not marketing.
+  const soon = (h: number) => new Date(Date.now() + h * 3600_000);
+  await db.returnLoad.createMany({
+    data: [
+      {
+        driverId: drivers[1].id, // Amina · Canter 3.5T
+        fromName: "Gikomba Market", fromArea: "CBD East", fromLat: -1.2841, fromLng: 36.8329,
+        toName: "Runda Estate", toArea: "Runda", toLat: -1.2245, toLng: 36.7985,
+        categoryKey: "canter", cargoNote: "Market stock", maxWeightKg: 2000,
+        priceKes: 1900, normalPriceKes: 3300, status: "AVAILABLE", availableUntil: soon(5),
+      },
+      {
+        driverId: drivers[4].id, // James · Fuso 7T
+        fromName: "ABC Industrial Area Godown 47", fromArea: "Industrial Area", fromLat: -1.3080, fromLng: 36.8330,
+        toName: "Karen Hardy Shopping Centre", toArea: "Karen", toLat: -1.3197, toLng: 36.7076,
+        categoryKey: "lorry_7t", cargoNote: "Building materials", maxWeightKg: 4500,
+        priceKes: 3900, normalPriceKes: 6500, status: "AVAILABLE", availableUntil: soon(8),
+      },
+      {
+        driverId: drivers[3].id, // Kevin · Tuk-tuk
+        fromName: "Wakulima Market", fromArea: "CBD", fromLat: -1.2830, fromLng: 36.8270,
+        toName: "Donholm Phase 5", toArea: "Donholm", toLat: -1.2982, toLng: 36.8899,
+        categoryKey: "tuktuk", cargoNote: "Farm produce", maxWeightKg: 250,
+        priceKes: 550, normalPriceKes: 900, status: "AVAILABLE", availableUntil: soon(3),
+      },
+      {
+        driverId: drivers[6].id, // Samuel · Isuzu FVR 10T
+        fromName: "Sameer Business Park", fromArea: "Mombasa Road", fromLat: -1.3230, fromLng: 36.8750,
+        toName: "Garden City Mall", toArea: "Thika Road", toLat: -1.2267, toLng: 36.8889,
+        categoryKey: "lorry_10t", cargoNote: "Retail cartons", maxWeightKg: 7000,
+        priceKes: 5600, normalPriceKes: 9400, status: "AVAILABLE", availableUntil: soon(10),
+      },
     ],
   });
 

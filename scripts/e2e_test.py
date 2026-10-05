@@ -119,9 +119,13 @@ check("driver earnings today > 0", drv["earnings"]["today"] > 0, f"KES {drv['ear
 adm = call("/api/admin?tab=overview")
 check("admin KPIs", adm["kpis"]["totalDrivers"] >= 6 and "revenueToday" in adm["kpis"])
 
-# 15. public tracking page data
-tr = call(f"/api/track/{s1['shipment']['shareToken']}")
+# 15. public tracking page data (mint a fresh link — raw tokens are hashed at rest, v1 lesson)
+sl = call(f"/api/shipments/{s1['shipment']['id']}/action", "POST", {"action": "share-link", "actor": "CUSTOMER"})
+check("share-link mints a token", "token" in sl and len(sl["token"]) >= 16)
+tr = call(f"/api/track/{sl['token']}")
 check("public tracking no phone leak", "phone" not in json.dumps(tr["tracking"]) and tr["tracking"]["code"].startswith("MZG"))
+tr_bad = call(f"/api/track/{sl['token']}-deadbeef")
+check("stale/invalid token rejected", tr_bad.get("error") is not None)
 
 # 16. pricing edit (admin, no redeploy)
 z = [zz for zz in call("/api/admin?tab=pricing")["zones"] if zz["key"] == "nairobi"][0]
@@ -310,6 +314,52 @@ check("analytics cancellation metric", "cancellationPct" in ana["totals"])
 # 28. notifications carry deep-link codes (plan §40)
 ch = call("/api/customer?userId=" + uid)
 check("notifications have shipment codes", all(n.get("shipmentCode") for n in ch["notifications"] if n["title"] in ("Driver found", "Driver submitted a quote", "New message")) or True)
+
+# 29. v1 goodness: driver rates the customer (two-sided reputation)
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "rate", "actor": "DRIVER", "stars": 4, "tags": ["On site ready"]})
+check("driver rated customer", r.get("ok") is True and any(x["byRole"] == "DRIVER" for x in r["shipment"]["ratings"]))
+
+# 30. v1 goodness: return-load marketplace (empty legs at a discount)
+rl = call("/api/return-loads")
+check("return-load market lists legs", len(rl["returnLoads"]) >= 3, f"{len(rl['returnLoads'])} legs")
+leg = rl["returnLoads"][0]
+check("legs carry honest savings", leg["priceKes"] < leg["normalPriceKes"] and leg["savingsPct"] >= 20, f"−{leg['savingsPct']}%")
+
+# driver publishes a return leg (Amina's canter is drivers[1] in the seed)
+adm = call("/api/admin?tab=drivers")
+am = [d for d in adm["drivers"] if d["name"].startswith("Amina")][0]
+pub = call("/api/driver/action", "POST", {"action": "publish-return-load", "driverId": am["id"],
+    "from": {"name": "Village Market", "area": "Gigiri", "lat": -1.2211, "lng": 36.7964},
+    "to": {"name": "CBD · Kenyatta Avenue", "area": "Nairobi CBD", "lat": -1.2841, "lng": 36.8265},
+    "categoryKey": "canter", "cargoNote": "General cargo", "maxWeightKg": 2500, "priceKes": 1500})
+check("driver published return leg", pub.get("ok") is True and pub["returnLoad"]["normalPriceKes"] >= 1500)
+
+# customer reserves the leg → real shipment at empty-leg price, driver pre-assigned
+bk = call(f"/api/return-loads/{pub['returnLoad']['id']}/book", "POST", {"customerId": uid, "paymentMethod": "MPESA"})
+check("return load booked", bk.get("ok") is True and bk["shipment"]["status"] == "DRIVER_ASSIGNED", bk.get("error", ""))
+check("empty-leg price locked", bk["shipment"]["fare"]["total"] == 1500 and bk["shipment"]["fare"]["returnLoad"] is True)
+check("publishing driver assigned", bk["shipment"]["driver"]["name"].startswith("Amina"))
+
+# double-booking the same leg is rejected (atomic claim)
+bk2 = call(f"/api/return-loads/{pub['returnLoad']['id']}/book", "POST", {"customerId": uid, "paymentMethod": "MPESA"})
+check("double-booking rejected", "_status" in bk2 or bk2.get("error"))
+
+# admin overview sees the live return-leg economy
+adm2 = call("/api/admin?tab=overview")
+check("admin return-leg KPI", adm2["kpis"]["returnLoadsLive"] >= 3, adm2["kpis"]["returnLoadsLive"])
+
+# 31. v1 goodness: night surcharge + planned-delivery discount in the fare engine
+import datetime as _dt
+_night_at = (_dt.datetime.utcnow() + _dt.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0).isoformat() + "Z"
+qn = call("/api/quote", "POST", {
+    "pickup": {"name": "Sarit Centre", "area": "Westlands", "lat": -1.2613, "lng": 36.8027},
+    "dropoff": {"name": "Garden City Mall", "area": "Thika Road", "lat": -1.2267, "lng": 36.8889},
+    "cargo": {"items": [], "load": "SMALL", "helpers": 0},
+    "scheduledAt": _night_at})
+check("night flag detected", qn.get("night") is True and qn.get("scheduled") is True)
+_pq = [x for x in qn["quotes"] if x["key"] == "pickup"][0]
+check("night surcharge line", _pq["fare"]["night"] > 0 and any("Night" in l["label"] for l in _pq["fare"]["lines"]))
+check("planned discount line", _pq["fare"]["schedule"] > 0 and any("Planned" in l["label"] for l in _pq["fare"]["lines"]))
 
 print()
 print("RESULT:", "ALL PASS" if not fails else f"{len(fails)} FAILURES: {fails}")

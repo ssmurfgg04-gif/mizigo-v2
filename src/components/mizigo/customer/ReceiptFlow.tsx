@@ -117,8 +117,11 @@ export function ReceiptScreen() {
       s.fare.duration > 0 ? `Time on road: KES ${s.fare.duration.toLocaleString()}` : "",
       s.fare.loading > 0 ? `Loading assistance: KES ${s.fare.loading.toLocaleString()}` : "",
       s.fare.stops > 0 ? `Extra stops: KES ${s.fare.stops.toLocaleString()}` : "",
+      s.fare.night > 0 ? `Night transport: KES ${s.fare.night.toLocaleString()}` : "",
+      s.fare.schedule > 0 ? `Planned delivery discount: -KES ${s.fare.schedule.toLocaleString()}` : "",
       s.fare.discount > 0 ? `Promo ${s.fare.promoCode}: -KES ${s.fare.discount.toLocaleString()}` : "",
       s.fare.platform > 0 ? `Platform fee: KES ${s.fare.platform.toLocaleString()}` : "",
+      s.fare.returnLoad ? "Booked as a return load (empty-leg price)" : "",
       "",
       `TOTAL: KES ${s.fare.total.toLocaleString()}`,
       isBusiness ? `  (incl. VAT 16% = KES ${vat.toLocaleString()})` : "",
@@ -174,6 +177,8 @@ export function ReceiptScreen() {
           {s.fare.duration > 0 && <Row label="Time on road" value={kes(s.fare.duration)} />}
           {s.fare.loading > 0 && <Row label="Loading assistance" value={kes(s.fare.loading)} />}
           {s.fare.stops > 0 && <Row label="Extra stops" value={kes(s.fare.stops)} />}
+          {s.fare.night > 0 && <Row label="Night transport" value={kes(s.fare.night)} />}
+          {s.fare.schedule > 0 && <Row label="Planned delivery discount" value={`−${kes(s.fare.schedule)}`} />}
           {s.fare.discount > 0 && <Row label={`Promo ${s.fare.promoCode}`} value={`- ${kes(s.fare.discount)}`} />}
           {s.fare.platform > 0 && <Row label="Platform fee" value={kes(s.fare.platform)} />}
           {isBusiness && <Row label="VAT (16% incl.)" value={kes(vat)} />}

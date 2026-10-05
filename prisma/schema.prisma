@@ -52,6 +52,8 @@ model PricingZone {
   loadingFee      Int
   extraStopFee    Int
   peakMultiplier  Float   @default(1)
+  nightMultiplier Float   @default(1.12) // v1 lesson: night transport surcharge (19:00–06:00)
+  scheduledDiscount Float @default(0.05) // v1 lesson: planned loads cost less than instant
   platformFee     Int     @default(100)
   commissionRate  Float   @default(0.15)
   active          Boolean @default(true)
@@ -189,10 +191,13 @@ model Shipment {
   fareDuration Int
   fareLoading  Int
   fareStops    Int
+  fareNight    Int     @default(0) // night surcharge (19:00–06:00)
+  fareSchedule Int     @default(0) // scheduled-delivery discount (positive number, subtracted)
   farePlatform Int
   fareTotal    Int
   driverEarnings Int
   commission   Int
+  returnLoadId String? // set when this trip booked a published empty leg
 
   // payment
   paymentMethod  String  @default("MPESA") // MPESA | CASH | CARD
@@ -376,4 +381,30 @@ model SavedPlace {
   area     String
   lat      Float
   lng      Float
+}
+
+// v1 goodness: empty-leg / return-load marketplace. A driver whose vehicle is
+// travelling back empty publishes the leg at a discount; customers reserve
+// capacity that is already moving ("Use the empty leg").
+model ReturnLoad {
+  id               String    @id @default(cuid())
+  driverId         String
+  fromName         String
+  fromArea         String
+  fromLat          Float
+  fromLng          Float
+  toName           String
+  toArea           String
+  toLat            Float
+  toLng            Float
+  categoryKey      String // vehicle category offering the leg
+  cargoNote        String    @default("General cargo")
+  maxWeightKg      Int
+  priceKes         Int // discounted empty-leg price
+  normalPriceKes   Int // estimated normal fare, for the savings badge
+  status           String    @default("AVAILABLE") // AVAILABLE | BOOKED | CANCELLED
+  availableUntil   DateTime?
+  bookedById       String? // customer userId
+  bookedShipmentId String?
+  createdAt        DateTime  @default(now())
 }

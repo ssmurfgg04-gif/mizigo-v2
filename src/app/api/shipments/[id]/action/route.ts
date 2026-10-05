@@ -1,11 +1,12 @@
 // POST /api/shipments/[id]/action — unified, server-validated actions.
 // Actions: pay | pay-confirm | pay-timeout | request | cancel | driver-accept |
 // arrive | start-loading | loaded | start-trip | arriving | deliver | pod | complete | rate | dispute |
-// report-mismatch | chat | request-quotes | driver-quote | accept-quote | stop-done
+// report-mismatch | chat | request-quotes | driver-quote | accept-quote | stop-done | share-link
 // All money + state decisions are made here; the client never writes state.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { applyTransition, getShipmentFull, shipmentDTO } from "@/lib/shipments";
+import { newShareTokenHashed } from "@/lib/tokens";
 import { matchDriver } from "@/lib/matching";
 import { mpesaRef } from "@/lib/format";
 import { ensureDB } from "@/lib/db-ready";
@@ -179,6 +180,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         await db.driver.update({ where: { id: d.id }, data: { rating: newRating } });
       }
     }
+    if (actor === "DRIVER") {
+      // v1 goodness: two-sided reputation — the customer's rating rolls too
+      const c = await db.user.findUnique({ where: { id: s.customerId } });
+      if (c) {
+        const total = await db.shipment.count({ where: { customerId: s.customerId, status: "COMPLETED" } });
+        const newRating = Math.round(((c.rating * Math.max(total - 1, 0) + stars) / Math.max(total, 1)) * 100) / 100;
+        await db.user.update({ where: { id: c.id }, data: { rating: Math.max(1, Math.min(5, newRating)) } });
+      }
+    }
     if (s.status === "POD_CONFIRMED" || s.status === "DELIVERED") {
       await applyTransition(id, "complete", "SYSTEM");
     }
@@ -194,6 +204,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       await applyTransition(id, "cancel", "SYSTEM", { reason: "Dispute opened" }).catch(() => null);
     }
     return NextResponse.json({ ok: true });
+  }
+
+  // ── mint a fresh recipient tracking link (v1 lesson: raw tokens never stored) ──
+  if (action === "share-link") {
+    // 24 random bytes, base64url — a real capability; only its sha256 is persisted
+    const { raw, hash } = await newShareTokenHashed();
+    await db.shipment.update({ where: { id }, data: { shareToken: hash } });
+    return NextResponse.json({ ok: true, token: raw, url: `/?view=track&token=${raw}` });
   }
 
   // ── customer ↔ driver chat (plan §77: quick messages first, numbers masked) ──

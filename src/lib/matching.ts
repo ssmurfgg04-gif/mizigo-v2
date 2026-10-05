@@ -1,6 +1,6 @@
 // MIZIGO — Matching engine (server-side). Never just "closest driver":
 // filters by suitability, then ranks by distance, rating, acceptance history,
-// completed trips and vehicle capacity headroom.
+// completed trips, vehicle capacity headroom and v1's reliability score.
 
 import type { Driver, Vehicle, VehicleCategory } from "@prisma/client";
 import { haversineKm } from "./geo";
@@ -8,6 +8,31 @@ import { haversineKm } from "./geo";
 export interface MatchCandidate extends Driver {
   user: { name: string } | null;
   vehicles: (Vehicle & { category: VehicleCategory | null })[]
+}
+
+// v1 goodness: reputation as one comparable number.
+// reliability = 0.45·completion + 0.35·rating + 0.20·onTime − disputePenalty
+export function reliabilityScore(s: {
+  completed: number; cancelled: number; disputes: number;
+  rating: number; onTime: number;
+}): number {
+  const total = s.completed + s.cancelled;
+  const completion = total ? s.completed / total : 1;
+  const disputePenalty = Math.min(0.25, (s.disputes / Math.max(1, s.completed)) * 0.5);
+  const rating = Math.max(0, Math.min(1, s.rating / 5));
+  return Math.max(0, Math.min(1, 0.45 * completion + 0.35 * rating + 0.2 * s.onTime - disputePenalty));
+}
+
+export function driverReliability(d: Pick<Driver, "tripsCompleted" | "cancellationRate" | "incidents" | "rating" | "onTimeDelivery">): number {
+  const completed = d.tripsCompleted;
+  const cancelled = Math.round(d.tripsCompleted * d.cancellationRate);
+  return reliabilityScore({
+    completed,
+    cancelled,
+    disputes: d.incidents,
+    rating: d.rating,
+    onTime: d.onTimeDelivery,
+  });
 }
 
 export interface ScoredDriver {
@@ -18,6 +43,7 @@ export interface ScoredDriver {
   etaMin: number;
   rating: number;
   trips: number;
+  reliability: number;
   vehicleId: string;
   vehicleName: string;
   registration: string;
@@ -52,9 +78,11 @@ export function matchDriver(
     const acceptanceScore = d.acceptanceRate; // history
     const experienceScore = Math.min(1, d.tripsCompleted / 400); // reliability
     const etaScore = Math.max(0, 1 - etaMin / 30);
+    // v1 goodness: completion × rating × on-time reliability, penalised by incidents
+    const reliability = driverReliability(d);
     const score =
-      distanceScore * 0.32 + etaScore * 0.18 + ratingScore * 0.2 +
-      acceptanceScore * 0.15 + experienceScore * 0.15;
+      distanceScore * 0.28 + etaScore * 0.16 + ratingScore * 0.16 +
+      acceptanceScore * 0.12 + experienceScore * 0.1 + reliability * 0.18;
 
     pool.push({
       driverId: d.id,
@@ -64,6 +92,7 @@ export function matchDriver(
       etaMin,
       rating: d.rating,
       trips: d.tripsCompleted,
+      reliability: Math.round(reliability * 100) / 100,
       vehicleId: v.id,
       vehicleName: `${v.make} ${v.model}`,
       registration: v.registration,

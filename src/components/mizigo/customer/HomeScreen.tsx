@@ -12,6 +12,7 @@ import { t } from "@/lib/i18n";
 import { Button, ChevronLink, EmptyState, ListSkeleton, SectionTitle, StatusBadge, toneForStatus, Stars } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
+import ReturnLoadDeals from "./ReturnLoadDeals";
 import { STATUS_LABEL } from "@/lib/state-machine";
 
 const SHORTCUTS = [
@@ -186,6 +187,9 @@ export default function HomeScreen() {
           </button>
         ))}
       </section>
+
+      {/* return-load deals — v1's empty-leg marketplace */}
+      <ReturnLoadDeals />
 
       {/* business quick metrics */}
       {business && (

@@ -9,25 +9,35 @@ export interface QuoteInput {
   helpers: number; // loading assistance
   extraStops: number;
   peak?: boolean;
+  night?: boolean; // v1: night transport (19:00–06:00) carries a surcharge
+  scheduled?: boolean; // v1: planned loads cost less than instant ones
 }
 
 export interface FareLine { key: string; label: string; amount: number }
 export interface Fare {
-  base: number; distance: number; duration: number; loading: number; stops: number; platform: number;
+  base: number; distance: number; duration: number; loading: number; stops: number; night: number; schedule: number; platform: number;
   total: number; minimumApplied: boolean;
   lines: FareLine[];
   driverEarnings: number; commission: number;
 }
 
-export function priceFor(category: Pick<VehicleCategory, "baseFare" | "perKmRate" | "perMinRate" | "minimumFare" | "loadingFee" | "extraStopFee">, zone: Pick<PricingZone, "platformFee" | "commissionRate" | "peakMultiplier">, input: QuoteInput): Fare {
+export function isNightHour(d: Date): boolean {
+  const h = d.getHours();
+  return h >= 19 || h < 6;
+}
+
+export function priceFor(category: Pick<VehicleCategory, "baseFare" | "perKmRate" | "perMinRate" | "minimumFare" | "loadingFee" | "extraStopFee">, zone: Pick<PricingZone, "platformFee" | "commissionRate" | "peakMultiplier" | "nightMultiplier" | "scheduledDiscount">, input: QuoteInput): Fare {
   const peak = input.peak ? zone.peakMultiplier : 1;
   const base = Math.round(category.baseFare * peak);
   const distance = Math.round(category.perKmRate * input.distanceKm);
   const duration = Math.round(category.perMinRate * input.durationMin);
   const loading = input.helpers > 0 ? category.loadingFee * input.helpers : 0;
   const stops = input.extraStops > 0 ? category.extraStopFee * input.extraStops : 0;
+  const nightMult = input.night ? (zone.nightMultiplier ?? 1.12) : 1;
+  const night = Math.round((base + distance + duration) * (nightMult - 1));
+  const schedule = input.scheduled ? Math.round((base + distance + duration) * (zone.scheduledDiscount ?? 0.05)) : 0;
   const platform = zone.platformFee;
-  let subtotal = base + distance + duration + loading + stops + platform;
+  let subtotal = base + distance + duration + loading + stops + platform + night - schedule;
   const minimumApplied = subtotal < category.minimumFare;
   if (minimumApplied) subtotal = category.minimumFare;
   const total = subtotal;
@@ -41,10 +51,12 @@ export function priceFor(category: Pick<VehicleCategory, "baseFare" | "perKmRate
   ];
   if (loading > 0) lines.push({ key: "loading", label: `Loading assistance × ${input.helpers}`, amount: loading });
   if (stops > 0) lines.push({ key: "stops", label: `Extra stops × ${input.extraStops}`, amount: stops });
+  if (night > 0) lines.push({ key: "night", label: `Night transport × ${nightMult.toFixed(2)}`, amount: night });
+  if (schedule > 0) lines.push({ key: "schedule", label: "Planned delivery discount", amount: -schedule });
   lines.push({ key: "platform", label: "Platform fee", amount: platform });
   if (minimumApplied) lines.push({ key: "minimum", label: "Minimum fare applied", amount: 0 });
 
-  return { base, distance, duration, loading, stops, platform, total, minimumApplied, lines, driverEarnings, commission };
+  return { base, distance, duration, loading, stops, night, schedule, platform, total, minimumApplied, lines, driverEarnings, commission };
 }
 
 // Cargo volume model for the recommendation engine

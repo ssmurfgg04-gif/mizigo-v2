@@ -107,6 +107,7 @@ function OverviewTab() {
     { label: "Revenue today", value: k ? kes(k.revenueToday, { compact: true }) : "—", tone: "ink" },
     { label: "Platform earnings", value: k ? kes(k.platformEarningsToday, { compact: true }) : "—", tone: "ink" },
     { label: "Drivers online", value: k ? `${k.onlineDrivers}/${k.totalDrivers}` : "—", tone: "success" },
+    { label: "Return legs live", value: k ? `${k.returnLoadsLive} · −${k.returnLoadsAvgDiscount}%` : "—", tone: "success" },
     { label: "Cancellation rate", value: k ? `${k.cancellationRate}%` : "—", tone: "ink" },
     { label: "Avg delivery time", value: k ? `${k.avgDeliveryTime} min` : "—", tone: "ink" },
     { label: "Open disputes", value: k?.pendingDisputes ?? "—", tone: k?.pendingDisputes ? "danger" : "ink" },
@@ -123,7 +124,7 @@ function OverviewTab() {
       </header>
 
       {/* KPIs */}
-      <div className="mt-5 grid grid-cols-4 gap-3">
+      <div className="mt-5 grid grid-cols-3 gap-3 lg:grid-cols-5">
         {kpis.map((x) => (
           <div key={x.label} className="rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-4">
             <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">{x.label}</p>
@@ -524,12 +525,12 @@ function PricingTab() {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["admin-pricing"],
-    queryFn: () => api<{ zones: { id: string; key: string; name: string; basePrice: number; pricePerKm: number; pricePerMin: number; minimumPrice: number; waitingRateMin: number; loadingFee: number; extraStopFee: number; peakMultiplier: number; platformFee: number; commissionRate: number }[]; categories: { id: string; key: string; name: string; baseFare: number; perKmRate: number; perMinRate: number; minimumFare: number; loadingFee: number; extraStopFee: number; capacityKg: number }[] }>("/api/admin?tab=pricing"),
+    queryFn: () => api<{ zones: { id: string; key: string; name: string; basePrice: number; pricePerKm: number; pricePerMin: number; minimumPrice: number; waitingRateMin: number; loadingFee: number; extraStopFee: number; peakMultiplier: number; nightMultiplier: number; scheduledDiscount: number; platformFee: number; commissionRate: number }[]; categories: { id: string; key: string; name: string; baseFare: number; perKmRate: number; perMinRate: number; minimumFare: number; loadingFee: number; extraStopFee: number; capacityKg: number }[] }>("/api/admin?tab=pricing"),
   });
   const [editing, setEditing] = useState<Record<string, string>>({});
 
   const saveZone = async (zoneId: string) => {
-    const fields = ["basePrice", "pricePerKm", "pricePerMin", "minimumPrice", "waitingRateMin", "loadingFee", "extraStopFee", "peakMultiplier", "platformFee", "commissionRate"];
+    const fields = ["basePrice", "pricePerKm", "pricePerMin", "minimumPrice", "waitingRateMin", "loadingFee", "extraStopFee", "peakMultiplier", "nightMultiplier", "scheduledDiscount", "platformFee", "commissionRate"];
     const body: Record<string, number> = {};
     fields.forEach((f) => {
       const key = `${zoneId}:${f}`;
@@ -593,6 +594,8 @@ function PricingTab() {
               ["loadingFee", "Loading fee", zone.loadingFee],
               ["extraStopFee", "Extra stop", zone.extraStopFee],
               ["peakMultiplier", "Peak ×", zone.peakMultiplier],
+              ["nightMultiplier", "Night ×", zone.nightMultiplier],
+              ["scheduledDiscount", "Planned −%", zone.scheduledDiscount],
               ["platformFee", "Platform fee", zone.platformFee],
               ["commissionRate", "Commission", zone.commissionRate],
             ].map(([f, label, val]) => (
