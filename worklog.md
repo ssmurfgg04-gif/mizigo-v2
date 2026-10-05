@@ -86,3 +86,18 @@ Stage Summary:
 - 80/80 e2e green; lint/tsc/build green; 10 VLM rounds pass post-fix
 - Artifacts: docs/DEMO_GUIDE.md, download/MIZIGO_DEMO_GUIDE.md, README v2, scripts/e2e_test.py (80 checks)
 - Next: git commit, create GitHub repo mizigo-v2 under ssmurfgg04-gif, push with provided token
+
+---
+Task ID: 3
+Agent: Super Z (main agent)
+Task: Push MIZIGO v2 to GitHub as mizigo-v2.
+
+Work Log:
+- Created repo ssmurfgg04-gif/mizigo-v2 (public) via API with the user's token
+- Pushed all history to main (4 commits: initial → MVP → polish → v2)
+- SECURITY: found .env (committed in the pre-existing initial commit) exposed in the repo — removed from tracking, rewrote history with git filter-branch, force-pushed, verified Not Found on remote; scrubbed token from the git remote URL afterwards
+- README v2 + docs/DEMO_GUIDE.md + download/MIZIGO_DEMO_GUIDE.md updated with all v2 features
+
+Stage Summary:
+- LIVE at https://github.com/ssmurfgg04-gif/mizigo-v2 (main, 4 commits, clean history)
+- Token exposed in chat — user advised to rotate it after this session
