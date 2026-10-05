@@ -1,0 +1,11818 @@
+
+
+
+Yesterday 1:58 PM
+Come up with the prompt for building this be ultra detailed especially on ui think f it like the uber for lorries study uber faras etc deeply [04/10, 10:56] Zainab Mchinku Mabuyu: I have an idea
+[04/10, 11:32] Mystery: Go for it!
+[04/10, 11:46] Zainab Mchinku Mabuyu: Tutengeneze app
+[04/10, 11:47] Zainab Mchinku Mabuyu: Unaona kama bolt ubber faras hizo etc
+[04/10, 11:47] Zainab Mchinku Mabuyu: So iyo ikue ya mzigo like kama lorry pickup tuktuk  ju hakuna how about that 🤔
+[04/10, 12:00] Mystery: It's a nice idea what should we name it?
+[04/10, 12:01] Zainab Mchinku Mabuyu: I dont know
+
+Yes. The key is not to build “Uber, but with trucks.” Build the marketplace + dispatch system for cargo, using the parts of Uber/Faras that make booking frictionless, then add the things normal ride-hailing apps do not solve: weight, dimensions, loading, vehicle capacity, cargo type, delivery proof, negotiated/market pricing, and business accounts.
+
+I studied the current Uber/FARAS patterns and Uber Freight model for this. Uber emphasizes destination-first booking, suggested pickup points, upfront pricing, driver matching, live arrival tracking, trip identity, ratings and receipts. 
+ FARAS combines ride-hailing with delivery, payments, rewards and local-market mobility. 
+ Uber Freight adds the crucial freight layer: shipment details, equipment type, dimensions/weight, quote comparison, booking, real-time visibility and document management. 
+
+For Kenya, M-Pesa should be a first-class payment method rather than an afterthought; Safaricom's current Daraja platform supports C2B, B2C, B2B and M-Pesa Express integrations. 
+
+MASTER BUILD PROMPT
+Copy everything below into your coding/building AI:
+
+Build a production-quality mobile-first cargo transportation marketplace for Kenya.
+
+WORKING PRODUCT NAME:
+"MIZIGO" (temporary name; use it consistently throughout the prototype but structure branding so the name/logo can easily be changed later).
+
+CORE CONCEPT:
+Think "Uber/FARAS for cargo vehicles", but DO NOT make a superficial taxi-app clone.
+
+The platform connects:
+1. PEOPLE/BUSINESSES WHO NEED GOODS MOVED
+2. OWNERS/DRIVERS OF PICKUPS, TUK-TUKS, LORRIES, CANTERS AND OTHER CARGO VEHICLES
+3. AN OPERATIONS/ADMIN TEAM THAT CONTROLS THE MARKETPLACE
+
+The product should make booking a cargo vehicle feel as simple as booking an Uber, while capturing the information required for actual logistics.
+
+PRIMARY VALUE PROPOSITION:
+
+"Tell us what you're moving, where it is, where it needs to go, and what type of vehicle you need. We'll find the right vehicle, give you a clear price, let you track the delivery live, and give you proof that it arrived."
+
+TARGET MARKET:
+Start in Kenya, especially Nairobi and nearby corridors.
+
+Potential use cases:
+- Household moving
+- Furniture delivery
+- Construction materials
+- Hardware deliveries
+- Shop restocking
+- E-commerce deliveries
+- Farm produce
+- Wholesale goods
+- Small business logistics
+- Building-material transport
+- Office relocation
+- Market-to-market transportation
+- SME deliveries
+- Inter-town cargo
+- Large parcel delivery
+- Same-day cargo
+- Scheduled cargo
+- Multi-stop deliveries
+
+IMPORTANT PRODUCT PRINCIPLE:
+A normal Uber ride has:
+pickup -> destination -> vehicle -> price -> driver -> trip
+
+A cargo trip has:
+pickup -> destination -> cargo characteristics -> vehicle capacity -> loading requirements -> price -> driver -> pickup verification -> transport -> delivery verification -> payment/receipt
+
+The UI must make the second process feel almost as effortless as the first.
+
+--------------------------------------------------
+1. PRODUCT EXPERIENCE PHILOSOPHY
+--------------------------------------------------
+
+The product should feel:
+
+- extremely easy to understand
+- modern
+- trustworthy
+- African/Kenyan without looking stereotypically "African"
+- premium but accessible
+- fast
+- practical
+- information-dense when necessary
+- extremely clean visually
+- designed for Android first
+- usable on lower-end Android phones
+- usable in inconsistent network conditions
+- optimized for one-handed use
+- map-centric where maps are useful
+- card/bottom-sheet based for booking
+
+Do NOT create:
+- a generic SaaS dashboard aesthetic
+- excessive gradients
+- excessive glassmorphism
+- giant decorative illustrations
+- unnecessary animations
+- excessive rounded cards
+- over-designed screens
+- "AI startup" visual clichés
+- neon colors
+- purple gradients
+- floating elements everywhere
+
+The app should look like a serious transportation/logistics company.
+
+REFERENCE INTERACTION PRINCIPLES:
+Use the proven simplicity of Uber/FARAS:
+- destination-first interaction
+- map + bottom sheet
+- clear primary CTA
+- vehicle options
+- upfront price
+- driver identity
+- live tracking
+- status progression
+- ratings
+- receipts
+- safety/support
+
+Add freight-specific functionality inspired by modern freight platforms:
+- shipment details
+- vehicle/equipment type
+- weight
+- dimensions
+- special handling
+- quote comparison where appropriate
+- scheduling
+- shipment tracking
+- proof of delivery
+- business documentation
+
+Do NOT copy proprietary visual assets, logos, exact screens, typography or trademarks.
+
+Use these competitors only as UX inspiration:
+- Uber
+- FARAS
+- Uber Freight
+- Bolt
+- modern African logistics platforms
+
+--------------------------------------------------
+2. BRAND / VISUAL IDENTITY
+--------------------------------------------------
+
+Create an original brand system.
+
+Suggested visual direction:
+
+Primary:
+Deep charcoal / almost-black
+
+Secondary:
+Strong warm orange or amber used sparingly for primary CTAs and important movement/status elements.
+
+Supporting:
+White
+Soft gray
+Medium gray
+Dark gray
+Success green
+Warning amber
+Error red
+Information blue
+
+The exact brand color can be changed globally through design tokens.
+
+Typography:
+Use a clean modern sans-serif such as Inter, Manrope, or system Android/SF typography.
+
+Typography hierarchy:
+
+Display:
+28-34px
+bold
+
+Page title:
+22-26px
+semibold/bold
+
+Section title:
+16-18px
+semibold
+
+Body:
+14-16px
+regular
+
+Supporting:
+12-13px
+regular/medium
+
+Price:
+24-32px
+bold
+
+Buttons:
+14-16px
+semibold
+
+Never make body text tiny.
+
+Spacing system:
+4 / 8 / 12 / 16 / 20 / 24 / 32px.
+
+Corner radius:
+8-12px for standard controls.
+14-18px for major cards/bottom sheets.
+Do not make every component excessively pill-shaped.
+
+Buttons:
+Large enough for thumb interaction.
+
+Primary CTA:
+Full-width where appropriate.
+Height approximately 52-56px.
+
+Secondary buttons:
+Outlined or subtle filled.
+
+Icons:
+Use one consistent icon family.
+Do not mix random icon styles.
+
+Vehicle imagery:
+Use clean vector/icon representations or high-quality vehicle thumbnails.
+
+Map:
+Map occupies large visual real estate during live transportation states.
+Booking forms should appear as draggable/anchored bottom sheets.
+
+--------------------------------------------------
+3. INFORMATION ARCHITECTURE
+--------------------------------------------------
+
+The application has three major experiences.
+
+CUSTOMER:
+Home
+Create Delivery
+Vehicle Selection
+Price
+Matching
+Driver En Route
+Pickup
+In Transit
+Delivery
+Proof of Delivery
+Receipt
+Trips
+Saved Places
+Payment
+Profile
+Business Account
+Support
+
+DRIVER:
+Home
+Online/Offline
+Requests
+Request Details
+Navigation
+Pickup
+Cargo Verification
+Trip
+Delivery
+Proof of Delivery
+Earnings
+Wallet
+Trips
+Vehicle
+Documents
+Profile
+Support
+
+ADMIN WEB:
+Dashboard
+Live Map
+Bookings
+Drivers
+Customers
+Vehicles
+Pricing
+Regions
+Payments
+Payouts
+Disputes
+Support
+Promotions
+Analytics
+Documents
+Settings
+
+--------------------------------------------------
+4. CUSTOMER ONBOARDING
+--------------------------------------------------
+
+SCREEN 1:
+Splash
+
+Minimal.
+
+Centered logo:
+MIZIGO
+
+Subtitle:
+"Move anything. Anywhere."
+
+Do not use a long loading animation.
+
+SCREEN 2:
+Welcome
+
+Headline:
+"Moving something?"
+
+Subheadline:
+"Book the right vehicle and track your delivery from pickup to drop-off."
+
+Primary:
+"Get started"
+
+Secondary:
+"Drive & earn"
+
+SCREEN 3:
+Phone verification
+
+"What's your phone number?"
+
+Country:
+Kenya +254
+
+Input:
+07XX XXX XXX
+
+CTA:
+"Continue"
+
+Then OTP screen.
+
+Show:
+"Enter the 6-digit code sent to +254..."
+
+Allow:
+Resend code
+Change number
+
+After OTP, ask:
+
+"What are you using Mizigo for?"
+
+Cards:
+Personal
+Business
+
+If Business:
+Business name
+Optional registration details
+Billing information
+Multiple users can be added later.
+
+--------------------------------------------------
+5. CUSTOMER HOME SCREEN
+--------------------------------------------------
+
+This is the most important screen.
+
+Structure it like a hybrid of Uber home + logistics dashboard.
+
+TOP:
+Greeting:
+
+"Good afternoon, John"
+
+Small profile avatar on right.
+
+Below:
+Large contextual question:
+
+"What are you moving?"
+
+Then a booking card.
+
+Card:
+
+FROM
+"Pickup location"
+[Use current location]
+
+TO
+"Where should it go?"
+
+The two fields should have:
+location icons
+clear hierarchy
+autocomplete
+recent places
+saved places
+
+Map behind/above the card.
+
+The map should subtly show the user's current position.
+
+Below destination:
+
+"How soon?"
+
+Two options:
+
+NOW
+"Find a vehicle now"
+
+SCHEDULE
+"Choose date & time"
+
+Then shortcut tiles:
+
+Move household
+Deliver furniture
+Business delivery
+Construction materials
+
+Below:
+"Recent deliveries"
+
+Show the last 2-3 trips as compact list items.
+
+Bottom navigation:
+
+Home
+Trips
+Wallet
+Account
+
+The main CTA should always be visually obvious.
+
+--------------------------------------------------
+6. CREATE DELIVERY FLOW
+--------------------------------------------------
+
+Do NOT ask the customer for 15 fields on one screen.
+
+Progressively collect information.
+
+STEP 1:
+Pickup
+
+Map + address search.
+
+Headline:
+"Where are we picking up?"
+
+Allow:
+- current location
+- search
+- map pin
+- saved locations
+
+Important:
+Permit exact pickup adjustment on map.
+
+Add:
+"Pickup instructions"
+
+Example:
+"Gate B, next to the petrol station"
+
+Also:
+"Contact person"
+
+Name
+Phone
+
+Optional:
+"Add another pickup"
+
+Allow multi-stop routes.
+
+--------------------------------------------------
+7. DESTINATION
+--------------------------------------------------
+
+Headline:
+"Where is it going?"
+
+Destination search.
+
+Allow:
+building/business name
+street
+estate
+landmark
+
+Show:
+Drop-off contact
+Phone
+Delivery instructions
+
+Allow:
+additional drop-off.
+
+Example:
+"Call before arriving"
+
+--------------------------------------------------
+8. CARGO DETAILS
+--------------------------------------------------
+
+THIS IS THE FEATURE THAT DIFFERENTIATES THE APP FROM UBER.
+
+Headline:
+
+"What are you moving?"
+
+Category cards:
+
+Furniture
+Electronics
+Household goods
+Construction materials
+Farm produce
+Retail stock
+Food
+Machinery
+Office equipment
+Other
+
+Then:
+
+"How much?"
+
+Provide simple choices:
+
+Small
+Medium
+Large
+Very large
+
+BUT allow advanced details.
+
+"Know the weight?"
+
+Toggle:
+Yes / No
+
+If yes:
+Weight input
+kg / tonnes
+
+"Approximate dimensions?"
+
+Length
+Width
+Height
+
+Allow:
+Add another item
+
+Example:
+
+2 sofas
+1 dining table
+6 boxes
+
+Visual summary:
+"8 items · approximately 420 kg"
+
+Special requirements:
+
+Fragile
+Keep upright
+Keep dry
+Temperature-sensitive
+High-value
+Requires covered vehicle
+Requires open-bed vehicle
+Requires loading assistance
+Requires unloading assistance
+
+Do not overload the user with terminology.
+
+Add small information tooltip:
+"Not sure? Estimate. Your driver can confirm before loading."
+
+--------------------------------------------------
+9. VEHICLE SELECTION
+--------------------------------------------------
+
+After cargo details, determine recommended vehicles.
+
+Show:
+
+"Recommended for your load"
+
+VEHICLE CARDS:
+
+TUK-TUK
+Best for small cargo
+Up to X kg
+ETA 12 min
+Price KES XXX
+
+PICKUP
+Best for furniture/small business loads
+Up to X kg
+ETA 8 min
+Price KES XXX
+
+SMALL LORRY
+Best for larger loads
+Capacity displayed
+ETA 15 min
+Price KES XXX
+
+MEDIUM LORRY
+For bulk cargo
+Capacity displayed
+ETA 20 min
+Price KES XXX
+
+LARGE LORRY
+For large commercial loads
+Capacity displayed
+ETA 35 min
+Price:
+"Get quote"
+
+Vehicle capacity figures must be configurable from the admin panel.
+Do not hard-code potentially incorrect legal payload limits.
+
+Each card should contain:
+
+vehicle illustration/photo
+vehicle name
+capacity
+cargo bed/body type
+estimated arrival
+estimated trip duration
+price
+
+Recommended vehicle gets a subtle:
+"Best match" badge.
+
+Also give:
+"Choose another"
+
+If the cargo appears too large for the selected vehicle:
+
+"Your load may not fit in this vehicle."
+
+Buttons:
+Choose recommended vehicle
+Edit cargo
+
+--------------------------------------------------
+10. PRICING ENGINE UX
+--------------------------------------------------
+
+The customer must understand pricing before confirming.
+
+Do NOT simply show:
+
+"KES 4,850"
+
+Instead show:
+
+Estimated fare
+KES 4,850
+
+Breakdown:
+Base transport
+KES 3,600
+
+Distance
+KES 850
+
+Loading assistance
+KES 300
+
+Platform fee
+KES 100
+
+Total
+KES 4,850
+
+Potential additional charge:
+Waiting time
+KES XX/min after included wait time
+
+Potential toll/road charges:
+shown separately when applicable.
+
+For normal predictable routes:
+Show an exact upfront price.
+
+For complex freight:
+Show:
+"Estimated KES 5,000–6,500"
+OR
+"Requesting driver quotes"
+
+The backend should support both:
+1. Instant pricing
+2. Quote-based pricing
+
+Pricing inputs can include:
+- distance
+- estimated driving time
+- vehicle category
+- route
+- demand
+- time
+- cargo complexity
+- loading assistance
+- waiting
+- additional stops
+- special handling
+- tolls/road charges
+- minimum fare
+
+Keep pricing logic configurable in admin.
+
+--------------------------------------------------
+11. PAYMENT SCREEN
+--------------------------------------------------
+
+Headline:
+
+"How would you like to pay?"
+
+Large payment cards:
+
+M-PESA
+Cash
+Card
+
+For M-PESA:
+
+Phone number
+07XX XXX XXX
+
+Button:
+"Pay with M-PESA"
+
+If using M-Pesa Express:
+show:
+"Check your phone to complete payment."
+
+Never expose API credentials client-side.
+
+Support payment states:
+
+Pending
+Processing
+Successful
+Failed
+Cancelled
+Timed out
+Refunded
+
+After payment:
+show:
+
+✓ Payment confirmed
+
+KES 4,850
+
+M-Pesa receipt:
+ABC123XYZ
+
+Button:
+"View receipt"
+
+M-Pesa integration should be built so it can use Safaricom Daraja APIs in production. Daraja supports C2B collection and B2C disbursement, among other APIs. [REFERENCE THIS IN ARCHITECTURE/DOCUMENTATION, NOT AS USER-FACING COPY.]
+
+--------------------------------------------------
+12. CONFIRM DELIVERY SCREEN
+--------------------------------------------------
+
+Before requesting:
+
+MAP
+
+Pickup
+[location]
+
+↓ route
+
+Drop-off
+[location]
+
+Cargo:
+"8 items · approx. 420 kg"
+
+Vehicle:
+"Pickup"
+
+Payment:
+"M-PESA"
+
+Schedule:
+"Today · 2:30 PM"
+
+Total:
+KES 4,850
+
+Primary CTA:
+"Request vehicle"
+
+Secondary:
+"Edit"
+
+A small trust statement:
+"Your trip is tracked from pickup to delivery."
+
+--------------------------------------------------
+13. MATCHING STATE
+--------------------------------------------------
+
+This is the equivalent of Uber searching for a driver.
+
+Map fills approximately 65-70% of screen.
+
+Bottom sheet:
+
+"Finding a vehicle..."
+
+Animated but subtle.
+
+Show nearby available vehicle markers.
+
+Example:
+
+3 vehicles nearby
+
+Do not just show a spinner.
+
+Show:
+"Looking for the best match near you"
+
+Then state:
+
+"Driver found"
+
+Vehicle card:
+
+Peter K.
+★ 4.8
+
+Toyota Dyna
+Pickup
+KDA 123X
+
+"Arrives in 7 min"
+
+Buttons:
+Call
+Message
+
+Safety:
+"Verify the vehicle plate before loading."
+
+--------------------------------------------------
+14. DRIVER EN ROUTE SCREEN
+--------------------------------------------------
+
+Map first.
+
+Route from driver -> pickup.
+
+Show:
+"Peter is on the way"
+
+ETA:
+7 min
+
+Driver card:
+
+Profile photo
+Peter K.
+4.8 ★
+
+Vehicle:
+Toyota Dyna
+KDA 123X
+
+Buttons:
+Call
+Message
+
+Secondary:
+Share trip
+
+Pickup:
+"ABC Hardware, Industrial Area"
+
+Driver arrival should update live.
+
+Show clear status:
+
+Driver heading to pickup
+      ↓
+Arrived
+      ↓
+Loading
+      ↓
+In transit
+      ↓
+Delivered
+
+--------------------------------------------------
+15. PICKUP STATE
+--------------------------------------------------
+
+Once driver arrives:
+
+Customer gets:
+
+"Your driver has arrived"
+
+Display:
+
+Peter K.
+Toyota Dyna
+KDA 123X
+
+Important:
+"Check that the vehicle details match the app."
+
+Driver gets:
+
+"Customer is ready"
+
+Show cargo summary.
+
+Driver must be able to:
+- confirm arrival
+- see cargo details
+- report mismatch
+- report cargo too large
+- request additional loading fee
+- upload cargo photos
+- start trip
+
+--------------------------------------------------
+16. CARGO VERIFICATION
+--------------------------------------------------
+
+This is essential.
+
+Before starting:
+
+"Confirm cargo"
+
+Driver sees:
+
+8 items
+
+Customer sees same list.
+
+Driver can:
+✓ Confirm
+⚠ Report difference
+
+Photo capture:
+
+"Take photos of loaded cargo"
+
+Allow 3-6 photos.
+
+Optional:
+"Cargo condition"
+
+No damage
+Minor damage
+Existing damage
+
+The system records timestamp + location.
+
+Then:
+
+"Ready to transport"
+
+CTA:
+"Start delivery"
+
+--------------------------------------------------
+17. LIVE DELIVERY SCREEN
+--------------------------------------------------
+
+This is the signature product screen.
+
+Full-screen map.
+
+Top:
+"Delivery in progress"
+
+Large status:
+"Arriving in approximately 34 min"
+
+Route:
+Pickup ●────────────● Drop-off
+
+Vehicle moving on live map.
+
+Bottom sheet:
+
+Cargo:
+"8 items"
+
+Vehicle:
+"Toyota Dyna · KDA 123X"
+
+Driver:
+"Peter K. · ★ 4.8"
+
+Destination:
+"Westlands"
+
+Buttons:
+Call
+Message
+Share tracking
+
+Expandable:
+"Delivery details"
+
+Show:
+Item list
+Instructions
+Contact
+Payment
+Trip ID
+
+Status timeline:
+
+✓ Pickup confirmed
+✓ Cargo loaded
+● In transit
+○ Arriving
+○ Delivered
+
+Do NOT clutter the map with 20 markers.
+
+--------------------------------------------------
+18. CUSTOMER SHARE TRACKING
+--------------------------------------------------
+
+Allow:
+
+"Share delivery"
+
+Generate shareable tracking link/token.
+
+Recipient can see:
+- vehicle
+- driver
+- route
+- ETA
+- delivery status
+
+They should not need a full account to view a shared tracking page.
+
+--------------------------------------------------
+19. DELIVERY COMPLETION
+--------------------------------------------------
+
+When driver reaches destination:
+
+Driver screen:
+
+"You've arrived"
+
+Customer:
+
+"Your delivery has arrived"
+
+Driver must confirm delivery.
+
+Proof options:
+- recipient signature
+- OTP
+- recipient name
+- delivery photo
+- timestamp
+- GPS coordinates
+
+Best option for MVP:
+OTP + photo.
+
+Customer receives:
+"Your delivery was completed."
+
+Show proof:
+✓ Delivered to Mary
+✓ 14:38
+✓ Location recorded
+
+--------------------------------------------------
+20. DRIVER RATING
+--------------------------------------------------
+
+Customer:
+
+"How was your delivery?"
+
+★★★★★
+
+Then quick feedback:
+
+Arrived on time
+Careful with cargo
+Professional
+Good communication
+Vehicle clean
+Other
+
+Driver:
+
+"Rate customer"
+
+★★★★★
+
+Quick feedback:
+
+Cargo ready
+Clear instructions
+Easy pickup
+Good communication
+Other
+
+Use two-way rating.
+
+Do NOT force users through long surveys.
+
+--------------------------------------------------
+21. RECEIPT
+--------------------------------------------------
+
+Create polished receipt.
+
+MIZIGO
+
+Delivery #MZG-482913
+
+Date
+04 Oct 2026
+
+Pickup
+ABC Hardware, Industrial Area
+
+Drop-off
+Westlands
+
+Vehicle
+Pickup
+
+Cargo
+8 items
+
+Transport
+KES 3,600
+
+Distance
+KES 850
+
+Loading
+KES 300
+
+Platform
+KES 100
+
+TOTAL
+KES 4,850
+
+Payment:
+M-PESA
+
+Receipt:
+ABC123XYZ
+
+Status:
+PAID
+
+Buttons:
+Download receipt
+Share
+
+For businesses:
+Include tax/invoice fields when applicable.
+
+--------------------------------------------------
+22. TRIPS SCREEN
+--------------------------------------------------
+
+Title:
+"Your deliveries"
+
+Tabs:
+
+All
+Active
+Completed
+Cancelled
+
+Trip card:
+
+[vehicle icon]
+
+Industrial Area → Westlands
+
+KES 4,850
+
+04 Oct · 2:30 PM
+
+✓ Delivered
+
+Tap to open details.
+
+Trip details page:
+Map
+Route
+Cargo
+Driver
+Vehicle
+Payment
+Receipt
+Proof of delivery
+Support
+
+--------------------------------------------------
+23. BUSINESS MODE
+--------------------------------------------------
+
+This is where the platform becomes much more valuable than a consumer-only Uber clone.
+
+Business dashboard:
+
+"Good afternoon, ABC Traders"
+
+Quick actions:
+
+New delivery
+Track deliveries
+Repeat delivery
+View invoices
+
+Metrics:
+
+Active deliveries
+Completed this month
+Total spent
+
+Recent deliveries.
+
+Business accounts should support:
+
+Saved addresses
+Frequent destinations
+Multiple staff/users
+Central billing
+Invoice history
+Delivery history
+Multiple payment methods
+Favorite vehicles/providers
+Scheduled deliveries
+Bulk bookings
+
+Allow:
+"Book again"
+
+A business should be able to repeat yesterday's delivery in seconds.
+
+--------------------------------------------------
+24. DRIVER APP
+--------------------------------------------------
+
+The driver experience should be completely different from the customer UI while keeping the same design language.
+
+HOME:
+
+Large online/offline control.
+
+"You're offline"
+
+Toggle:
+GO ONLINE
+
+Once online:
+
+"You're online"
+
+Large earnings number:
+
+KES 2,450 today
+
+Stats:
+4 trips
+6h 20m online
+KES 612/trip
+
+Map showing demand.
+
+Bottom navigation:
+
+Home
+Requests
+Trips
+Earnings
+Account
+
+--------------------------------------------------
+25. DRIVER REQUEST CARD
+--------------------------------------------------
+
+When a request arrives:
+
+Cargo Delivery
+
+Pickup:
+Industrial Area
+
+Drop-off:
+Westlands
+
+Distance:
+14.2 km
+
+Estimated duration:
+39 min
+
+Cargo:
+Furniture
+
+Vehicle:
+Pickup
+
+Customer rating:
+4.7
+
+Driver earnings:
+KES 3,900
+
+Buttons:
+
+DECLINE
+
+ACCEPT
+
+Do NOT hide important trip information.
+
+Driver must know what they're accepting before accepting.
+
+--------------------------------------------------
+26. DRIVER REQUEST DETAIL
+--------------------------------------------------
+
+Full screen:
+
+Map
+
+Pickup:
+ABC Furniture
+Industrial Area
+
+Drop-off:
+Westlands
+
+Cargo:
+2 sofas
+1 table
+6 boxes
+
+Estimated weight:
+420 kg
+
+Special:
+"Handle carefully"
+
+Loading:
+"Customer requests assistance"
+
+Earnings:
+KES 3,900
+
+Commission:
+KES 390
+
+Your earnings:
+KES 3,510
+
+CTA:
+Accept trip
+
+--------------------------------------------------
+27. DRIVER NAVIGATION
+--------------------------------------------------
+
+After acceptance:
+
+Large map.
+
+Top:
+"Pickup · 8 min"
+
+Navigation should support external maps where appropriate.
+
+Bottom:
+Pickup instructions.
+
+Buttons:
+Arrived
+Call
+Message
+
+When driver enters arrival radius:
+automatically suggest:
+
+"I've arrived"
+
+Do not automatically start trip.
+
+Driver must explicitly confirm.
+
+--------------------------------------------------
+28. DRIVER EARNINGS
+--------------------------------------------------
+
+Dashboard:
+
+Today:
+KES 4,850
+
+This week:
+KES 32,700
+
+This month:
+KES 121,400
+
+Show chart.
+
+Breakdown:
+
+Gross fares
+Platform commission
+Bonuses
+Adjustments
+Net earnings
+
+Wallet:
+Available balance
+
+Withdraw:
+M-PESA
+
+History:
+
+KES 4,200
+Completed
+
+KES 3,500
+Completed
+
+KES 2,800
+Completed
+
+For the backend, support B2C-style disbursement architecture for driver payouts.
+
+--------------------------------------------------
+29. VEHICLE MANAGEMENT
+--------------------------------------------------
+
+Driver profile should contain:
+
+Vehicle information.
+
+Vehicle type:
+Pickup
+
+Make:
+Toyota
+
+Model:
+Hilux
+
+Registration:
+KDA 123X
+
+Body:
+Open / covered
+
+Capacity:
+X kg
+
+Photos:
+front
+back
+side
+cargo area
+
+Documents:
+
+Registration
+Insurance
+Inspection
+Driver licence
+Other required documents
+
+Show verification status:
+
+✓ Verified
+
+Pending review
+
+Expired
+
+Rejected
+
+The exact required documents should be configurable because regulatory requirements may differ by vehicle/service.
+
+--------------------------------------------------
+30. VEHICLE TYPES
+--------------------------------------------------
+
+Create configurable vehicle categories.
+
+Initial examples:
+
+Tuk-Tuk
+Small Pickup
+Large Pickup
+Small Truck
+Canter
+Medium Lorry
+Large Lorry
+Flatbed
+Covered Truck
+Refrigerated vehicle
+
+Do NOT hard-code legal payload values.
+
+Each vehicle category needs:
+
+name
+description
+maximum configurable payload
+volume
+body type
+dimensions
+pricing multiplier
+base fare
+per-km rate
+per-minute rate
+minimum fare
+availability
+supported cargo types
+loading rules
+special requirements
+
+Admin can edit all values.
+
+--------------------------------------------------
+31. DRIVER AVAILABILITY
+--------------------------------------------------
+
+Online:
+Accept requests
+
+Offline:
+Do not receive requests
+
+Busy:
+Currently carrying a delivery
+
+On break:
+Temporarily unavailable
+
+Vehicle unavailable:
+Cannot accept jobs
+
+GPS:
+Update driver location periodically.
+
+The backend should not require extreme GPS precision or high-frequency updates when unnecessary, in order to conserve battery and data.
+
+--------------------------------------------------
+32. MATCHING ENGINE
+--------------------------------------------------
+
+Do not simply match the closest driver.
+
+Ranking should consider:
+
+1. Vehicle suitability
+2. Driver availability
+3. Distance to pickup
+4. ETA
+5. Current trip status
+6. Driver acceptance history
+7. Driver rating
+8. Service area
+9. Vehicle capacity
+10. Customer requirements
+11. Load type
+12. Driver reliability
+13. Marketplace balancing
+
+Example:
+
+Customer requests a pickup.
+
+System filters:
+- online drivers
+- correct vehicle category
+- sufficient estimated capacity
+- service area
+- compliance status
+
+Then ranks:
+
+Driver A:
+2 km
+appropriate vehicle
+4.9
+ETA 6 min
+
+Driver B:
+1 km
+wrong vehicle
+ETA 4 min
+
+Driver C:
+3 km
+appropriate vehicle
+4.7
+ETA 7 min
+
+Match Driver A.
+
+Build matching as a backend service so logic can evolve without rewriting the mobile UI.
+
+--------------------------------------------------
+33. QUOTE MODE
+--------------------------------------------------
+
+Some freight cannot be priced accurately using simple distance.
+
+Support:
+
+"Get quotes from available drivers"
+
+Customer creates request.
+
+Drivers see:
+
+Potential job:
+Nairobi → Nakuru
+
+Cargo:
+Construction materials
+
+Weight:
+3,500 kg
+
+Vehicle:
+Medium lorry
+
+Customer budget:
+Optional
+
+Drivers can submit:
+
+KES 32,000
+
+KES 35,000
+
+KES 29,500
+
+Customer sees:
+
+3 available quotes
+
+Driver:
+★ 4.8
+32 completed cargo trips
+
+Vehicle:
+5T Canter
+
+Quote:
+KES 32,000
+
+Arrival:
+Tomorrow 08:00
+
+Button:
+Select quote
+
+This should feel like Uber simplicity combined with freight marketplace functionality.
+
+--------------------------------------------------
+34. SCHEDULED DELIVERIES
+--------------------------------------------------
+
+Allow:
+
+Book now
+Schedule
+
+Schedule form:
+
+Date
+Time
+Pickup
+Destination
+Cargo
+Vehicle
+
+Examples:
+
+Today 4:30 PM
+Tomorrow 8:00 AM
+Custom
+
+For scheduled bookings:
+drivers can receive requests ahead of time.
+
+Admin should be able to control how far in advance bookings are allowed.
+
+--------------------------------------------------
+35. MULTI-STOP DELIVERY
+--------------------------------------------------
+
+Allow:
+
+Pickup
+↓
+Stop 1
+↓
+Stop 2
+↓
+Drop-off
+
+Display:
+
+3 stops
+
+Customer should see incremental cost.
+
+Driver should see stop sequence clearly.
+
+Allow the driver to mark each stop complete.
+
+--------------------------------------------------
+36. PRICE NEGOTIATION
+--------------------------------------------------
+
+Do not make negotiation the default for simple city deliveries.
+
+Instant pricing:
+consumer/simple cargo
+
+Quote mode:
+larger/commercial/long-distance/complex cargo
+
+Optional:
+Customer can add budget in quote mode.
+
+Drivers can:
+accept
+decline
+submit quote
+
+Customer can:
+accept
+reject
+wait
+
+Quote expires after configurable period.
+
+--------------------------------------------------
+37. SAFETY / TRUST
+--------------------------------------------------
+
+Make trust visible throughout the app.
+
+Show:
+
+Verified driver
+Verified vehicle
+Driver rating
+Completed deliveries
+Vehicle registration
+Support
+
+Before pickup:
+"Check vehicle plate"
+
+During trip:
+Share delivery
+
+After delivery:
+Proof of delivery
+
+Emergency/support button.
+
+Support should not be buried in profile.
+
+During an active delivery:
+Help
+Call support
+Report issue
+
+Potential safety states:
+Driver unavailable
+Vehicle mismatch
+Cargo damage
+Wrong pickup
+Wrong destination
+Payment issue
+Suspicious activity
+Emergency
+
+--------------------------------------------------
+38. CARGO DAMAGE / DISPUTES
+--------------------------------------------------
+
+Allow evidence.
+
+At pickup:
+cargo photos
+
+At delivery:
+cargo photos
+
+If damaged:
+customer can open dispute.
+
+Dispute screen:
+
+"What happened?"
+
+Cargo damaged
+Missing item
+Wrong delivery
+Late delivery
+Driver issue
+Payment issue
+Other
+
+Upload:
+photos
+notes
+
+Backend creates:
+case ID
+trip ID
+customer
+driver
+timestamps
+evidence
+
+Admin sees all evidence.
+
+--------------------------------------------------
+39. CUSTOMER PROFILE
+--------------------------------------------------
+
+Profile screen:
+
+Name
+Phone
+Email
+
+Personal / Business
+
+Saved places
+
+Payment methods
+
+Trips
+
+Receipts
+
+Notifications
+
+Safety
+
+Support
+
+Settings
+
+Language
+
+Logout
+
+--------------------------------------------------
+40. NOTIFICATIONS
+--------------------------------------------------
+
+Notifications must be useful.
+
+Examples:
+
+"Driver found"
+
+"Peter is 7 min away"
+
+"Peter has arrived"
+
+"Cargo has been loaded"
+
+"Delivery started"
+
+"Your delivery is 15 min away"
+
+"Delivery complete"
+
+"Your receipt is ready"
+
+"Payment successful"
+
+"Driver submitted a quote"
+
+Use push notifications.
+
+Important:
+deep-link notification into the relevant trip.
+
+--------------------------------------------------
+41. ADMIN DASHBOARD
+--------------------------------------------------
+
+Build a separate responsive web application.
+
+Sidebar:
+
+Dashboard
+Live Deliveries
+Bookings
+Drivers
+Vehicles
+Customers
+Businesses
+Pricing
+Payments
+Payouts
+Disputes
+Support
+Analytics
+Promotions
+Documents
+Settings
+
+TOP NAV:
+
+Search
+Notifications
+Admin profile
+
+--------------------------------------------------
+42. ADMIN DASHBOARD OVERVIEW
+--------------------------------------------------
+
+KPIs:
+
+Active deliveries
+Today’s bookings
+Revenue
+Platform earnings
+Online drivers
+Cancellation rate
+Average delivery time
+Completed deliveries
+Pending disputes
+
+Large live map:
+
+Drivers
+Active deliveries
+Pickup points
+Drop-offs
+
+Map markers must be visually distinct.
+
+--------------------------------------------------
+43. LIVE OPERATIONS MAP
+--------------------------------------------------
+
+Full-screen operational map.
+
+Filters:
+
+All
+Available drivers
+Busy drivers
+Deliveries
+Problems
+
+Click driver:
+
+Peter K.
+Online
+Pickup
+ETA 6 min
+4.8
+Vehicle: Pickup
+
+Click delivery:
+
+MZG-49281
+Industrial Area → Westlands
+Driver: Peter
+Status: Loading
+ETA: 32 min
+
+Admin can open detailed trip timeline.
+
+--------------------------------------------------
+44. BOOKING MANAGEMENT
+--------------------------------------------------
+
+Table:
+
+ID
+Customer
+Pickup
+Destination
+Vehicle
+Driver
+Status
+Fare
+Date
+
+Statuses:
+
+Requested
+Matching
+Accepted
+Driver arriving
+Arrived
+Loading
+In transit
+Delivered
+Cancelled
+Disputed
+
+Filters:
+date
+status
+area
+vehicle
+driver
+customer
+
+Search:
+booking ID
+phone number
+vehicle registration
+
+--------------------------------------------------
+45. DRIVER MANAGEMENT
+--------------------------------------------------
+
+Driver table:
+
+Name
+Phone
+Rating
+Vehicle
+Status
+Trips
+Earnings
+Verification
+
+Driver detail:
+
+Profile
+Documents
+Vehicle
+Trip history
+Ratings
+Earnings
+Disputes
+Activity log
+
+Actions:
+
+Approve
+Suspend
+Deactivate
+Edit vehicle
+Verify document
+
+--------------------------------------------------
+46. PRICING ADMIN
+--------------------------------------------------
+
+Build a sophisticated but understandable pricing editor.
+
+Pricing zones:
+
+Nairobi
+Kiambu
+Machakos
+Kajiado
+Nakuru
+etc.
+
+Each zone can have:
+
+Base price
+Price/km
+Price/min
+Minimum price
+Waiting rate
+Loading fee
+Extra stop fee
+Vehicle multiplier
+Peak multiplier
+
+Example:
+
+PICKUP
+
+Base:
+KES 500
+
+Per km:
+KES 90
+
+Waiting:
+KES 10/min
+
+Loading:
+KES 500
+
+These are EXAMPLE values only.
+Do not represent actual market pricing.
+
+Admin should be able to modify them without redeploying.
+
+--------------------------------------------------
+47. PAYMENTS ADMIN
+--------------------------------------------------
+
+Dashboard:
+
+Incoming payments
+Driver payouts
+Platform revenue
+Refunds
+Failed payments
+
+Payment record:
+
+Transaction ID
+Trip ID
+Customer
+Driver
+Amount
+Method
+Status
+Timestamp
+
+Statuses:
+
+Pending
+Success
+Failed
+Refunded
+Reversed
+
+Never trust the mobile client as proof of payment.
+Payment status must be confirmed server-side.
+
+--------------------------------------------------
+48. DRIVER PAYOUTS
+--------------------------------------------------
+
+Driver:
+
+Gross:
+KES X
+
+Platform:
+KES X
+
+Adjustments:
+KES X
+
+Net:
+KES X
+
+Payout status:
+Pending
+Processing
+Paid
+Failed
+
+Maintain an immutable transaction ledger.
+
+--------------------------------------------------
+49. DATABASE MODEL
+--------------------------------------------------
+
+Create a proper relational backend.
+
+Core tables/entities:
+
+users
+profiles
+customers
+businesses
+business_members
+drivers
+vehicles
+vehicle_categories
+vehicle_documents
+driver_documents
+bookings
+booking_stops
+cargo_items
+cargo_photos
+pricing_rules
+quotes
+payments
+payment_events
+driver_earnings
+driver_payouts
+wallet_transactions
+ratings
+reviews
+delivery_proofs
+support_tickets
+disputes
+notifications
+saved_places
+promo_codes
+service_areas
+admin_users
+audit_logs
+
+Important IDs:
+
+user_id
+driver_id
+vehicle_id
+booking_id
+quote_id
+payment_id
+payout_id
+dispute_id
+
+Use UUIDs or similarly safe non-sequential identifiers.
+
+--------------------------------------------------
+50. BOOKING STATE MACHINE
+--------------------------------------------------
+
+Create explicit backend states.
+
+REQUESTED
+↓
+SEARCHING
+↓
+MATCHED
+↓
+DRIVER_ACCEPTED
+↓
+DRIVER_EN_ROUTE
+↓
+DRIVER_ARRIVED
+↓
+LOADING
+↓
+LOADED
+↓
+IN_TRANSIT
+↓
+ARRIVING
+↓
+DELIVERED
+↓
+RATED
+
+Alternative states:
+
+CANCELLED
+EXPIRED
+DISPUTED
+
+Never allow arbitrary state changes from the frontend.
+
+Validate transitions server-side.
+
+--------------------------------------------------
+51. API DESIGN
+--------------------------------------------------
+
+Create modular REST or RPC APIs.
+
+Example:
+
+POST /auth/request-otp
+POST /auth/verify-otp
+
+GET /vehicles/available
+
+POST /bookings
+
+GET /bookings/:id
+
+POST /bookings/:id/cancel
+
+POST /bookings/:id/quotes
+
+POST /quotes/:id/accept
+
+POST /bookings/:id/accept
+
+POST /bookings/:id/arrive
+
+POST /bookings/:id/start-loading
+
+POST /bookings/:id/start-trip
+
+POST /bookings/:id/complete
+
+POST /bookings/:id/proof-of-delivery
+
+POST /payments/initiate
+
+POST /payments/callback
+
+GET /drivers/earnings
+
+POST /drivers/payout
+
+POST /ratings
+
+POST /disputes
+
+Use role-based authorization.
+
+--------------------------------------------------
+52. REAL-TIME SYSTEM
+--------------------------------------------------
+
+Use WebSockets/realtime subscriptions where supported.
+
+Realtime objects:
+
+driver location
+booking state
+ETA
+payment status
+quote updates
+notifications
+
+When the driver moves:
+customer map updates.
+
+When driver accepts:
+customer sees immediately.
+
+When cargo is loaded:
+customer sees immediately.
+
+When delivered:
+customer sees immediately.
+
+--------------------------------------------------
+53. MAP SYSTEM
+--------------------------------------------------
+
+Build a map abstraction so provider can be swapped.
+
+Required:
+- geocoding
+- reverse geocoding
+- directions
+- distance matrix
+- route polyline
+- ETA
+- driver location
+- pickup pin
+- destination pin
+
+Do not hard-wire provider-specific APIs throughout the application.
+
+Create:
+
+MapService
+RoutingService
+GeocodingService
+
+This allows Google Maps / Mapbox / OpenStreetMap-based providers to be changed later.
+
+--------------------------------------------------
+54. OFFLINE / BAD NETWORK HANDLING
+--------------------------------------------------
+
+This is particularly important.
+
+If network disappears:
+
+Show:
+"No connection"
+
+Do not make the application appear broken.
+
+Cache:
+active booking
+driver information
+pickup
+destination
+cargo information
+
+Driver app:
+queue non-critical updates where safe.
+
+Never fake successful payment or delivery confirmation.
+
+After reconnect:
+sync state.
+
+--------------------------------------------------
+55. LOADING STATES
+--------------------------------------------------
+
+Every screen needs proper loading states.
+
+Do NOT show blank white screens.
+
+Use skeleton loaders.
+
+Examples:
+
+Vehicle loading:
+vehicle cards become skeletons
+
+Trip loading:
+map placeholder + trip skeleton
+
+Profile:
+text skeleton
+
+Avoid excessive spinners.
+
+--------------------------------------------------
+56. EMPTY STATES
+--------------------------------------------------
+
+Trips:
+
+"No deliveries yet"
+
+"You'll see your completed deliveries here."
+
+CTA:
+"Move something"
+
+Earnings:
+
+"No earnings yet"
+
+"Go online to start receiving delivery requests."
+
+Notifications:
+
+"You're all caught up."
+
+--------------------------------------------------
+57. ERROR STATES
+--------------------------------------------------
+
+Human language.
+
+Bad:
+"ERR_BOOKING_503"
+
+Good:
+"We couldn't find a vehicle nearby."
+
+Actions:
+Try again
+Change vehicle
+Schedule delivery
+
+Payment failure:
+
+"We couldn't confirm your M-PESA payment."
+
+Retry
+Change payment method
+
+Matching failure:
+
+"No suitable vehicle is available right now."
+
+Options:
+Notify me
+Schedule
+Request quotes
+
+--------------------------------------------------
+58. MICROINTERACTIONS
+--------------------------------------------------
+
+Use subtle animation.
+
+When driver accepts:
+map gently transitions.
+
+When status changes:
+timeline item animates.
+
+When delivery completes:
+small success check animation.
+
+When payment completes:
+success confirmation.
+
+Do NOT use:
+large confetti
+constant bouncing
+excessive motion
+parallax
+fake 3D
+
+Animations should communicate state rather than decorate.
+
+--------------------------------------------------
+59. DESIGN SYSTEM COMPONENTS
+--------------------------------------------------
+
+Create reusable components:
+
+PrimaryButton
+SecondaryButton
+DangerButton
+LocationSearch
+MapCard
+BottomSheet
+VehicleCard
+DriverCard
+PriceBreakdown
+TripTimeline
+StatusBadge
+CargoItem
+CargoCategoryCard
+PaymentMethodCard
+RatingStars
+DriverAvatar
+DocumentStatus
+QuoteCard
+TripCard
+EmptyState
+ErrorState
+Skeleton
+Toast
+Modal
+OTPInput
+PhoneInput
+NumberStepper
+WeightInput
+DimensionsInput
+PhotoUploader
+ProofOfDelivery
+SupportCard
+
+Use design tokens.
+
+--------------------------------------------------
+60. RESPONSIVE BEHAVIOR
+--------------------------------------------------
+
+CUSTOMER MOBILE:
+Optimized for 360-430px widths.
+
+DRIVER MOBILE:
+Optimized for one-handed use.
+
+ADMIN:
+Desktop first.
+Responsive down to tablet.
+
+Customer map screens:
+map = dominant visual region
+
+Forms:
+bottom-sheet or stacked cards
+
+Admin:
+sidebar + content
+
+--------------------------------------------------
+61. ACCESSIBILITY
+--------------------------------------------------
+
+Touch targets:
+minimum approximately 44px.
+
+Readable contrast.
+
+Do not rely solely on color.
+
+Status should combine:
+icon + text + color.
+
+Examples:
+
+✓ Delivered
+● In transit
+⚠ Attention required
+✕ Cancelled
+
+Inputs must have labels.
+
+Buttons must communicate action clearly.
+
+--------------------------------------------------
+62. INTERNATIONALIZATION
+--------------------------------------------------
+
+English-first.
+
+Structure app so Swahili can be added later.
+
+All text must come from translation keys rather than hard-coded throughout UI.
+
+Example:
+
+booking.requestVehicle
+booking.driverArriving
+booking.deliveryComplete
+
+--------------------------------------------------
+63. SECURITY
+--------------------------------------------------
+
+Never expose:
+API secrets
+payment credentials
+admin credentials
+service keys
+
+Use:
+secure authentication
+authorization
+server-side validation
+rate limiting
+audit logs
+secure file uploads
+signed delivery documents
+role-based access
+
+Customer cannot alter:
+fare
+driver earnings
+payment status
+delivery status
+
+Driver cannot:
+mark payment successful
+change customer fare
+access another driver's earnings
+
+Admin actions must be logged.
+
+--------------------------------------------------
+64. PAYMENT ARCHITECTURE
+--------------------------------------------------
+
+Design for M-PESA first.
+
+Create abstraction:
+
+PaymentProvider
+
+Methods:
+
+initiatePayment()
+verifyPayment()
+refundPayment()
+getTransactionStatus()
+
+First implementation:
+M-PESA / Daraja
+
+Future:
+Card
+Other African mobile money
+Bank
+Corporate credit
+
+The frontend should never directly call protected M-PESA credentials.
+
+Use server-side callback/webhook verification.
+
+--------------------------------------------------
+65. NOTIFICATION ARCHITECTURE
+--------------------------------------------------
+
+NotificationService:
+
+sendPush()
+sendSMS()
+sendEmail()
+sendInApp()
+
+Critical operational events:
+driver accepted
+driver arriving
+driver arrived
+cargo loaded
+trip started
+delivery near
+delivery completed
+payment successful
+payment failed
+quote received
+
+--------------------------------------------------
+66. ANALYTICS
+--------------------------------------------------
+
+Track the entire funnel.
+
+Customer:
+
+opened app
+started booking
+entered pickup
+entered destination
+entered cargo
+selected vehicle
+saw price
+requested
+matched
+paid
+delivery completed
+rated
+
+Important metrics:
+
+Booking conversion
+Quote-to-book conversion
+Average booking value
+Average delivery time
+Driver acceptance rate
+Driver cancellation rate
+Customer cancellation rate
+Vehicle utilization
+Driver online hours
+Revenue/trip
+Platform take rate
+Repeat customer rate
+Business customer retention
+Average ETA
+On-time delivery %
+Damage/dispute %
+Payment failure rate
+
+This product should be built around data from day one.
+
+--------------------------------------------------
+67. USER EXPERIENCE FUNNEL
+--------------------------------------------------
+
+The ideal first booking should feel like this:
+
+OPEN APP
+
+"What are you moving?"
+
+↓
+
+Pickup
+"Use current location"
+
+↓
+
+Destination
+
+↓
+
+Cargo
+"Furniture"
+
+↓
+
+Vehicle
+
+"Pickup — KES 3,850"
+
+↓
+
+Payment
+"M-PESA"
+
+↓
+
+"Request vehicle"
+
+↓
+
+"Finding a vehicle..."
+
+↓
+
+"Peter is 7 min away"
+
+↓
+
+"Peter arrived"
+
+↓
+
+"Cargo loaded"
+
+↓
+
+"Delivery in progress"
+
+↓
+
+"Delivered"
+
+↓
+
+"Rate"
+
+This is the core loop.
+
+It should feel extremely fast.
+
+--------------------------------------------------
+68. HOMEPAGE VISUAL PRIORITY
+--------------------------------------------------
+
+Priority 1:
+CREATE DELIVERY
+
+Priority 2:
+ACTIVE DELIVERY
+
+Priority 3:
+RECENT DELIVERY
+
+Priority 4:
+BUSINESS/QUICK ACTIONS
+
+Everything else is secondary.
+
+Do not turn the home page into a dashboard full of statistics.
+
+--------------------------------------------------
+69. ACTIVE DELIVERY HOME STATE
+--------------------------------------------------
+
+When a customer has an active trip, replace the normal hero with:
+
+"Your delivery is on the way"
+
+Map preview.
+
+"Peter · Pickup · ETA 24 min"
+
+CTA:
+"Track delivery"
+
+This should dominate the home screen.
+
+--------------------------------------------------
+70. REPEAT BOOKING
+--------------------------------------------------
+
+One of the strongest business features.
+
+Recent trip:
+
+Industrial Area → Westlands
+Pickup
+KES 4,850
+
+Button:
+"Book again"
+
+It should preload:
+locations
+vehicle
+common cargo
+
+Then ask:
+"Same cargo?"
+
+Yes
+Edit
+
+--------------------------------------------------
+71. QUICK BOOK
+--------------------------------------------------
+
+For repeat users:
+
+"Where should we pick up?"
+
+"Where should we deliver?"
+
+"Vehicle?"
+
+Then:
+"Request"
+
+Do not force the entire onboarding flow every time.
+
+--------------------------------------------------
+72. SEARCH / LOCATION UX
+--------------------------------------------------
+
+Location search should support:
+
+- street names
+- businesses
+- landmarks
+- estates
+- neighborhoods
+- saved locations
+- recent locations
+
+Examples:
+
+Westlands
+Industrial Area
+Gikomba
+Karen
+Kikuyu
+Thika Road
+JKIA
+etc.
+
+Never require users to know exact postal addresses.
+
+Allow landmark-based pickup instructions.
+
+--------------------------------------------------
+73. ADMIN MAP VISUALIZATION
+--------------------------------------------------
+
+Use different marker shapes:
+
+Available driver:
+vehicle icon
+
+Busy driver:
+vehicle icon + status
+
+Pickup:
+pickup pin
+
+Destination:
+drop-off pin
+
+Problem:
+warning marker
+
+Active delivery:
+route line
+
+Selecting an object opens a side panel/bottom sheet with details.
+
+--------------------------------------------------
+74. DRIVER DEMAND MAP
+--------------------------------------------------
+
+Driver home can show:
+
+"High demand"
+
+Zones.
+
+Example:
+
+Westlands
+High demand
+
+Industrial Area
+Medium
+
+CBD
+High
+
+Do not initially reveal overly complicated heat maps.
+
+Use simple demand indicators.
+
+--------------------------------------------------
+75. PROMOTIONS
+--------------------------------------------------
+
+Admin can create:
+
+KES discount
+percentage discount
+first booking
+business promotion
+specific vehicle promotion
+area promotion
+
+Example:
+
+"Save KES 500 on your first delivery"
+
+Driver promotions:
+
+"Complete 5 deliveries today and earn KES X bonus"
+
+Keep promotions configurable.
+
+--------------------------------------------------
+76. SUPPORT
+--------------------------------------------------
+
+Support center:
+
+Active delivery
+Payments
+Account
+Driver
+Vehicle
+Cargo
+Other
+
+During active trip:
+"Get help with this delivery"
+
+Automatically attach:
+booking ID
+driver
+customer
+route
+payment
+
+This dramatically reduces support friction.
+
+--------------------------------------------------
+77. CHAT
+--------------------------------------------------
+
+Customer-driver messaging should be extremely simple.
+
+Predefined quick messages:
+
+"I'm at the pickup"
+"Where are you?"
+"I'm coming out"
+"Please call me"
+"Gate is locked"
+"I've arrived"
+
+Then optional free text.
+
+Mask personal phone numbers wherever technically appropriate.
+
+--------------------------------------------------
+78. PROOF OF DELIVERY
+--------------------------------------------------
+
+Create a professional POD document containing:
+
+MIZIGO
+
+Delivery ID
+Date
+Customer
+Driver
+Vehicle
+Pickup
+Destination
+
+Cargo:
+
+Item list
+
+Delivery status:
+COMPLETED
+
+Recipient:
+Name
+
+OTP:
+verified
+
+Time:
+XX:XX
+
+Location:
+recorded
+
+Photos:
+attached
+
+Signature:
+optional
+
+Make it downloadable/shareable.
+
+--------------------------------------------------
+79. ADMIN ANALYTICS
+--------------------------------------------------
+
+Charts:
+
+Bookings/day
+Revenue/day
+Completed trips
+Driver supply
+Demand
+Average fare
+Average distance
+Average delivery duration
+Cancellations
+Top routes
+Top vehicle types
+
+Tables:
+
+Top drivers
+Top customers
+Top business customers
+Worst-performing routes
+Highest cancellation areas
+
+Map:
+
+Demand by geography.
+
+--------------------------------------------------
+80. DATABASE / ARCHITECTURAL PRINCIPLE
+--------------------------------------------------
+
+Do not build a fake prototype where everything is hard-coded.
+
+Build realistic flows with seeded demo data if external integrations aren't available.
+
+Development mode:
+
+Mock payment provider
+Mock map provider
+Mock notifications
+Mock realtime updates
+
+Production mode:
+
+Real payment provider
+Real maps
+Real notifications
+Real realtime infrastructure
+
+Use environment variables.
+
+--------------------------------------------------
+81. DEMO MODE
+--------------------------------------------------
+
+Create a working demo account.
+
+CUSTOMER:
+
+customer@mizigo.demo
+
+DRIVER:
+
+driver@mizigo.demo
+
+ADMIN:
+
+admin@mizigo.demo
+
+Do not use real credentials.
+
+Demo should allow us to experience:
+
+Customer books vehicle
+Driver receives request
+Driver accepts
+Customer sees live tracking
+Driver arrives
+Cargo loaded
+Trip starts
+Trip completes
+Customer sees proof of delivery
+Customer rates driver
+Driver sees earnings
+Admin sees trip in live dashboard
+
+For demo GPS:
+simulate movement along route.
+
+--------------------------------------------------
+82. DEMO DATA
+--------------------------------------------------
+
+Create believable Kenyan demo data.
+
+Drivers:
+
+Peter Kamau
+Amina Wanjiku
+Brian Mwangi
+Kevin Otieno
+
+Vehicles:
+
+Toyota Hilux
+Toyota Dyna
+Canter
+Tuk-tuk
+Large lorry
+
+Businesses:
+
+ABC Hardware
+Nairobi Furniture Mart
+Mwangi Electronics
+Westlands Grocers
+
+Locations:
+Nairobi and surrounding areas.
+
+Currency:
+KES
+
+Phone:
+Kenyan formatting.
+
+Time:
+Africa/Nairobi.
+
+--------------------------------------------------
+83. HOMEPAGE COPY STYLE
+--------------------------------------------------
+
+Do not use corporate jargon.
+
+GOOD:
+
+"Moving something?"
+
+"Find a vehicle"
+
+"Where should we pick it up?"
+
+"How much are you moving?"
+
+"Driver found"
+
+"Your delivery is on the way"
+
+"Delivered"
+
+BAD:
+
+"Optimize your logistics ecosystem"
+
+"Unlock seamless cargo mobility"
+
+"Transform transportation operations"
+
+Keep copy conversational.
+
+--------------------------------------------------
+84. THE CORE UI SCREEN
+--------------------------------------------------
+
+Create the central booking screen with this hierarchy:
+
+------------------------------------------------
+
+[ MAP ]
+
+                current location
+                       ●
+
+           vehicle markers
+
+                       route
+
+------------------------------------------------
+
+[ BOTTOM SHEET ]
+
+Move something?
+
+FROM
+📍 Current location
+"Industrial Area"
+
+TO
+● Where to?
+
+Cargo
+📦 Furniture · approx. 300kg
+
+[ Find a vehicle ]
+
+------------------------------------------------
+
+When destination is entered:
+
+------------------------------------------------
+
+Pickup → Destination
+
+12.4 km · 34 min
+
+Recommended
+
+┌────────────────────────────┐
+│ 🚚 Pickup                  │
+│ Up to configurable capacity│
+│ Arrives 8 min              │
+│                            │
+│ KES 3,850                  │
+│                            │
+│       [ Select ]            │
+└────────────────────────────┘
+
+┌────────────────────────────┐
+│ 🚛 Small Lorry             │
+│ Larger cargo               │
+│ Arrives 14 min             │
+│                            │
+│ KES 5,900                  │
+│                            │
+│       [ Select ]            │
+└────────────────────────────┘
+
+------------------------------------------------
+
+Use this visual hierarchy throughout the app.
+
+--------------------------------------------------
+85. IMPORTANT MOBILE UI RULE
+--------------------------------------------------
+
+The user should never feel like they are filling out a logistics form.
+
+Make every step visual.
+
+Instead of:
+"Vehicle Category"
+
+Use:
+"What should carry it?"
+
+Instead of:
+"Cargo Weight"
+
+Use:
+"Roughly how heavy?"
+
+Instead of:
+"Handling Instructions"
+
+Use:
+"Anything we should know?"
+
+Instead of:
+"Delivery Location"
+
+Use:
+"Where should we take it?"
+
+--------------------------------------------------
+86. DRIVER UX RULE
+--------------------------------------------------
+
+Drivers need more information than customers, but the interface should not become cluttered.
+
+At decision points show only:
+
+Where?
+What vehicle?
+What cargo?
+How far?
+How much do I earn?
+When?
+
+Everything else can be expandable.
+
+--------------------------------------------------
+87. CUSTOMER TRUST RULE
+--------------------------------------------------
+
+Every major transaction should answer four questions:
+
+WHO?
+Peter K.
+
+WHAT?
+Pickup transporting 8 items
+
+WHERE?
+Industrial Area → Westlands
+
+HOW MUCH?
+KES 4,850
+
+The user should never wonder what is happening.
+
+--------------------------------------------------
+88. VISUAL QUALITY BAR
+--------------------------------------------------
+
+The final implementation must feel like a venture-backed transportation company, not a school project.
+
+Use:
+
+strong typography
+excellent spacing
+high-quality icons
+clean maps
+clear hierarchy
+subtle motion
+excellent empty states
+professional receipts
+realistic vehicle imagery
+consistent cards
+excellent loading states
+excellent error states
+
+Every screen should have intentional hierarchy.
+
+Do not fill empty space just because it is empty.
+
+--------------------------------------------------
+89. TECHNICAL QUALITY BAR
+--------------------------------------------------
+
+Use a modern production architecture.
+
+Frontend:
+React Native / Expo OR the platform's best mobile framework.
+
+Admin:
+React / Next.js.
+
+Backend:
+Node.js / TypeScript.
+
+Database:
+PostgreSQL.
+
+Realtime:
+WebSockets / Supabase Realtime / equivalent.
+
+Maps:
+abstracted provider.
+
+Storage:
+object storage for photos/documents.
+
+Authentication:
+OTP-based phone authentication.
+
+Payments:
+M-PESA abstraction + sandbox/mock initially.
+
+State:
+centralized predictable state management.
+
+Validation:
+strong schema validation.
+
+API:
+typed contracts where possible.
+
+--------------------------------------------------
+90. DEVELOPMENT PHASES
+--------------------------------------------------
+
+PHASE 1:
+Fully working MVP
+
+Implement:
+
+Customer:
+login
+home
+pickup
+destination
+cargo
+vehicle selection
+pricing
+booking
+matching
+trip tracking
+delivery
+rating
+trip history
+
+Driver:
+login
+vehicle
+online/offline
+requests
+accept
+navigation
+pickup
+start trip
+complete trip
+earnings
+
+Admin:
+login
+dashboard
+bookings
+drivers
+vehicles
+pricing
+payments
+
+PHASE 2:
+
+M-PESA
+push notifications
+live GPS
+proof of delivery
+chat
+scheduled delivery
+business accounts
+
+PHASE 3:
+
+quote marketplace
+multi-stop
+analytics
+promotions
+corporate accounts
+advanced dispatch
+route optimization
+
+--------------------------------------------------
+91. FIRST BUILD PRIORITY
+--------------------------------------------------
+
+Do NOT begin by building every screen simultaneously.
+
+Build the vertical core journey first:
+
+CUSTOMER:
+
+Home
+→ Pickup
+→ Destination
+→ Cargo
+→ Vehicle
+→ Price
+→ Request
+
+DRIVER:
+
+Request
+→ Accept
+→ Navigate
+→ Arrive
+→ Load
+→ Start
+
+CUSTOMER:
+
+Track
+→ Arrive
+→ Delivered
+→ Rate
+→ Receipt
+
+ADMIN:
+
+Live trip visible
+→ Driver visible
+→ Booking visible
+→ Revenue visible
+
+Make THAT loop excellent before adding secondary features.
+
+--------------------------------------------------
+92. FINAL UX TEST
+--------------------------------------------------
+
+Pretend a first-time Kenyan user downloads the application.
+
+Give them zero explanation.
+
+Can they figure out:
+
+1. This app moves goods.
+2. They can choose a vehicle.
+3. They can see the price.
+4. They can request a driver.
+5. They can track the vehicle.
+6. They can verify the driver.
+7. They know when cargo was loaded.
+8. They know where the vehicle is.
+9. They know when it arrived.
+10. They receive proof of delivery.
+
+If any answer is no, redesign the relevant UI.
+
+--------------------------------------------------
+93. FINAL INSTRUCTION TO THE BUILDER
+--------------------------------------------------
+
+Build the application as a complete, believable product.
+
+Do not create a collection of unrelated mock screens.
+
+All major screens must connect to one another.
+
+Buttons must work.
+
+Navigation must work.
+
+Forms must validate.
+
+Booking states must update.
+
+Driver and customer views must reflect the same booking.
+
+Admin must reflect platform activity.
+
+Use realistic seeded Kenyan data.
+
+Use proper mobile spacing.
+
+Use responsive layouts.
+
+Use skeleton/loading/error/empty states.
+
+Use reusable components.
+
+Use a consistent design system.
+
+Do not hard-code data that should come from the database.
+
+Do not hard-code prices.
+
+Do not hard-code vehicle capacity.
+
+Do not expose secrets.
+
+Do not pretend external integrations are working when they are mocked.
+
+Clearly isolate mocks behind service abstractions.
+
+The finished product should feel like:
+
+UBER'S SIMPLICITY
++
+FARAS'S AFRICAN MOBILITY DNA
++
+UBER FREIGHT'S LOGISTICS INTELLIGENCE
++
+KENYAN M-PESA-FIRST OPERATIONS
++
+A MUCH BETTER CARGO-SPECIFIC USER EXPERIENCE.
+
+The emotional reaction we want from a first-time user is:
+
+"Oh. I can just book a lorry from my phone."
+
+And from a business owner:
+
+"Finally, I don't have to call five people to find a truck."
+
+Build for that feeling.
+One major product decision I'd make
+I would not start with “lorry booking” alone.
+
+Start with a spectrum:
+
+Tuk-tuk → Pickup → Small truck → Canter → Lorry
+
+That creates much more liquidity. Someone moving three cartons shouldn't have to book a 5-ton lorry, while someone moving a shop shouldn't be forced into a pickup.
+
+The really powerful part is the vehicle recommendation engine. The customer says:
+
+“2 sofas, 1 fridge, 8 boxes.”
+
+The app effectively says:
+
+Pickup — recommended
+Arrives 8 min · KES 3,850
+
+rather than making the customer understand logistics terminology.
+
+And there is a second opportunity hiding inside it
+Don't make this purely on-demand transportation.
+
+Eventually the platform becomes a cargo marketplace:
+
+Customer: “I need 5-ton capacity Nairobi → Nakuru tomorrow.”
+
+Mizigo: “3 verified vehicles available.”
+
+Driver	Vehicle	Rating	ETA	Quote
+Peter	5T Canter	★4.9	08:00	KES 32,000
+James	5T Canter	★4.8	08:30	KES 30,500
+Amina	7T Lorry	★4.7	07:30	KES 35,000
+That is much closer to Uber + Airbnb + freight marketplace than simply “Bolt for lorries.”
+
+The current Uber Freight model already demonstrates why shipment information, equipment type, transparent quotes, booking and real-time tracking belong together. 
+
+And for Kenya, making M-Pesa native to the product is strategically important because Safaricom's current APIs explicitly support business collection and customer disbursements. 
+
+The UI reference direction is also deliberate: FARAS's current positioning is essentially African mobility + delivery + payments, while its rider experience follows the familiar map → options → booking pattern. 
+
+The MVP I would actually build first is only 3 things: customer booking, driver acceptance/trip flow, and the admin live-operations map. Everything else should orbit that transaction.
+
+
+Exactly. And after looking again, I think your observation is more important than the existence of the competitors.
+
+The competitors actually validate the market, but their interfaces expose another opportunity:
+
+Most of them have built a logistics website. They haven't necessarily built a logistics product that feels deeply designed around how Kenyans actually move things.
+
+For example, Swyft's current proposition is already very close to the original concept: cargo TukTuk through 10-ton lorries, upfront fare, matching, GPS, vetted drivers and business delivery. 
+ Truckonnect goes in the opposite direction with human dispatch, escrow, verification and live tracking. 
+
+So we shouldn't compete by having the same feature checklist.
+
+We should compete on execution, UX, reliability and network economics.
+
+And there's a particularly interesting signal from the current Kenyan market: recent discussions about lorry businesses mention both unreliable drivers and trucks returning empty, while businesses still need to move agricultural produce. 
+ Those are exactly the kinds of structural problems that software can attack.
+
+The broader market is also substantial: Kenya's road network carries the majority of domestic freight, with Nairobi/Mombasa forming a particularly important logistics axis. 
+
+So I'd change our thinking again
+Don't build:
+
+"A prettier Swyft."
+
+Build:
+
+The best-designed physical logistics network in Kenya.
+The app is merely the interface to that network.
+
+That distinction matters enormously.
+
+And I agree with you about the UI
+Looking at the current products, I would not tell a builder:
+
+"Make it look like Uber."
+
+That's how you get another AI-generated:
+
+map
+
+rounded cards
+
+orange button
+
+vehicle icon
+
+"Book Now"
+
+generic dashboard
+
+fake analytics
+
+gradients
+
+enormous whitespace
+
+17 different card components
+
+It technically works.
+
+But it doesn't feel like someone spent six months understanding cargo.
+
+We need to design the interface around the physical reality of a shipment.
+
+The UI should revolve around the cargo
+Imagine this.
+
+You open the app.
+
+Instead of:
+
+Where to?
+
+The first thing is:
+
+What are you moving?
+Then:
+
+Furniture
+
+You tap it.
+
+The app asks:
+
+How much furniture?
+
+You can literally add:
+
+🛋 Sofa ×2
+🪑 Chairs ×6
+🧊 Fridge ×1
+📦 Boxes ×8
+
+And the system understands:
+
+Likely requires: Pickup
+
+Then:
+
+Pickup
+📍 Industrial Area
+
+Deliver to
+📍 Westlands
+
+And then:
+
+We found the right vehicle
+Toyota Hilux / Pickup
+
+8 min away
+
+~350 kg capacity required
+
+KES 4,850
+Fixed price
+
+[ Book Pickup ]
+
+That's much more intelligent than asking:
+
+"Select vehicle category."
+
+The customer shouldn't need to know what vehicle they need.
+
+The platform should.
+
+The REALLY interesting UI
+I'd make the active shipment almost feel like a parcel command center.
+
+
+https://images.openai.com/static-rsc-4/-TZSPV2CodEynIAS-ZsPy04GMexBqkuksoerqPtaJ9LKcMWydsbf485Yc5kOV05-QXzG8tK73UcevFrNZxNax1F6WEPMQAOhZOc-btKqfkwYZ9afD36K6H_8JBfZd0XMJztb-ch4qDl2QTB0HyKIxzo9XfghGSQ9nUEdnDxNz8jIMQnAH9cPssyRaSOaWu-w?purpose=fullsize
+
+Add to Favorites
+
+https://images.openai.com/static-rsc-4/P8JawyKWaMvqEH0dmJEbqLCYElXneRJoOxMT8bYP_P-1VQhnCpBdKv0ioweiTck0Mc6ILWAyi__XaAPZD7KEw9Q5yQnJO7xKOvE0jODMkMfNd-4f_faIxVkZU6znazKiqxYHpCT4_uOSlhqdNvd7Q4Jrj6fHxV-G9ciEfdnpX6hz2qtl_jUsw_jk1H4Lo5K6?purpose=fullsize
+
+Add to Favorites
+
+https://images.openai.com/static-rsc-4/GlgDBy0QPB_g8wvUYhU6K3n49lkCl31Fu_U1qKNp9B9QZHHWvIyLZkxMiflX6HZBP04wkwuDV6fmweTpSuUosLQnSeb5Yop5o40p0zigd1Mr9ikob0y3Kw8I1XIHqB9KfhKniTGek62YLUSGW3HKJ0l7EjBIUaqLdWw7M5znw6XY0iwbkTOfLJh4OwNtgC5C?purpose=fullsize
+
+Add to Favorites
+5
+Imagine:
+
+┌─────────────────────────────┐
+│                             │
+│        LIVE MAP             │
+│                             │
+│             🚚              │
+│            ↗                │
+│          ─────              │
+│        ─                    │
+│      ●                      │
+│    PICKUP                   │
+│                             │
+└─────────────────────────────┘
+
+YOUR DELIVERY
+
+Peter is 18 min away
+
+★★★★★ 4.9
+
+Toyota Dyna
+KDA 123X
+
+─────────────────────────────
+
+Industrial Area
+✓ Cargo collected
+
+        ↓
+
+Westlands
+○ Delivery pending
+
+─────────────────────────────
+
+KES 4,850
+PAID
+
+[ Call Peter ]   [ Message ]
+
+[ Share tracking ]
+
+─────────────────────────────
+
+8 items
+350 kg estimated
+
+Proof of delivery
+Available after delivery
+Notice what's absent:
+
+No unnecessary dashboard crap.
+
+The user cares about:
+
+Where is my stuff?
+
+But here's the bigger product insight
+The customer app should be extremely simple.
+
+The backend should be extremely sophisticated.
+
+That's the asymmetry we want.
+
+Customer sees:
+
+"Peter is 12 minutes away."
+
+Backend knows:
+
+Peter's GPS
+
+vehicle capacity
+
+historical ETA accuracy
+
+driver reliability
+
+traffic
+
+route
+
+cargo category
+
+fare version
+
+payment status
+
+vehicle compliance
+
+customer reliability
+
+risk score
+
+expected delivery time
+
+alternative available vehicles
+
+return-load opportunities
+
+The complexity belongs underneath.
+
+And I would introduce a completely different concept:
+Mizigo ID
+Every shipment gets its own identity.
+
+For example:
+
+MZG-48291
+That ID follows the cargo from beginning to end.
+
+It becomes the equivalent of a tracking number, but much more powerful.
+
+MZG-48291
+
+FURNITURE DELIVERY
+
+Industrial Area
+       ↓
+Peter Kamau
+Toyota Dyna
+KDA 123X
+       ↓
+Westlands
+
+STATUS
+━━━━━━━━━━━━━━━━━━
+
+✓ Booking confirmed
+✓ Driver verified
+✓ Driver arrived
+✓ Cargo loaded
+● In transit
+○ Delivered
+Every event is attached to that shipment.
+
+Then give recipients a beautiful no-login page
+This is underrated.
+
+The person receiving the furniture doesn't need Mizigo.
+
+They receive:
+
+Your delivery is on the way.
+
+Peter Kamau
+
+Toyota Dyna
+KDA 123X
+
+ETA 18 min
+
+[ Track delivery ]
+
+That's it.
+
+No account.
+
+No download.
+
+No password.
+
+That alone can make the product feel dramatically more polished than competitors.
+
+And now the thing that could become the moat
+Don't only match customers to trucks.
+Match trucks to future cargo.
+
+Suppose a truck finishes:
+
+Nairobi → Mombasa
+The driver is now sitting in Mombasa.
+
+The platform knows:
+
+Truck is available
+Destination preference: Nairobi
+Capacity: 5T
+
+Then it says:
+
+3 return loads available
+Mombasa → Nairobi
+
+12 km detour
+KES 31,500
+
+Mombasa → Athi River
+
+8 km detour
+KES 27,800
+
+Mombasa → Nairobi
+
+3 km detour
+KES 35,000
+
+Driver picks one.
+
+Suddenly you've attacked one of the fundamental economics of trucking:
+
+empty kilometres.
+That's far more defensible than:
+
+"We have an app where you can book trucks."
+
+And this is where the competition becomes useful
+Swyft is showing us:
+
+There is demand for instant urban cargo booking. 
+
+Truckonnect is showing:
+
+Trust + verification + human operations matter. 
+
+The broader market is showing:
+
+Freight is still fragmented and operationally inefficient. 
+
+And actual transporter discussions show:
+
+Driver reliability and empty returns are real problems. 
+
+So we don't need to pretend nobody is doing this.
+
+They're proving the thesis for us.
+
+Our job is to ask:
+
+What did they still fail to solve?
+
+I'd therefore structure the company in 4 layers
+Layer 1 — Booking
+"I need a truck."
+
+Simple consumer UX.
+
+Layer 2 — Trust
+"I know who's carrying my goods."
+
+Verification + tracking + POD + payment protection.
+
+Layer 3 — Marketplace
+"I can find the right capacity."
+
+Instant booking + quotes + scheduled freight + return loads.
+
+Layer 4 — Network
+"The system optimizes the entire road network."
+
+Demand prediction
+Backhaul matching
+Fleet utilization
+Route optimization
+Shared capacity
+Business APIs
+
+That fourth layer is where the serious long-term company sits.
+
+And I would make one very deliberate design decision
+Don't make the app look "African."
+
+Make it look world-class, then make its behavior deeply Kenyan.
+
+The UI doesn't need:
+
+🇰🇪 Kenyan flags everywhere
+African patterns
+generic orange/green branding
+"Made for Africa" copy
+
+Instead:
+
+M-Pesa feels native
+
+landmarks work
+
+estates work
+
+WhatsApp works
+
+poor GPS works
+
+low bandwidth works
+
+drivers understand it
+
+businesses can invoice
+
+recipients don't need accounts
+
+pricing handles local reality
+
+human dispatch exists when automation fails
+
+Swahili can be switched on
+
+KES is native
+
+local payment and compliance workflows are native
+
+That's Kenyan product design.
+
+Not putting an African pattern behind a map.
+
+And honestly, the fact that several competitors already exist makes me more interested in the idea, not less—provided you guys are willing to build the actual operational system rather than another polished CRUD app with a map slapped on top.
+
+The next thing I'd do is not write another giant coding prompt yet. I'd first create a proper Mizigo Product Bible: customer personas → jobs-to-be-done → competitor teardown screen-by-screen → actual customer complaints → driver economics → Nairobi launch geography → pricing model → trust architecture → marketplace liquidity → 3-year moat → exact MVP → then the final UI/design system and build prompt.
+
+That would give the builder something much harder to screw up than a generic 10,000-word prompt.
+
+
+Do that then and final research and strategic analysis before I just copy this chat and send it to the ai builder
+
+Yes. I did the last research pass with a different goal: not “does the idea exist?” but “where does the existing market still suck, what do customers actually care about, and what should we build so we aren't obsolete in 2–3 years?”
+
+The conclusion is stronger than the original idea.
+
+1. The market is validated — but the obvious version is already occupied
+Swyft is already very close to the initial concept: Cargo TukTuk → van → mini truck → 5T → 10T, upfront pricing, driver matching, live GPS, M-Pesa and proof of delivery. 
+
+Truckonnect is attacking the more serious freight side: verified truck owners, human dispatch, escrow, live tracking, proof of delivery, reputation and return-load economics. 
+
+And interestingly, Truckonnect itself describes the existing market as still dominated by phone calls, unreliable availability, opaque pricing, unverified operators, poor visibility and idle trucks. 
+
+So:
+
+“Uber for lorries” is no longer the business idea.
+
+That's the category.
+
+The business opportunity is building the infrastructure underneath the category better than everybody else.
+
+2. What actual customers are telling us
+This was the most useful part of the research.
+
+Customers don't primarily want an app.
+They want:
+
+1. “Don't change the price.”
+
+A Nairobi user looking for movers reported a KSh 5–9k budget, eventually paying KSh 13k for a couch and fridge, with discussion indicating that the original budget was unrealistic. Another user eventually found a mover charging KSh 15–30k depending on the load. 
+
+That's an important product insight:
+
+The customer doesn't necessarily need the cheapest truck. They need to know what they're actually going to pay.
+
+So our product should make:
+
+Price certainty
+
+a core feature.
+
+2. “Don't disappear on me.”
+There are very recent Kenyan complaints around services where:
+
+pickup times aren't respected
+
+drivers arrive late
+
+customers aren't notified
+
+customers have to repeatedly call/WhatsApp
+
+there is no pickup confirmation
+
+One Nairobi customer described exactly this pattern in a delivery service complaint. 
+
+This is why tracking alone isn't enough.
+
+If the truck is 25 minutes late, the customer needs:
+
+“Driver delayed 22 min — new ETA 2:47 PM.”
+
+Not:
+
+Last location: Nairobi.
+
+That's a huge difference.
+
+3. “I need to know my stuff is safe.”
+A recent Nairobi moving discussion had users explicitly contrasting cheap transport with professional movers and highlighting things such as:
+
+no scratches
+
+no theft
+
+proper handling
+
+packing equipment
+
+professionalism
+
+One commenter who had moved a fully furnished house specifically said professionalism and careful handling were worth paying for. 
+
+That means cargo handling is part of the product, not an afterthought.
+
+4. “I need someone reliable.”
+This is probably the strongest signal.
+
+A September 2026 Kenyan discussion about lorries specifically identified unreliable drivers as a major problem and also noted trucks returning empty despite farmers and small aggregators needing transportation. 
+
+That gives us two problems simultaneously:
+
+Demand problem
+
+“I need a truck.”
+
+Supply problem
+
+“My truck is sitting empty.”
+
+And that is where the really interesting company starts.
+
+3. The biggest opportunity isn't booking
+Imagine this:
+
+Today
+A farmer needs:
+
+Molo → Nairobi
+
+They find a truck.
+
+Truck carries produce to Nairobi.
+
+Then:
+
+Nairobi → Molo = EMPTY
+
+That's wasted capacity.
+
+Now imagine our system knows:
+
+Truck A
+Molo → Nairobi
+Arrival estimated: 16:40
+Capacity remaining: 2 tonnes
+
+And it already has:
+
+3 potential Nairobi → Nakuru loads
+
+The system can match the return journey.
+
+Now you've stopped being:
+
+“an app that books trucks”
+
+and become:
+
+a capacity network.
+
+That's dramatically more defensible.
+
+4. There is another major insight: don't automate everything
+This is where I would deliberately differ from the typical AI-built startup.
+
+Truckonnect is already explicitly using a human dispatcher to verify bookings before they become binding. 
+
+That's actually smart.
+
+For a KSh 1,500 Bolt ride, an automated system can tolerate mistakes.
+
+For:
+
+KSh 80,000 freight
+
+KSh 2M cargo
+
+commercial truck
+
+long-distance route
+
+you don't want:
+
+🤖 “Your driver has been matched!”
+
+and then discover the driver isn't actually where they said they were.
+
+Therefore:
+Automate the boring 90%.
+
+But retain humans for:
+
+suspicious bookings
+
+expensive cargo
+
+new drivers
+
+unusually large loads
+
+disputes
+
+breakdowns
+
+failed GPS
+
+driver/customer cancellations
+
+route deviations
+
+high-value commercial shipments
+
+That gives us:
+
+technology efficiency + human accountability.
+
+5. Reliability has to be engineered into the architecture
+This is where I would push the AI builder much harder.
+
+Don't build:
+
+Customer → Booking → Driver → Delivery
+Build:
+
+CUSTOMER
+   ↓
+QUOTE
+   ↓
+BOOKING
+   ↓
+DRIVER MATCH
+   ↓
+DRIVER VERIFICATION
+   ↓
+VEHICLE VERIFICATION
+   ↓
+PICKUP CONFIRMATION
+   ↓
+CARGO HANDOVER
+   ↓
+IN TRANSIT
+   ↓
+ETA MONITORING
+   ↓
+DELIVERY
+   ↓
+POD
+   ↓
+PAYMENT RELEASE
+   ↓
+RATING / REPUTATION
+Every stage produces an immutable event.
+
+Example:
+
+MZG-48291
+
+10:02 Booking created
+10:03 Payment authorized
+10:04 Driver matched
+10:05 Driver accepted
+10:07 Driver location verified
+10:31 Driver arrived
+10:36 Cargo loaded
+10:38 Trip started
+11:42 Route deviation detected
+11:45 Customer notified
+13:17 Destination reached
+13:24 Cargo unloaded
+13:27 Recipient confirmed delivery
+13:28 Payment released
+Now if there's a dispute:
+
+We have evidence.
+
+That's much more powerful than a pretty map.
+
+6. The reputation system could become one of the company's biggest assets
+Don't give everyone:
+
+⭐⭐⭐⭐⭐
+
+That's useless.
+
+Build a transport reputation graph.
+
+Driver
+Reliability       96%
+On-time pickup    94%
+On-time delivery  97%
+Cancellation      1.2%
+Cargo incidents   0
+Trips completed   438
+Vehicle
+Vehicle verified ✓
+Insurance verified ✓
+Inspection verified ✓
+Capacity verified ✓
+Last inspection: ...
+Customer
+Payment reliability: 99%
+Cancellation rate: 2%
+Completed shipments: 84
+Eventually:
+
+Drivers get better loads because they're reliable.
+
+Customers get better drivers because they're reliable.
+
+Bad actors become progressively harder to use the network.
+
+That becomes a moat.
+
+7. The app should understand cargo, not just locations
+This is one of the biggest UI changes I'd make.
+
+Don't open the app with:
+
+Pickup
+Destination
+
+That's taxi thinking.
+
+Open with:
+
+What are you moving?
+Then:
+
+Add cargo
+
+🛋 Sofa
+
+🧊 Fridge
+
+📦 Boxes
+
+🛏 Bed
+
+🪑 Chairs
+
+🏗 Building materials
+
+🌾 Produce
+
+📦 General cargo
+
+Other
+
+Then:
+
+How much?
+
+Then:
+
+Where from?
+
+Then:
+
+Where to?
+
+The system calculates:
+
+Recommended vehicle
+Pickup — KSh X
+
+Best for your cargo
+Capacity: 1,000 kg
+Estimated arrival: 32 min
+Driver rating: 4.9
+842 completed trips
+
+Then:
+
+Upgrade options
+TukTuk — KSh X
+Pickup — KSh X
+3T truck — KSh X
+
+That's far more intuitive than asking an ordinary customer:
+
+“What vehicle class do you require?”
+
+They don't know.
+
+We should know.
+
+8. The tracking screen should be a cargo command center
+Not just:
+
+🗺️ map
+
+Instead:
+
+MZG-48291
+
+Your cargo is on the way
+
+━━━━━━━━━━━━━━━━
+
+🚚 Isuzu NPR
+KDA 123A
+
+John K.
+★★★★★
+
+Arriving in 18 min
+
+━━━━━━━━━━━━━━━━
+
+● Pickup completed
+● Cargo loaded
+● In transit
+○ Near destination
+○ Delivered
+
+━━━━━━━━━━━━━━━━
+
+Cargo
+
+2 sofas
+1 fridge
+8 boxes
+
+━━━━━━━━━━━━━━━━
+
+KES 8,450
+PRICE LOCKED ✓
+
+[Share tracking]
+[Contact driver]
+[Get help]
+And the recipient should be able to track using:
+
+MZG-48291
+
+without creating an account.
+
+That's important.
+
+9. We should make WhatsApp a first-class interface
+This is Kenya.
+
+Don't force everybody into an app.
+
+Customer could receive:
+
+🚚 Your Mizigo shipment MZG-48291 is on the way.
+
+Driver: John
+Vehicle: KDA 123A
+ETA: 18 minutes
+
+Track shipment
+
+Driver can receive critical events through WhatsApp/SMS.
+
+Businesses can potentially create bookings through:
+
+WhatsApp → structured booking flow → platform
+
+The app remains the primary interface, but the network shouldn't depend on everybody behaving like Silicon Valley users.
+
+10. Low connectivity isn't an edge case
+Drivers travel through areas where mobile data/GPS can become unreliable.
+
+So:
+
+Driver app
+If internet disappears:
+
+locally cache trip
+
+retain booking
+
+retain customer information
+
+queue events
+
+send once connection returns
+
+timestamp events locally
+
+distinguish "GPS unavailable" from "driver stopped"
+
+Never show:
+
+Driver hasn't moved.
+
+when the real answer is:
+
+Last location received 17 minutes ago because connectivity was unavailable.
+
+That distinction matters enormously for trust.
+
+11. Build around four promises
+I would make these the internal product commandments:
+
+1. PRICE YOU CAN TRUST
+No surprise charges.
+
+If circumstances genuinely change:
+
+explain why
+show evidence
+require approval where appropriate
+
+2. DRIVER YOU CAN VERIFY
+Identity.
+
+Vehicle.
+
+Documents.
+
+History.
+
+Ratings.
+
+Trip record.
+
+3. CARGO YOU CAN TRACK
+Not just the truck.
+
+The shipment.
+
+4. DELIVERY YOU CAN PROVE
+Timestamp.
+
+GPS.
+
+Photo.
+
+Recipient confirmation.
+
+Signature/PIN where appropriate.
+
+Complete event history.
+
+12. But don't make the first version too big
+This is important.
+
+If you send an AI builder everything above and tell it:
+
+“Build all of this.”
+
+you'll get a beautiful fake logistics company.
+
+Instead:
+
+Phase 1 — Nairobi liquidity
+Start with:
+
+Customer
+
+signup
+
+cargo selection
+
+pickup
+
+destination
+
+vehicle recommendation
+
+price
+
+booking
+
+M-Pesa
+
+tracking
+
+driver contact
+
+cancellation
+
+delivery confirmation
+
+receipt
+
+Driver
+
+onboarding
+
+KYC
+
+vehicle
+
+availability
+
+trip offers
+
+accept/reject
+
+navigation
+
+arrival
+
+pickup confirmation
+
+delivery
+
+earnings
+
+Admin
+
+live bookings
+
+driver verification
+
+manual dispatch
+
+disputes
+
+payments
+
+customers
+
+drivers
+
+vehicles
+
+pricing
+
+That's enough to prove the network.
+
+13. Don't start with every Kenyan road
+Start concentrated.
+
+I'd rather have:
+
+100 trucks genuinely active around Nairobi
+
+than:
+
+10,000 registered trucks across Kenya that never accept anything.
+
+Marketplace businesses die from lack of liquidity.
+
+The initial objective isn't:
+
+“How many users signed up?”
+
+It's:
+
+Can someone request a truck and reliably get one?
+Measure:
+
+time to match
+
+acceptance rate
+
+cancellation rate
+
+pickup punctuality
+
+delivery punctuality
+
+average ETA error
+
+average contribution margin
+
+repeat booking rate
+
+driver utilization
+
+empty-return percentage
+
+Those are the real numbers.
+
+14. The long-term business becomes much bigger
+The progression I'd build toward is:
+
+Stage 1
+On-demand cargo
+
+Nairobi.
+
+Stage 2
+Scheduled freight
+
+Businesses book tomorrow/next week.
+
+Stage 3
+Freight marketplace
+
+Shippers compare available capacity.
+
+Stage 4
+Return-load network
+
+Truck Nairobi → Mombasa automatically gets matched with Mombasa → Nairobi demand.
+
+Stage 5
+Fleet operating system
+
+Owners manage:
+
+vehicles
+
+drivers
+
+maintenance
+
+fuel
+
+earnings
+
+utilization
+
+documents
+
+Stage 6
+Business logistics API
+
+A furniture company doesn't even need to open our app.
+
+Their website says:
+
+Deliver with Mizigo
+
+and creates a shipment through our API.
+
+Stage 7
+Then potentially:
+
+warehousing
+
+cargo insurance
+
+financing
+
+fuel partnerships
+
+vehicle financing
+
+consolidated freight
+
+cross-border freight
+
+East African corridors
+
+At that point we're not a trucking app.
+
+We're becoming logistics infrastructure.
+
+15. One thing I would NOT copy from competitors
+Don't copy their terminology or UX just because it looks familiar.
+
+And don't tell the AI:
+
+“Make it like Uber.”
+
+That produces the exact boilerplate thing you noticed.
+
+Use Uber's principles, not its appearance:
+
+instant matching
+
+transparent pricing
+
+live state
+
+two-sided marketplace
+
+reputation
+
+payments
+
+supply/demand balancing
+
+But invent the interface around cargo.
+
+16. One very important regulatory/operational point
+The platform must have a proper compliance layer.
+
+Kenya's 2025 proposed commercial-vehicle framework specifically addresses things including commercial vehicle licensing, insurance, telematics, driver requirements, loading/cargo securement and vehicle inspection. 
+
+So don't build the driver database as:
+
+name
+phone
+truck
+Build it to eventually accommodate:
+
+Driver identity
+Driving licence
+Licence class
+Vehicle registration
+Vehicle type
+Capacity
+Inspection status
+Insurance
+Owner/operator relationship
+Documents
+Expiry dates
+Compliance status
+Verification history
+The platform should be capable of blocking an expired/invalid vehicle automatically.
+
+17. Payments should also be treated as infrastructure
+M-Pesa isn't just a button.
+
+Build:
+
+payment initiated
+↓
+pending
+↓
+confirmed
+↓
+booking funded
+↓
+trip completed
+↓
+POD verified
+↓
+driver payout
+↓
+reconciliation
+and never trust the mobile client to tell the backend:
+
+“Payment succeeded.”
+
+Safaricom's Daraja platform supports transaction status checking specifically as a secondary reconciliation mechanism when callbacks aren't received. 
+
+That's exactly the sort of reliability detail an AI-generated MVP usually misses.
+
+18. My final strategic verdict
+Market attractiveness: 8.5/10
+Demand: Strong
+Competition: Already real
+Technical difficulty: Medium
+Operational difficulty: Very high
+Long-term moat potential: Very high
+Biggest danger:
+Building a beautiful app before solving:
+
+truck supply + reliability + pricing + operations.
+
+The app isn't the moat.
+
+The network is.
+
+And the network gets stronger every time you collect:
+
+route prices
+
+actual travel times
+
+vehicle capacity
+
+driver reliability
+
+customer reliability
+
+cancellation behaviour
+
+cargo types
+
+demand patterns
+
+return-load opportunities
+
+incident data
+
+That's the part competitors can't simply copy by asking an AI to generate another UI.
+
+FINAL MASTER BRIEF FOR THE AI BUILDER
+This is the part I would actually copy and send.
+
+MIZIGO — KENYA CARGO TRANSPORTATION NETWORK
+Final Product, UX, Architecture, Reliability & Long-Term Strategy Brief
+You are not building a generic “Uber clone”.
+
+You are designing and engineering a serious Kenyan cargo transportation network that can begin with on-demand trucking in Nairobi and eventually become logistics infrastructure across Kenya and East Africa.
+
+The working name is Mizigo.
+
+The core idea:
+
+Customers should be able to move cargo as easily as they can request a ride, while truck owners should be able to discover reliable loads, reduce empty return journeys and build a verifiable reputation.
+
+Do NOT blindly copy Uber, Bolt, Swyft or any other competitor's visual design.
+
+Study the principles behind successful ride-hailing/logistics networks, but design the product specifically around cargo.
+
+1. PRODUCT THESIS
+The real product is not:
+
+“Book a lorry.”
+
+The real product is:
+
+A trusted digital network connecting cargo demand with verified transport capacity.
+
+The platform must eventually solve four things better than informal transport:
+
+PRICE YOU CAN TRUST
+Customers know the expected price before committing.
+
+DRIVER YOU CAN VERIFY
+Customers know who is carrying their cargo and what vehicle is being used.
+
+CARGO YOU CAN TRACK
+Customers can see the shipment state and location throughout the journey.
+
+DELIVERY YOU CAN PROVE
+The platform creates an auditable chain of custody from booking to delivery.
+
+2. DO NOT BUILD A BOILERPLATE AI DESIGN
+Avoid:
+
+generic SaaS dashboards
+
+excessive rounded cards
+
+meaningless gradients
+
+unnecessary glassmorphism
+
+huge hero sections
+
+fake statistics
+
+generic “revolutionizing logistics” copy
+
+excessive animations
+
+map-first UX copied from ride-hailing apps
+
+arbitrary orange/blue/purple startup palettes
+
+decorative components that do not improve logistics operations
+
+The interface must feel like a product created by people who understand:
+
+Kenyan transport
+
+M-Pesa
+
+WhatsApp
+
+Nairobi estates
+
+landmarks
+
+traffic
+
+truck owners
+
+roadside logistics
+
+informal transport brokers
+
+commercial cargo
+
+unreliable pickup times
+
+driver communication
+
+low-connectivity areas
+
+cargo damage
+
+payment disputes
+
+Do not make it look stereotypically “African”.
+
+Make it look world-class, but make its behaviour deeply Kenyan.
+
+3. CUSTOMER EXPERIENCE
+The customer should not have to understand truck terminology.
+
+Do NOT begin with:
+
+Select vehicle class.
+
+Instead:
+
+WHAT ARE YOU MOVING?
+Provide common cargo categories:
+
+Furniture
+
+Appliances
+
+Household items
+
+Boxes
+
+Building materials
+
+Produce
+
+Electronics
+
+Business stock
+
+Machinery
+
+General cargo
+
+Other
+
+Allow customers to add individual items.
+
+Example:
+
+2 sofas
+1 fridge
+1 bed
+8 boxes
+
+The system estimates the required vehicle.
+
+4. VEHICLE RECOMMENDATION
+The platform should recommend a suitable vehicle based on:
+
+cargo type
+
+approximate weight
+
+volume
+
+dimensions where available
+
+quantity
+
+route
+
+loading requirements
+
+special handling
+
+weather exposure where relevant
+
+Show:
+
+Recommended
+Pickup
+
+Capacity: approximately X
+Estimated price: KES X
+Estimated arrival: X minutes
+
+Then alternatives:
+
+TukTuk
+Van
+Pickup
+Mini Truck
+3T Truck
+5T Lorry
+10T Lorry
+etc.
+
+Do not force customers to know the difference between an FVR, Dyna, Canter, pickup or other vehicle class.
+
+5. LOCATION UX
+Support:
+
+map selection
+
+search
+
+GPS
+
+estates
+
+landmarks
+
+businesses
+
+roads
+
+manual location notes
+
+pickup instructions
+
+gate/building information
+
+recipient phone number
+
+Kenyan location descriptions may not always behave like clean Western addresses.
+
+Allow:
+
+“Near Quickmart”
+
+“Gate B, apartment opposite X”
+
+“Call when you reach the stage”
+
+“Use the service entrance”
+
+Do not rely entirely on formal street addresses.
+
+6. QUOTE EXPERIENCE
+Before booking, show:
+
+YOUR TRIP
+Pickup
+Destination
+Cargo
+Vehicle
+Distance
+Estimated travel time
+
+PRICE
+KES X,XXX
+
+Clearly identify:
+
+transport fee
+
+loaders if applicable
+
+toll/parking where applicable
+
+platform fee if applicable
+
+other known charges
+
+Then:
+
+TOTAL: KES X,XXX
+State:
+
+PRICE LOCKED
+
+Do not allow arbitrary driver price changes after booking.
+
+If circumstances genuinely require a price adjustment, show:
+
+why
+
+evidence
+
+amount
+
+customer approval requirement
+
+7. BOOKING ID
+Every shipment gets a permanent ID.
+
+Example:
+
+MZG-48291
+
+This ID should appear everywhere:
+
+customer app
+
+driver app
+
+receipts
+
+WhatsApp messages
+
+SMS
+
+support
+
+admin
+
+proof of delivery
+
+payment records
+
+8. CUSTOMER TRACKING
+The active trip should be a Cargo Command Center, not just a map.
+
+Show:
+
+MZG-48291
+
+Your cargo is on the way
+Driver:
+John Kamau
+
+Vehicle:
+KDA 123A
+
+Vehicle type:
+Pickup
+
+Driver rating:
+4.9
+
+ETA:
+18 minutes
+
+Then the trip timeline:
+
+● Booking confirmed
+● Driver assigned
+● Driver arriving
+● Pickup completed
+● Cargo loaded
+● In transit
+○ Near destination
+○ Delivered
+
+Also show:
+
+live map
+
+current driver location
+
+ETA
+
+cargo details
+
+price
+
+driver
+
+vehicle
+
+contact options
+
+support
+
+share tracking
+
+9. RECIPIENT TRACKING WITHOUT AN ACCOUNT
+A recipient should be able to receive:
+
+Your Mizigo shipment MZG-48291 is arriving.
+
+with a tracking link.
+
+They should NOT need to create an account.
+
+The tracking page should show:
+
+shipment ID
+
+vehicle
+
+driver name
+
+approximate location
+
+ETA
+
+status
+
+delivery confirmation
+
+Do not expose unnecessary personal information.
+
+10. PROOF OF DELIVERY
+Every completed shipment should produce a structured delivery record.
+
+Possible components:
+
+recipient name
+
+recipient phone
+
+delivery timestamp
+
+GPS location
+
+delivery photo
+
+cargo condition photo
+
+signature where appropriate
+
+PIN/OTP confirmation where appropriate
+
+notes
+
+exceptions/damage report
+
+The system should create a permanent POD record.
+
+11. CHAIN OF CUSTODY
+Every shipment must have an event timeline.
+
+Example:
+
+10:02 Booking created
+10:03 Payment initiated
+10:04 Payment confirmed
+10:05 Driver assigned
+10:07 Driver accepted
+10:09 Driver location verified
+10:31 Driver arrived
+10:36 Cargo loaded
+10:38 Trip started
+11:42 Route deviation detected
+11:44 Customer notified
+13:17 Destination reached
+13:24 Cargo unloaded
+13:27 Recipient confirmed delivery
+13:28 Driver payout released
+
+These events must be stored server-side.
+
+Do not rely on the mobile application for authoritative trip state.
+
+12. DRIVER VERIFICATION
+Driver onboarding must support:
+
+full name
+
+phone
+
+identity verification
+
+driving licence
+
+licence class
+
+profile photo
+
+emergency contact where appropriate
+
+verification status
+
+document expiry
+
+Vehicle onboarding must support:
+
+registration number
+
+make/model
+
+vehicle type
+
+capacity
+
+body type
+
+owner/operator
+
+inspection status
+
+insurance
+
+relevant permits/documents
+
+document expiry
+
+verification history
+
+Expired or invalid documents should trigger warnings and eventually automatic restrictions.
+
+13. DRIVER REPUTATION
+Do not reduce reputation to one star rating.
+
+Build a structured reliability score.
+
+Example:
+
+JOHN KAMAU
+4.9 ★
+
+438 completed trips
+
+96% reliability
+
+94% on-time pickup
+
+97% on-time delivery
+
+1.2% cancellation
+
+0 major cargo incidents
+
+Also track:
+
+acceptance rate
+
+cancellation rate
+
+late arrival rate
+
+delivery completion rate
+
+disputes
+
+customer ratings
+
+route compliance
+
+incident history
+
+Good drivers should receive better opportunities over time.
+
+14. CUSTOMER REPUTATION
+Build the same concept for customers.
+
+Track:
+
+payment reliability
+
+cancellation rate
+
+no-show rate
+
+completed shipments
+
+dispute history
+
+booking behaviour
+
+The marketplace is two-sided.
+
+Do not let only drivers be scored.
+
+15. DRIVER EXPERIENCE
+Driver app must be extremely simple.
+
+Main screen:
+
+ONLINE / OFFLINE
+When online:
+
+AVAILABLE JOB
+MZG-48291
+
+Pickup:
+Westlands
+
+Destination:
+Industrial Area
+
+Cargo:
+Furniture
+
+Vehicle:
+Pickup
+
+Distance:
+X km
+
+Estimated earnings:
+KES X
+
+Pickup ETA:
+X min
+
+Buttons:
+
+ACCEPT
+
+DECLINE
+
+Do not bury important information.
+
+16. DRIVER TRIP FLOW
+After acceptance:
+
+Navigate to pickup
+
+Arrive
+
+Confirm arrival
+
+Verify customer/cargo
+
+Photograph cargo if necessary
+
+Confirm loaded
+
+Start trip
+
+Navigate
+
+Arrive destination
+
+Deliver
+
+Capture POD
+
+Complete trip
+
+Receive payout
+
+Every stage should update the backend.
+
+17. LOW CONNECTIVITY MODE
+Assume mobile internet can disappear.
+
+Driver app must:
+
+cache active trip
+
+retain essential booking data
+
+queue events locally
+
+queue photos where possible
+
+sync when connectivity returns
+
+distinguish GPS unavailable from vehicle stationary
+
+show last successful server update
+
+Never falsely claim:
+
+Driver hasn't moved.
+
+if the real situation is:
+
+Last location received 18 minutes ago.
+
+Show:
+
+Last location update: 18 minutes ago
+
+18. WHATSAPP + SMS
+The network should not depend entirely on the native app.
+
+Support critical notifications through:
+
+WhatsApp
+
+SMS
+
+push notifications
+
+Examples:
+
+Booking confirmed.
+
+Driver assigned.
+
+Driver arriving.
+
+Cargo picked up.
+
+Trip delayed.
+
+Cargo delivered.
+
+Payment confirmed.
+
+POD available.
+
+For important shipment links, provide a secure web page.
+
+19. HUMAN DISPATCH
+Do NOT attempt to automate 100% of operations initially.
+
+Build an admin/manual dispatch capability.
+
+Humans should be able to intervene in:
+
+failed matching
+
+expensive shipments
+
+suspicious bookings
+
+new drivers
+
+large cargo
+
+breakdowns
+
+GPS failures
+
+disputes
+
+route deviations
+
+customer complaints
+
+cancellations
+
+The goal is:
+
+automate the normal path, human-manage exceptions.
+
+20. RETURN LOADS
+This is a critical long-term feature.
+
+A truck travelling:
+
+Nairobi → Mombasa
+
+should be able to discover:
+
+Mombasa → Nairobi
+
+loads.
+
+Track:
+
+route
+
+expected arrival
+
+available capacity
+
+vehicle type
+
+current cargo
+
+capacity remaining
+
+return date/time
+
+Eventually build a matching engine that minimizes empty kilometres.
+
+This is potentially one of the platform's strongest long-term economic moats.
+
+21. MARKETPLACE MODE
+Eventually support two booking modes.
+
+INSTANT
+Platform provides:
+
+recommended vehicle
+
+estimated price
+
+matched driver
+
+MARKETPLACE
+Customer submits:
+
+cargo
+
+route
+
+date
+
+requirements
+
+Verified transporters can quote.
+
+Customer can compare:
+
+price
+
+ETA
+
+driver reliability
+
+vehicle
+
+previous trips
+
+verification
+
+estimated arrival
+
+Do not expose a chaotic list of hundreds of bids.
+
+Rank intelligently.
+
+22. BUSINESS ACCOUNTS
+Businesses should eventually have:
+
+multiple users
+
+departments
+
+saved routes
+
+saved recipients
+
+shipment history
+
+invoices
+
+monthly statements
+
+spending limits
+
+approval workflows
+
+bulk bookings
+
+API access
+
+analytics
+
+Example:
+
+A furniture company should be able to create 50 deliveries without manually booking each one.
+
+23. FUTURE API
+Design the backend so businesses can eventually create shipments through API.
+
+Example:
+
+POST /shipments
+
+Input:
+
+cargo
+pickup
+destination
+recipient
+vehicle requirements
+delivery window
+
+Response:
+
+shipment ID
+quote
+tracking URL
+
+Do not implement a fake API just for appearance.
+
+Design the architecture so this can be added cleanly later.
+
+24. ADMIN SYSTEM
+Admin dashboard should prioritize operations rather than vanity statistics.
+
+Main screens:
+
+LIVE OPERATIONS
+Map/list of active shipments.
+
+Filters:
+
+searching
+
+assigned
+
+pickup pending
+
+in transit
+
+delayed
+
+exception
+
+delivered
+
+disputed
+
+DRIVER MANAGEMENT
+verification
+
+documents
+
+vehicles
+
+availability
+
+performance
+
+earnings
+
+incidents
+
+SHIPMENT MANAGEMENT
+Full shipment history and event timeline.
+
+PAYMENTS
+customer payments
+
+pending
+
+successful
+
+failed
+
+refunds
+
+driver payouts
+
+reconciliation
+
+DISPUTES
+cargo damage
+
+missing cargo
+
+driver dispute
+
+customer dispute
+
+pricing dispute
+
+payment dispute
+
+PRICING
+Manage pricing rules.
+
+ANALYTICS
+Track real marketplace metrics.
+
+25. CORE MARKETPLACE METRICS
+Do NOT obsess over downloads.
+
+Track:
+
+Customer
+booking conversion
+
+repeat booking
+
+cancellation
+
+average booking value
+
+customer acquisition cost
+
+customer lifetime value
+
+Driver
+online hours
+
+utilization
+
+acceptance rate
+
+cancellation
+
+earnings/hour
+
+earnings/km
+
+empty kilometres
+
+Network
+time to match
+
+match success rate
+
+supply/demand ratio
+
+average ETA error
+
+on-time pickup
+
+on-time delivery
+
+completed trips
+
+gross merchandise value
+
+take rate
+
+contribution margin
+
+empty-return percentage
+
+These should drive product decisions.
+
+26. DATABASE
+Use PostgreSQL or another serious relational database.
+
+Core entities:
+
+users
+customers
+businesses
+drivers
+vehicles
+driver_documents
+vehicle_documents
+cargo_items
+shipments
+shipment_items
+quotes
+bookings
+assignments
+trip_events
+locations
+payments
+payouts
+proof_of_delivery
+ratings
+disputes
+notifications
+support_tickets
+pricing_rules
+service_zones
+audit_logs
+
+Use proper foreign keys, indexes and constraints.
+
+27. EVENT-DRIVEN TRIP STATE
+Do not scatter trip state logic throughout the application.
+
+Create a clear shipment state machine.
+
+Example:
+
+DRAFT
+
+→ QUOTED
+
+→ BOOKED
+
+→ PAYMENT_PENDING
+
+→ PAYMENT_CONFIRMED
+
+→ MATCHING
+
+→ DRIVER_ASSIGNED
+
+→ DRIVER_ACCEPTED
+
+→ DRIVER_ARRIVING
+
+→ DRIVER_ARRIVED
+
+→ LOADING
+
+→ LOADED
+
+→ IN_TRANSIT
+
+→ ARRIVING
+
+→ DELIVERED
+
+→ POD_CONFIRMED
+
+→ COMPLETED
+
+Alternative states:
+
+CANCELLED
+
+FAILED
+
+DISPUTED
+
+EXCEPTION
+
+BREAKDOWN
+
+REASSIGNMENT_REQUIRED
+
+28. IDEMPOTENCY AND RELIABILITY
+Payments, bookings, driver acceptance and trip completion must be idempotent.
+
+If the user taps twice:
+
+Do not create two bookings.
+
+If payment callback arrives twice:
+
+Do not charge twice.
+
+If network reconnects:
+
+Do not duplicate events.
+
+Use:
+
+idempotency keys
+
+database constraints
+
+transaction boundaries
+
+retries
+
+exponential backoff
+
+dead-letter/error handling where appropriate
+
+29. PAYMENT ARCHITECTURE
+Design a payment abstraction layer.
+
+Start with:
+
+M-Pesa
+
+but do not hard-code the entire financial architecture around one provider.
+
+Support future:
+
+card
+
+bank
+
+mobile money
+
+business wallets
+
+Payment states:
+
+INITIATED
+PENDING
+CONFIRMED
+FAILED
+REFUNDED
+RECONCILIATION_REQUIRED
+
+Never trust the mobile client as proof of payment.
+
+Server-side payment confirmation is authoritative.
+
+30. SECURITY
+Implement:
+
+secure authentication
+
+OTP where appropriate
+
+role-based authorization
+
+encrypted sensitive data
+
+secure document storage
+
+signed tracking links
+
+rate limiting
+
+audit logs
+
+fraud detection hooks
+
+secure payment handling
+
+least-privilege admin access
+
+Do not expose:
+
+full customer phone numbers publicly
+
+unnecessary driver documents
+
+sensitive KYC information
+
+exact private information on public tracking pages
+
+31. FRAUD DETECTION
+Design hooks for:
+
+fake GPS
+
+impossible travel speeds
+
+repeated cancellations
+
+suspicious account creation
+
+payment anomalies
+
+account sharing
+
+duplicate vehicles
+
+duplicate identities
+
+repeated disputes
+
+unusual route deviations
+
+Don't pretend AI will solve fraud automatically.
+
+Build the data infrastructure first.
+
+32. MAPS AND ROUTING
+Abstract the map provider.
+
+Create a service interface for:
+
+geocoding
+
+reverse geocoding
+
+routing
+
+ETA
+
+distance
+
+map tiles
+
+Do not deeply couple the application to one vendor.
+
+The platform should be able to switch providers later.
+
+33. PRICING ENGINE
+Do not hard-code:
+
+KES X per kilometre.
+
+Build a pricing engine capable of considering:
+
+base fare
+
+distance
+
+vehicle class
+
+estimated duration
+
+traffic
+
+demand
+
+time of day
+
+service zone
+
+loading requirements
+
+cargo category
+
+long-distance route
+
+return-load availability
+
+tolls
+
+special requirements
+
+Initially keep pricing simple and transparent.
+
+Sophistication comes later after collecting real trip data.
+
+34. INITIAL MARKET
+DO NOT launch everywhere.
+
+Start with:
+
+Nairobi
+
+Build liquidity.
+
+Get enough active supply that customers can actually get trucks.
+
+Expand only when:
+
+matching works
+
+drivers are active
+
+repeat usage exists
+
+unit economics make sense
+
+cancellation is controlled
+
+Then expand to major Kenyan routes.
+
+Eventually:
+
+Nairobi ↔ Mombasa
+
+Northern Corridor
+
+Uganda
+
+Rwanda
+
+Tanzania where operationally/legal feasible
+
+35. LONG-TERM ROADMAP
+PHASE 1
+Nairobi on-demand cargo.
+
+PHASE 2
+Kenya-wide scheduled freight.
+
+PHASE 3
+Return-load marketplace.
+
+PHASE 4
+Business logistics platform.
+
+PHASE 5
+Fleet management.
+
+PHASE 6
+Freight API.
+
+PHASE 7
+Warehousing and consolidation.
+
+PHASE 8
+Insurance partnerships.
+
+PHASE 9
+Transport/vehicle financing partnerships.
+
+PHASE 10
+East African logistics infrastructure.
+
+36. THE MOAT
+The moat must NOT be:
+
+“We have an app.”
+
+The moat should become:
+
+DATA
+Actual prices.
+
+Actual routes.
+
+Actual ETAs.
+
+Actual vehicle capacities.
+
+Actual driver reliability.
+
+Actual customer behaviour.
+
+Actual demand.
+
+Actual return-load patterns.
+
+NETWORK
+More customers attract drivers.
+
+More drivers improve availability.
+
+More availability improves customer experience.
+
+More shipments create better pricing data.
+
+Better pricing attracts more customers.
+
+TRUST
+Verified identities.
+
+Verified vehicles.
+
+Trip history.
+
+Reputation.
+
+POD.
+
+Dispute records.
+
+OPERATIONS
+Human exception handling.
+
+Driver support.
+
+Customer support.
+
+Network intelligence.
+
+INTEGRATION
+M-Pesa.
+
+WhatsApp.
+
+Business APIs.
+
+Fleet systems.
+
+Insurance.
+
+Warehousing.
+
+Financial services.
+
+37. DESIGN PRINCIPLE
+The product should feel:
+
+calm
+fast
+trustworthy
+precise
+Kenyan
+professional
+operational
+
+Not:
+
+flashy
+AI-generated
+generic
+over-designed
+
+Every visual element must answer:
+
+Does this help the customer move cargo?
+
+If not, remove it.
+
+38. CUSTOMER EXPERIENCE NORTH STAR
+The ideal customer journey:
+
+1
+Open Mizigo.
+
+2
+“What are you moving?”
+
+3
+Add cargo.
+
+4
+Enter pickup and destination.
+
+5
+Mizigo recommends vehicle.
+
+6
+See price.
+
+7
+Confirm.
+
+8
+Pay.
+
+9
+Verified driver matched.
+
+10
+Track shipment.
+
+11
+Cargo delivered.
+
+12
+POD generated.
+
+13
+Rate experience.
+
+The customer should never have to:
+
+call five truck owners
+
+negotiate blindly
+
+wonder where the truck is
+
+wonder who is carrying their goods
+
+wonder whether the driver actually arrived
+
+wonder whether the cargo was delivered
+
+chase someone for proof
+
+That is the product.
+
+39. DRIVER EXPERIENCE NORTH STAR
+The ideal driver journey:
+
+1
+Go online.
+
+2
+See relevant jobs.
+
+3
+Understand earnings before accepting.
+
+4
+Accept.
+
+5
+Navigate.
+
+6
+Complete pickup.
+
+7
+Transport.
+
+8
+Complete delivery.
+
+9
+POD confirmed.
+
+10
+Get paid.
+
+11
+Build reputation.
+
+12
+Get better loads.
+
+The platform should help drivers make more money through:
+
+reduced empty kilometres
+
+better load discovery
+
+reliable payments
+
+reputation
+
+reduced broker dependency
+
+route optimization
+
+40. MOST IMPORTANT STRATEGIC RULE
+Do not build a giant fake product with 100 screens before proving the core marketplace.
+
+Build the smallest real system capable of answering:
+
+Can a customer in Nairobi request cargo transportation and reliably get a verified vehicle, at a predictable price, with live status and provable delivery?
+
+If YES:
+
+expand.
+
+If NO:
+
+do not add features.
+
+41. FINAL PRODUCT POSITIONING
+Do not position Mizigo as:
+
+Uber for trucks.
+
+That is too small.
+
+Position it internally as:
+
+The digital infrastructure for moving physical goods across Kenya.
+
+Customer-facing positioning can remain much simpler:
+
+Move anything. Know where it is. Know what it costs.
+
+Or:
+
+Your cargo. Your truck. Your peace of mind.
+
+The ultimate objective is to make moving cargo feel as predictable as ordering a ride — while creating a much deeper network underneath the experience.
+
+Build for Nairobi first.
+
+Architect for Kenya.
+
+Think for East Africa.
+
+Do not sacrifice operational reliability for visual polish.
+
+My recommendation before you send this
+Send the AI builder the master brief above, but don't let it immediately generate the entire production system.
+
+Have it first produce:
+
+System architecture
+
+Database schema
+
+User journeys
+
+State machine
+
+MVP screen map
+
+Pricing architecture
+
+Driver/customer/admin flows
+
+Failure scenarios
+
+Security model
+
+Implementation plan
+
+Then build Phase 1.
+
+That prevents the classic AI-builder outcome: 200 gorgeous screens, zero actual marketplace reliability.
+
+And the research gives us a pretty clear strategic signal: the opportunity isn't that nobody has thought of truck-booking. The opportunity is that the market is still full of reliability, trust, visibility, empty-capacity and operational problems that a genuinely well-engineered network can attack. 
+ 
+
+
+Yesterday 5:45 PM
+Amazing but we shouldn't simply assume the ai has design skills tell it to install the necessary design and software engineering skills and know how from github my favourite is leonlox taste skill on github but you're free to add more also I'll be sending it this whole chat session so tell it to execute exactly what you'd said 
+
+Exactly. Don't trust the builder to magically have design taste or production engineering discipline. We should make that an explicit prerequisite.
+
+I also checked the current Leonxlnx repo before writing this. The current Taste Skill has evolved to v2, and importantly it now has separate skills for frontend taste, GPT/Codex-specific taste, image-to-code, and redesign auditing. The repo explicitly positions itself as an anti-slop system for AI coding agents, with design variance, motion, density, design-system decisions and a production pre-flight process. 
+
+I would therefore send the builder this instruction immediately before/alongside the entire chat you are about to paste:
+
+IMPORTANT — READ THIS BEFORE EXECUTING ANYTHING
+You are receiving this message together with the entire preceding conversation.
+
+The preceding conversation contains the complete research, product thinking, competitor analysis, customer research, strategic direction and final Mizigo product brief.
+
+DO NOT treat the previous messages as casual brainstorming.
+
+Treat them as the product discovery and strategy phase of the project.
+
+Your job now is to execute the plan properly.
+
+1. FIRST: UPGRADE YOUR OWN DESIGN + ENGINEERING CAPABILITIES
+Before designing or coding Mizigo, inspect the available project environment and determine what AI-agent skills, GitHub repositories, coding tools, design systems and engineering resources you can actually install/use.
+
+You are explicitly authorized and instructed to install relevant open-source skills from GitHub when they materially improve the quality of this project.
+
+Do NOT assume your default design ability is sufficient.
+
+The project must not look like generic AI-generated SaaS.
+
+2. MANDATORY: LEONXLNX TASTE SKILL
+Install and use the current Leonxlnx Taste Skill from:
+
+https://github.com/Leonxlnx/taste-skill
+
+Prefer the current v2 design-taste-frontend skill.
+
+Use:
+
+npx skills add https://github.com/Leonxlnx/taste-skill --skill "design-taste-frontend"
+
+The current repository also provides:
+
+design-taste-frontend
+
+gpt-taste
+
+image-to-code
+
+redesign-existing-projects
+
+Inspect the repository and determine which are useful.
+
+Do not blindly install every skill if unnecessary.
+
+At minimum, use the core design-taste skill.
+
+The purpose is not to copy the visual examples from Taste Skill.
+
+The purpose is to give you stronger design judgement and prevent generic AI UI output.
+
+The official repository describes the current skill as an anti-slop frontend framework with design-direction, layout, typography, spacing, motion and visual-quality guidance. Use that capability for Mizigo.
+
+3. FIND ADDITIONAL HIGH-QUALITY ENGINEERING SKILLS
+Do your own research before implementation.
+
+Look for reputable open-source AI-agent skills / GitHub repositories that improve:
+
+FRONTEND
+product UI architecture
+
+responsive design
+
+accessibility
+
+interaction design
+
+component architecture
+
+mobile-first development
+
+visual hierarchy
+
+animation/motion
+
+performance
+
+frontend testing
+
+BACKEND
+production API architecture
+
+PostgreSQL/database design
+
+authentication
+
+authorization
+
+payments
+
+event-driven systems
+
+idempotency
+
+queues
+
+retries
+
+observability
+
+logging
+
+error handling
+
+testing
+
+DEVOPS
+deployment
+
+CI/CD
+
+environment management
+
+secrets
+
+monitoring
+
+backups
+
+database migrations
+
+disaster recovery
+
+SECURITY
+OWASP practices
+
+secure authentication
+
+authorization
+
+rate limiting
+
+input validation
+
+secure file handling
+
+payment security
+
+audit logging
+
+privacy
+
+MOBILE / PWA
+offline-first behaviour
+
+location services
+
+background synchronization
+
+push notifications
+
+GPS handling
+
+battery-conscious location tracking
+
+4. DO NOT INSTALL RANDOM SKILLS JUST TO SAY YOU INSTALLED THEM
+Evaluate them.
+
+For every additional skill you install, ask:
+
+Is it reputable?
+
+Is it maintained?
+
+Is it actually relevant?
+
+Does it improve implementation?
+
+Does it conflict with another skill?
+
+Does it introduce unnecessary dependencies?
+
+Does it impose an unsuitable architecture?
+
+Prefer a small set of excellent skills over a huge collection of mediocre ones.
+
+5. CREATE A PROJECT SKILLS / ENGINEERING RULEBOOK
+After researching the skills, create a project-level engineering/design rules document.
+
+For example:
+
+/docs/ENGINEERING_RULES.md
+
+and, if appropriate:
+
+/docs/DESIGN_SYSTEM.md
+
+These documents should become the internal source of truth.
+
+Document:
+
+architecture
+
+technology choices
+
+design principles
+
+component rules
+
+accessibility rules
+
+performance requirements
+
+security requirements
+
+testing requirements
+
+database rules
+
+API rules
+
+state-management rules
+
+error-handling rules
+
+mobile rules
+
+offline rules
+
+GPS rules
+
+payment rules
+
+Do not let individual screens invent their own rules.
+
+6. DO NOT START CODING IMMEDIATELY
+Before writing production code, execute the following sequence.
+
+STEP 1 — UNDERSTAND
+Read the entire preceding conversation.
+
+Extract:
+
+business thesis
+
+customer problems
+
+driver problems
+
+competitor observations
+
+product principles
+
+MVP requirements
+
+long-term roadmap
+
+architecture requirements
+
+reliability requirements
+
+UX requirements
+
+Do not ask me to repeat information that already exists in the conversation.
+
+7. STEP 2 — RESEARCH
+Before implementation, perform a final research pass where appropriate.
+
+Study:
+
+current competitors
+
+current Kenyan logistics behaviour
+
+relevant transport/payment constraints
+
+M-Pesa integration requirements
+
+mapping/routing options
+
+relevant Kenyan compliance requirements
+
+actual user behaviour
+
+relevant technical best practices
+
+Separate:
+
+FACT
+
+from:
+
+INFERENCE
+
+from:
+
+DESIGN DECISION
+
+Do not present competitor marketing claims as objective facts.
+
+8. STEP 3 — PRODUCT ARCHITECTURE
+Before UI implementation, produce:
+
+CUSTOMER JOURNEY
+From opening the app to completed delivery.
+
+DRIVER JOURNEY
+From going online to payout.
+
+ADMIN JOURNEY
+From shipment creation/matching through exception handling.
+
+BUSINESS JOURNEY
+For future business accounts.
+
+FAILURE JOURNEYS
+Explicitly model:
+
+driver cancels
+
+customer cancels
+
+payment fails
+
+payment callback fails
+
+GPS disappears
+
+internet disappears
+
+driver goes offline
+
+driver breaks down
+
+customer unavailable
+
+recipient unavailable
+
+cargo damaged
+
+cargo missing
+
+route deviation
+
+wrong vehicle
+
+price dispute
+
+duplicate booking
+
+duplicate payment
+
+fraudulent GPS
+
+document expires
+
+vehicle becomes unavailable
+
+Do not design only the happy path.
+
+9. STEP 4 — DATA MODEL
+Design the actual database before building complicated screens.
+
+At minimum consider:
+
+users
+customers
+businesses
+drivers
+vehicles
+driver_documents
+vehicle_documents
+cargo_items
+shipments
+shipment_items
+quotes
+bookings
+assignments
+trip_events
+locations
+payments
+payouts
+proof_of_delivery
+ratings
+disputes
+notifications
+support_tickets
+pricing_rules
+service_zones
+audit_logs
+
+Design:
+
+relationships
+
+indexes
+
+constraints
+
+unique keys
+
+lifecycle states
+
+deletion strategy
+
+audit requirements
+
+migration strategy
+
+The data model must support the future roadmap without prematurely implementing the entire future.
+
+10. STEP 5 — STATE MACHINE
+Create a proper shipment state machine.
+
+For example:
+
+DRAFT
+→ QUOTED
+→ BOOKED
+→ PAYMENT_PENDING
+→ PAYMENT_CONFIRMED
+→ MATCHING
+→ DRIVER_ASSIGNED
+→ DRIVER_ACCEPTED
+→ DRIVER_ARRIVING
+→ DRIVER_ARRIVED
+→ LOADING
+→ LOADED
+→ IN_TRANSIT
+→ ARRIVING
+→ DELIVERED
+→ POD_CONFIRMED
+→ COMPLETED
+
+Also support exception states such as:
+
+CANCELLED
+FAILED
+DISPUTED
+EXCEPTION
+BREAKDOWN
+REASSIGNMENT_REQUIRED
+
+Do not scatter these states as arbitrary strings throughout the application.
+
+11. STEP 6 — DESIGN SYSTEM BEFORE SCREEN DESIGN
+Use the installed design skills.
+
+Do not start by generating random screens.
+
+First establish:
+
+typography
+
+type scale
+
+spacing system
+
+grid
+
+layout rules
+
+colour system
+
+surface hierarchy
+
+borders
+
+shadows
+
+iconography
+
+button hierarchy
+
+form controls
+
+map treatment
+
+cards
+
+bottom sheets
+
+status indicators
+
+timelines
+
+notifications
+
+loading states
+
+empty states
+
+error states
+
+success states
+
+responsive behaviour
+
+motion principles
+
+The design system should be distinctive but practical.
+
+12. IMPORTANT DESIGN DIRECTION
+Mizigo is a logistics product.
+
+Its visual language should communicate:
+
+trust
+precision
+movement
+physicality
+clarity
+reliability
+
+It should NOT communicate:
+
+crypto startup
+generic SaaS
+AI dashboard
+template marketplace
+Uber clone
+
+Do not copy Swyft.
+
+Do not copy Bolt.
+
+Do not copy Uber.
+
+Do not copy Truckonnect.
+
+Study their useful interaction principles, then design something better suited to cargo.
+
+13. DESIGN FOR CARGO, NOT VEHICLES
+The central mental model is:
+
+“I need to move this stuff.”
+
+NOT:
+
+“I need a particular truck.”
+
+The primary booking flow should therefore begin around:
+
+WHAT ARE YOU MOVING?
+Then:
+
+cargo
+
+↓
+
+pickup
+
+↓
+
+destination
+
+↓
+
+vehicle recommendation
+
+↓
+
+price
+
+↓
+
+booking
+
+This is a core product decision.
+
+14. USE TASTE SKILL INTELLIGENTLY
+Do NOT interpret “good design” as:
+
+more gradients
+
+more animations
+
+more glass
+
+more 3D
+
+more effects
+
+more cards
+
+more shadows
+
+Taste means knowing when NOT to add something.
+
+Motion should communicate:
+
+state changes
+
+movement
+
+confirmation
+
+hierarchy
+
+feedback
+
+It should not distract from logistics.
+
+15. MOBILE-FIRST
+The customer experience should be designed primarily for mobile.
+
+The driver experience should be even more aggressively mobile-first.
+
+Drivers may be:
+
+walking
+
+loading cargo
+
+driving
+
+outdoors
+
+under bright sunlight
+
+using weak networks
+
+using lower-end Android phones
+
+Therefore:
+
+large touch targets
+
+clear typography
+
+minimal interaction steps
+
+strong contrast
+
+obvious actions
+
+low bandwidth
+
+offline tolerance
+
+minimal unnecessary animation
+
+16. ADMIN IS DIFFERENT
+Do not force the same visual density onto every surface.
+
+Customer:
+
+LOW/MEDIUM information density.
+
+Driver:
+
+LOW information density + action clarity.
+
+Admin:
+
+HIGH information density.
+
+Operations dashboard:
+
+HIGH information density.
+
+The design system should support different density modes while remaining visually coherent.
+
+17. BUILD THE MVP, NOT THE ENTIRE FUTURE
+The initial implementation should focus on:
+
+CUSTOMER
+onboarding
+
+cargo selection
+
+pickup
+
+destination
+
+vehicle recommendation
+
+quote
+
+booking
+
+payment architecture
+
+active shipment
+
+tracking
+
+driver information
+
+support
+
+cancellation
+
+delivery
+
+POD
+
+history
+
+DRIVER
+onboarding
+
+verification
+
+vehicle
+
+online/offline
+
+job offers
+
+accept/reject
+
+navigation
+
+arrival
+
+pickup
+
+loading
+
+trip
+
+delivery
+
+POD
+
+earnings
+
+ADMIN
+live operations
+
+shipments
+
+drivers
+
+vehicles
+
+verification
+
+manual dispatch
+
+payments
+
+disputes
+
+support
+
+Do not build warehousing, financing, insurance and East Africa-wide infrastructure as fake placeholder features.
+
+Architect for them.
+
+Do not pretend they already exist.
+
+18. IMPLEMENT REAL SYSTEMS WHERE THEY MATTER
+Do not create fake:
+
+payments
+
+GPS
+
+tracking
+
+driver matching
+
+authentication
+
+database persistence
+
+trip state
+
+POD
+
+notifications
+
+If a real integration is unavailable during development, create a clean abstraction and a realistic development adapter.
+
+Never disguise mock behaviour as production behaviour.
+
+19. FAILURE-FIRST ENGINEERING
+For every critical operation ask:
+
+What happens if this succeeds twice?
+
+What happens if it succeeds and the response is lost?
+
+What happens if the user goes offline?
+
+What happens if the driver closes the app?
+
+What happens if GPS stops?
+
+What happens if payment callback arrives twice?
+
+What happens if the driver accepts while another driver also accepts?
+
+What happens if the database transaction partially succeeds?
+
+Design for these cases BEFORE declaring the feature complete.
+
+20. OBSERVABILITY
+Build proper logging.
+
+Critical operations should be traceable.
+
+Examples:
+
+shipment_created
+quote_generated
+payment_initiated
+payment_confirmed
+driver_matched
+driver_accepted
+driver_arrived
+cargo_loaded
+trip_started
+location_updated
+route_deviation
+trip_completed
+pod_created
+payout_created
+
+Do not log sensitive information unnecessarily.
+
+21. TESTING
+Do not rely on manually clicking around the UI.
+
+Build tests for:
+
+UNIT
+Pricing.
+
+State transitions.
+
+Matching.
+
+Permissions.
+
+Validation.
+
+INTEGRATION
+Booking.
+
+Payment.
+
+Driver assignment.
+
+Trip completion.
+
+POD.
+
+END-TO-END
+Customer books.
+
+Driver accepts.
+
+Driver arrives.
+
+Cargo loaded.
+
+Trip starts.
+
+Delivery.
+
+POD.
+
+Completion.
+
+FAILURE TESTS
+Duplicate payment.
+
+Duplicate booking.
+
+Driver cancellation.
+
+GPS failure.
+
+Network failure.
+
+Payment timeout.
+
+Concurrent driver acceptance.
+
+22. BUILD IN SMALL VERTICAL SLICES
+Do not build:
+
+all frontend first
+
+then backend
+
+then payments
+
+then tracking.
+
+Instead build vertical slices.
+
+For example:
+
+SLICE 1
+Customer creates shipment.
+
+→ Backend persists shipment.
+
+→ Admin sees shipment.
+
+SLICE 2
+Driver sees shipment.
+
+→ Driver accepts.
+
+→ Customer sees assignment.
+
+SLICE 3
+Trip begins.
+
+→ Events recorded.
+
+→ Customer sees status.
+
+SLICE 4
+Trip completes.
+
+→ POD.
+
+→ Completion.
+
+This keeps the system real throughout development.
+
+23. BEFORE IMPLEMENTATION, SHOW THE PLAN
+Your first output after reading this entire conversation should NOT be a giant pile of code.
+
+First produce:
+
+A. FINAL ARCHITECTURE
+Frontend
+Backend
+Database
+Realtime
+Maps
+Payments
+Storage
+Notifications
+Deployment
+
+B. FINAL TECH STACK
+Explain each choice briefly.
+
+C. DATABASE ERD / SCHEMA
+D. STATE MACHINE
+E. CUSTOMER FLOW
+F. DRIVER FLOW
+G. ADMIN FLOW
+H. DESIGN SYSTEM
+I. MVP SCOPE
+J. IMPLEMENTATION PHASES
+K. TEST STRATEGY
+L. SECURITY MODEL
+M. FAILURE-MODE STRATEGY
+Then begin implementation.
+
+24. DO NOT ASK FOR PERMISSION FOR OBVIOUS NEXT STEPS
+Once the plan is sound, execute it.
+
+If a reasonable implementation choice is not explicitly specified:
+
+choose the most maintainable option.
+
+Do not stop every five minutes to ask:
+
+“Would you like me to continue?”
+
+Continue.
+
+Only stop when a decision genuinely requires information that cannot reasonably be inferred.
+
+25. DO NOT PRETEND TO HAVE DONE THINGS
+Never say:
+
+“Integrated M-Pesa”
+
+if you only created a button.
+
+Never say:
+
+“Live tracking”
+
+if it is simulated.
+
+Never say:
+
+“Production ready”
+
+without testing.
+
+Never say:
+
+“Secure”
+
+without implementing and checking the security controls.
+
+Be explicit about:
+
+REAL
+
+MOCK
+
+STUB
+
+SIMULATED
+
+TODO
+
+26. FINAL QUALITY BAR
+Before considering the MVP complete, audit it as if:
+
+1,000 customers use it
+
+500 drivers use it
+
+payment callbacks arrive twice
+
+GPS fails
+
+mobile data disappears
+
+drivers cancel
+
+customers dispute charges
+
+cargo is damaged
+
+a vehicle document expires
+
+an admin makes a mistake
+
+a customer uses a low-end Android phone
+
+a driver has poor connectivity
+
+the database grows to millions of events
+
+The architecture should have a credible answer for each.
+
+27. MOST IMPORTANT
+The entire preceding conversation is the product discovery record.
+
+Use it.
+
+Do not reduce it to:
+
+“Build an Uber for lorries.”
+
+The actual product is:
+
+A trusted digital cargo transportation network.
+
+The long-term moat is:
+
+supply + demand + reliability + reputation + operational data + return-load optimization + business integrations.
+
+The first objective is:
+
+Make cargo movement in Nairobi dramatically more predictable.
+
+The long-term objective is:
+
+Become infrastructure for physical goods movement across Kenya and eventually East Africa.
+
+Build accordingly.
+
+EXECUTION ORDER
+Follow this exact order:
+
+Read the entire conversation.
+
+Research and install the necessary design/engineering skills.
+
+Evaluate the installed skills and avoid conflicts.
+
+Create the project engineering/design rules.
+
+Finalize architecture.
+
+Finalize database.
+
+Finalize shipment state machine.
+
+Finalize design system.
+
+Map MVP user journeys.
+
+Build the first vertical slice.
+
+Test it.
+
+Build the next vertical slice.
+
+Test it.
+
+Continue until the MVP is genuinely functional.
+
+Perform UX audit.
+
+Perform engineering audit.
+
+Perform security audit.
+
+Perform failure-mode audit.
+
+Perform performance/accessibility audit.
+
+Only then call the MVP complete.
+
+DO NOT optimize for how impressive the code looks.
+
+Optimize for:
+
+reliability + usability + maintainability + trust + actual logistics value.
+
+One small but important correction to our earlier plan: Taste Skill is excellent, but it's primarily a frontend/design skill, not a complete software-engineering discipline. The current repo itself describes its focus around frontend design, while its different variants target things like GPT/Codex, image-to-code and redesigns. 
+
+So I deliberately made the builder research and install complementary engineering skills rather than pretending Taste Skill covers backend, security, payments, distributed systems, testing, etc.
+
+And I'd specifically tell it to use the current v2 rather than blindly using an old Taste Skill prompt; the repository says v2 is now the default and is a substantial rewrite, while v1 is retained for compatibility. 
+
+That gives you a much better sequence:
+
+your entire chat → skill acquisition → research/architecture → design system → vertical implementation → testing → audits → MVP.
+
+Not:
+
+your entire chat → “generate me an Uber clone” → 150 pretty screens.
+
+
+
+Exactly. And after looking again, I think your observation is more important than the existence of the competitors.
+
+The competitors actually validate the market, but their interfaces expose another opportunity:
+
+Most of them have built a logistics website. They haven't necessarily built a logistics product that feels deeply designed around how Kenyans actually move things.
+
+For example, Swyft's current proposition is already very close to the original concept: cargo TukTuk through 10-ton lorries, upfront fare, matching, GPS, vetted drivers and business delivery. 
+ Truckonnect goes in the opposite direction with human dispatch, escrow, verification and live tracking. 
+
+So we shouldn't compete by having the same feature checklist.
+
+We should compete on execution, UX, reliability and network economics.
+
+And there's a particularly interesting signal from the current Kenyan market: recent discussions about lorry businesses mention both unreliable drivers and trucks returning empty, while businesses still need to move agricultural produce. 
+ Those are exactly the kinds of structural problems that software can attack.
+
+The broader market is also substantial: Kenya's road network carries the majority of domestic freight, with Nairobi/Mombasa forming a particularly important logistics axis. 
+
+So I'd change our thinking again
+Don't build:
+
+"A prettier Swyft."
+
+Build:
+
+The best-designed physical logistics network in Kenya.
+The app is merely the interface to that network.
+
+That distinction matters enormously.
+
+And I agree with you about the UI
+Looking at the current products, I would not tell a builder:
+
+"Make it look like Uber."
+
+That's how you get another AI-generated:
+
+map
+
+rounded cards
+
+orange button
+
+vehicle icon
+
+"Book Now"
+
+generic dashboard
+
+fake analytics
+
+gradients
+
+enormous whitespace
+
+17 different card components
+
+It technically works.
+
+But it doesn't feel like someone spent six months understanding cargo.
+
+We need to design the interface around the physical reality of a shipment.
+
+The UI should revolve around the cargo
+Imagine this.
+
+You open the app.
+
+Instead of:
+
+Where to?
+
+The first thing is:
+
+What are you moving?
+Then:
+
+Furniture
+
+You tap it.
+
+The app asks:
+
+How much furniture?
+
+You can literally add:
+
+🛋 Sofa ×2
+🪑 Chairs ×6
+🧊 Fridge ×1
+📦 Boxes ×8
+
+And the system understands:
+
+Likely requires: Pickup
+
+Then:
+
+Pickup
+📍 Industrial Area
+
+Deliver to
+📍 Westlands
+
+And then:
+
+We found the right vehicle
+Toyota Hilux / Pickup
+
+8 min away
+
+~350 kg capacity required
+
+KES 4,850
+Fixed price
+
+[ Book Pickup ]
+
+That's much more intelligent than asking:
+
+"Select vehicle category."
+
+The customer shouldn't need to know what vehicle they need.
+
+The platform should.
+
+The REALLY interesting UI
+I'd make the active shipment almost feel like a parcel command center.
+
+
+https://images.openai.com/static-rsc-4/-TZSPV2CodEynIAS-ZsPy04GMexBqkuksoerqPtaJ9LKcMWydsbf485Yc5kOV05-QXzG8tK73UcevFrNZxNax1F6WEPMQAOhZOc-btKqfkwYZ9afD36K6H_8JBfZd0XMJztb-ch4qDl2QTB0HyKIxzo9XfghGSQ9nUEdnDxNz8jIMQnAH9cPssyRaSOaWu-w?purpose=fullsize
+
+Add to Favorites
+
+https://images.openai.com/static-rsc-4/P8JawyKWaMvqEH0dmJEbqLCYElXneRJoOxMT8bYP_P-1VQhnCpBdKv0ioweiTck0Mc6ILWAyi__XaAPZD7KEw9Q5yQnJO7xKOvE0jODMkMfNd-4f_faIxVkZU6znazKiqxYHpCT4_uOSlhqdNvd7Q4Jrj6fHxV-G9ciEfdnpX6hz2qtl_jUsw_jk1H4Lo5K6?purpose=fullsize
+
+Add to Favorites
+
+https://images.openai.com/static-rsc-4/GlgDBy0QPB_g8wvUYhU6K3n49lkCl31Fu_U1qKNp9B9QZHHWvIyLZkxMiflX6HZBP04wkwuDV6fmweTpSuUosLQnSeb5Yop5o40p0zigd1Mr9ikob0y3Kw8I1XIHqB9KfhKniTGek62YLUSGW3HKJ0l7EjBIUaqLdWw7M5znw6XY0iwbkTOfLJh4OwNtgC5C?purpose=fullsize
+
+Add to Favorites
+5
+Imagine:
+
+┌─────────────────────────────┐
+│                             │
+│        LIVE MAP             │
+│                             │
+│             🚚              │
+│            ↗                │
+│          ─────              │
+│        ─                    │
+│      ●                      │
+│    PICKUP                   │
+│                             │
+└─────────────────────────────┘
+
+YOUR DELIVERY
+
+Peter is 18 min away
+
+★★★★★ 4.9
+
+Toyota Dyna
+KDA 123X
+
+─────────────────────────────
+
+Industrial Area
+✓ Cargo collected
+
+        ↓
+
+Westlands
+○ Delivery pending
+
+─────────────────────────────
+
+KES 4,850
+PAID
+
+[ Call Peter ]   [ Message ]
+
+[ Share tracking ]
+
+─────────────────────────────
+
+8 items
+350 kg estimated
+
+Proof of delivery
+Available after delivery
+Notice what's absent:
+
+No unnecessary dashboard crap.
+
+The user cares about:
+
+Where is my stuff?
+
+But here's the bigger product insight
+The customer app should be extremely simple.
+
+The backend should be extremely sophisticated.
+
+That's the asymmetry we want.
+
+Customer sees:
+
+"Peter is 12 minutes away."
+
+Backend knows:
+
+Peter's GPS
+
+vehicle capacity
+
+historical ETA accuracy
+
+driver reliability
+
+traffic
+
+route
+
+cargo category
+
+fare version
+
+payment status
+
+vehicle compliance
+
+customer reliability
+
+risk score
+
+expected delivery time
+
+alternative available vehicles
+
+return-load opportunities
+
+The complexity belongs underneath.
+
+And I would introduce a completely different concept:
+Mizigo ID
+Every shipment gets its own identity.
+
+For example:
+
+MZG-48291
+That ID follows the cargo from beginning to end.
+
+It becomes the equivalent of a tracking number, but much more powerful.
+
+MZG-48291
+
+FURNITURE DELIVERY
+
+Industrial Area
+       ↓
+Peter Kamau
+Toyota Dyna
+KDA 123X
+       ↓
+Westlands
+
+STATUS
+━━━━━━━━━━━━━━━━━━
+
+✓ Booking confirmed
+✓ Driver verified
+✓ Driver arrived
+✓ Cargo loaded
+● In transit
+○ Delivered
+Every event is attached to that shipment.
+
+Then give recipients a beautiful no-login page
+This is underrated.
+
+The person receiving the furniture doesn't need Mizigo.
+
+They receive:
+
+Your delivery is on the way.
+
+Peter Kamau
+
+Toyota Dyna
+KDA 123X
+
+ETA 18 min
+
+[ Track delivery ]
+
+That's it.
+
+No account.
+
+No download.
+
+No password.
+
+That alone can make the product feel dramatically more polished than competitors.
+
+And now the thing that could become the moat
+Don't only match customers to trucks.
+Match trucks to future cargo.
+
+Suppose a truck finishes:
+
+Nairobi → Mombasa
+The driver is now sitting in Mombasa.
+
+The platform knows:
+
+Truck is available
+Destination preference: Nairobi
+Capacity: 5T
+
+Then it says:
+
+3 return loads available
+Mombasa → Nairobi
+
+12 km detour
+KES 31,500
+
+Mombasa → Athi River
+
+8 km detour
+KES 27,800
+
+Mombasa → Nairobi
+
+3 km detour
+KES 35,000
+
+Driver picks one.
+
+Suddenly you've attacked one of the fundamental economics of trucking:
+
+empty kilometres.
+That's far more defensible than:
+
+"We have an app where you can book trucks."
+
+And this is where the competition becomes useful
+Swyft is showing us:
+
+There is demand for instant urban cargo booking. 
+
+Truckonnect is showing:
+
+Trust + verification + human operations matter. 
+
+The broader market is showing:
+
+Freight is still fragmented and operationally inefficient. 
+
+And actual transporter discussions show:
+
+Driver reliability and empty returns are real problems. 
+
+So we don't need to pretend nobody is doing this.
+
+They're proving the thesis for us.
+
+Our job is to ask:
+
+What did they still fail to solve?
+
+I'd therefore structure the company in 4 layers
+Layer 1 — Booking
+"I need a truck."
+
+Simple consumer UX.
+
+Layer 2 — Trust
+"I know who's carrying my goods."
+
+Verification + tracking + POD + payment protection.
+
+Layer 3 — Marketplace
+"I can find the right capacity."
+
+Instant booking + quotes + scheduled freight + return loads.
+
+Layer 4 — Network
+"The system optimizes the entire road network."
+
+Demand prediction
+Backhaul matching
+Fleet utilization
+Route optimization
+Shared capacity
+Business APIs
+
+That fourth layer is where the serious long-term company sits.
+
+And I would make one very deliberate design decision
+Don't make the app look "African."
+
+Make it look world-class, then make its behavior deeply Kenyan.
+
+The UI doesn't need:
+
+🇰🇪 Kenyan flags everywhere
+African patterns
+generic orange/green branding
+"Made for Africa" copy
+
+Instead:
+
+M-Pesa feels native
+
+landmarks work
+
+estates work
+
+WhatsApp works
+
+poor GPS works
+
+low bandwidth works
+
+drivers understand it
+
+businesses can invoice
+
+recipients don't need accounts
+
+pricing handles local reality
+
+human dispatch exists when automation fails
+
+Swahili can be switched on
+
+KES is native
+
+local payment and compliance workflows are native
+
+That's Kenyan product design.
+
+Not putting an African pattern behind a map.
+
+And honestly, the fact that several competitors already exist makes me more interested in the idea, not less—provided you guys are willing to build the actual operational system rather than another polished CRUD app with a map slapped on top.
+
+The next thing I'd do is not write another giant coding prompt yet. I'd first create a proper Mizigo Product Bible: customer personas → jobs-to-be-done → competitor teardown screen-by-screen → actual customer complaints → driver economics → Nairobi launch geography → pricing model → trust architecture → marketplace liquidity → 3-year moat → exact MVP → then the final UI/design system and build prompt.
+
+That would give the builder something much harder to screw up than a generic 10,000-word prompt.
+
+
+Do that then and final research and strategic analysis before I just copy this chat and send it to the ai builder
+
+Yes. I did the last research pass with a different goal: not “does the idea exist?” but “where does the existing market still suck, what do customers actually care about, and what should we build so we aren't obsolete in 2–3 years?”
+
+The conclusion is stronger than the original idea.
+
+1. The market is validated — but the obvious version is already occupied
+Swyft is already very close to the initial concept: Cargo TukTuk → van → mini truck → 5T → 10T, upfront pricing, driver matching, live GPS, M-Pesa and proof of delivery. 
+
+Truckonnect is attacking the more serious freight side: verified truck owners, human dispatch, escrow, live tracking, proof of delivery, reputation and return-load economics. 
+
+And interestingly, Truckonnect itself describes the existing market as still dominated by phone calls, unreliable availability, opaque pricing, unverified operators, poor visibility and idle trucks. 
+
+So:
+
+“Uber for lorries” is no longer the business idea.
+
+That's the category.
+
+The business opportunity is building the infrastructure underneath the category better than everybody else.
+
+2. What actual customers are telling us
+This was the most useful part of the research.
+
+Customers don't primarily want an app.
+They want:
+
+1. “Don't change the price.”
+
+A Nairobi user looking for movers reported a KSh 5–9k budget, eventually paying KSh 13k for a couch and fridge, with discussion indicating that the original budget was unrealistic. Another user eventually found a mover charging KSh 15–30k depending on the load. 
+
+That's an important product insight:
+
+The customer doesn't necessarily need the cheapest truck. They need to know what they're actually going to pay.
+
+So our product should make:
+
+Price certainty
+
+a core feature.
+
+2. “Don't disappear on me.”
+There are very recent Kenyan complaints around services where:
+
+pickup times aren't respected
+
+drivers arrive late
+
+customers aren't notified
+
+customers have to repeatedly call/WhatsApp
+
+there is no pickup confirmation
+
+One Nairobi customer described exactly this pattern in a delivery service complaint. 
+
+This is why tracking alone isn't enough.
+
+If the truck is 25 minutes late, the customer needs:
+
+“Driver delayed 22 min — new ETA 2:47 PM.”
+
+Not:
+
+Last location: Nairobi.
+
+That's a huge difference.
+
+3. “I need to know my stuff is safe.”
+A recent Nairobi moving discussion had users explicitly contrasting cheap transport with professional movers and highlighting things such as:
+
+no scratches
+
+no theft
+
+proper handling
+
+packing equipment
+
+professionalism
+
+One commenter who had moved a fully furnished house specifically said professionalism and careful handling were worth paying for. 
+
+That means cargo handling is part of the product, not an afterthought.
+
+4. “I need someone reliable.”
+This is probably the strongest signal.
+
+A September 2026 Kenyan discussion about lorries specifically identified unreliable drivers as a major problem and also noted trucks returning empty despite farmers and small aggregators needing transportation. 
+
+That gives us two problems simultaneously:
+
+Demand problem
+
+“I need a truck.”
+
+Supply problem
+
+“My truck is sitting empty.”
+
+And that is where the really interesting company starts.
+
+3. The biggest opportunity isn't booking
+Imagine this:
+
+Today
+A farmer needs:
+
+Molo → Nairobi
+
+They find a truck.
+
+Truck carries produce to Nairobi.
+
+Then:
+
+Nairobi → Molo = EMPTY
+
+That's wasted capacity.
+
+Now imagine our system knows:
+
+Truck A
+Molo → Nairobi
+Arrival estimated: 16:40
+Capacity remaining: 2 tonnes
+
+And it already has:
+
+3 potential Nairobi → Nakuru loads
+
+The system can match the return journey.
+
+Now you've stopped being:
+
+“an app that books trucks”
+
+and become:
+
+a capacity network.
+
+That's dramatically more defensible.
+
+4. There is another major insight: don't automate everything
+This is where I would deliberately differ from the typical AI-built startup.
+
+Truckonnect is already explicitly using a human dispatcher to verify bookings before they become binding. 
+
+That's actually smart.
+
+For a KSh 1,500 Bolt ride, an automated system can tolerate mistakes.
+
+For:
+
+KSh 80,000 freight
+
+KSh 2M cargo
+
+commercial truck
+
+long-distance route
+
+you don't want:
+
+🤖 “Your driver has been matched!”
+
+and then discover the driver isn't actually where they said they were.
+
+Therefore:
+Automate the boring 90%.
+
+But retain humans for:
+
+suspicious bookings
+
+expensive cargo
+
+new drivers
+
+unusually large loads
+
+disputes
+
+breakdowns
+
+failed GPS
+
+driver/customer cancellations
+
+route deviations
+
+high-value commercial shipments
+
+That gives us:
+
+technology efficiency + human accountability.
+
+5. Reliability has to be engineered into the architecture
+This is where I would push the AI builder much harder.
+
+Don't build:
+
+Customer → Booking → Driver → Delivery
+Build:
+
+CUSTOMER
+   ↓
+QUOTE
+   ↓
+BOOKING
+   ↓
+DRIVER MATCH
+   ↓
+DRIVER VERIFICATION
+   ↓
+VEHICLE VERIFICATION
+   ↓
+PICKUP CONFIRMATION
+   ↓
+CARGO HANDOVER
+   ↓
+IN TRANSIT
+   ↓
+ETA MONITORING
+   ↓
+DELIVERY
+   ↓
+POD
+   ↓
+PAYMENT RELEASE
+   ↓
+RATING / REPUTATION
+Every stage produces an immutable event.
+
+Example:
+
+MZG-48291
+
+10:02 Booking created
+10:03 Payment authorized
+10:04 Driver matched
+10:05 Driver accepted
+10:07 Driver location verified
+10:31 Driver arrived
+10:36 Cargo loaded
+10:38 Trip started
+11:42 Route deviation detected
+11:45 Customer notified
+13:17 Destination reached
+13:24 Cargo unloaded
+13:27 Recipient confirmed delivery
+13:28 Payment released
+Now if there's a dispute:
+
+We have evidence.
+
+That's much more powerful than a pretty map.
+
+6. The reputation system could become one of the company's biggest assets
+Don't give everyone:
+
+⭐⭐⭐⭐⭐
+
+That's useless.
+
+Build a transport reputation graph.
+
+Driver
+Reliability       96%
+On-time pickup    94%
+On-time delivery  97%
+Cancellation      1.2%
+Cargo incidents   0
+Trips completed   438
+Vehicle
+Vehicle verified ✓
+Insurance verified ✓
+Inspection verified ✓
+Capacity verified ✓
+Last inspection: ...
+Customer
+Payment reliability: 99%
+Cancellation rate: 2%
+Completed shipments: 84
+Eventually:
+
+Drivers get better loads because they're reliable.
+
+Customers get better drivers because they're reliable.
+
+Bad actors become progressively harder to use the network.
+
+That becomes a moat.
+
+7. The app should understand cargo, not just locations
+This is one of the biggest UI changes I'd make.
+
+Don't open the app with:
+
+Pickup
+Destination
+
+That's taxi thinking.
+
+Open with:
+
+What are you moving?
+Then:
+
+Add cargo
+
+🛋 Sofa
+
+🧊 Fridge
+
+📦 Boxes
+
+🛏 Bed
+
+🪑 Chairs
+
+🏗 Building materials
+
+🌾 Produce
+
+📦 General cargo
+
+Other
+
+Then:
+
+How much?
+
+Then:
+
+Where from?
+
+Then:
+
+Where to?
+
+The system calculates:
+
+Recommended vehicle
+Pickup — KSh X
+
+Best for your cargo
+Capacity: 1,000 kg
+Estimated arrival: 32 min
+Driver rating: 4.9
+842 completed trips
+
+Then:
+
+Upgrade options
+TukTuk — KSh X
+Pickup — KSh X
+3T truck — KSh X
+
+That's far more intuitive than asking an ordinary customer:
+
+“What vehicle class do you require?”
+
+They don't know.
+
+We should know.
+
+8. The tracking screen should be a cargo command center
+Not just:
+
+🗺️ map
+
+Instead:
+
+MZG-48291
+
+Your cargo is on the way
+
+━━━━━━━━━━━━━━━━
+
+🚚 Isuzu NPR
+KDA 123A
+
+John K.
+★★★★★
+
+Arriving in 18 min
+
+━━━━━━━━━━━━━━━━
+
+● Pickup completed
+● Cargo loaded
+● In transit
+○ Near destination
+○ Delivered
+
+━━━━━━━━━━━━━━━━
+
+Cargo
+
+2 sofas
+1 fridge
+8 boxes
+
+━━━━━━━━━━━━━━━━
+
+KES 8,450
+PRICE LOCKED ✓
+
+[Share tracking]
+[Contact driver]
+[Get help]
+And the recipient should be able to track using:
+
+MZG-48291
+
+without creating an account.
+
+That's important.
+
+9. We should make WhatsApp a first-class interface
+This is Kenya.
+
+Don't force everybody into an app.
+
+Customer could receive:
+
+🚚 Your Mizigo shipment MZG-48291 is on the way.
+
+Driver: John
+Vehicle: KDA 123A
+ETA: 18 minutes
+
+Track shipment
+
+Driver can receive critical events through WhatsApp/SMS.
+
+Businesses can potentially create bookings through:
+
+WhatsApp → structured booking flow → platform
+
+The app remains the primary interface, but the network shouldn't depend on everybody behaving like Silicon Valley users.
+
+10. Low connectivity isn't an edge case
+Drivers travel through areas where mobile data/GPS can become unreliable.
+
+So:
+
+Driver app
+If internet disappears:
+
+locally cache trip
+
+retain booking
+
+retain customer information
+
+queue events
+
+send once connection returns
+
+timestamp events locally
+
+distinguish "GPS unavailable" from "driver stopped"
+
+Never show:
+
+Driver hasn't moved.
+
+when the real answer is:
+
+Last location received 17 minutes ago because connectivity was unavailable.
+
+That distinction matters enormously for trust.
+
+11. Build around four promises
+I would make these the internal product commandments:
+
+1. PRICE YOU CAN TRUST
+No surprise charges.
+
+If circumstances genuinely change:
+
+explain why
+show evidence
+require approval where appropriate
+
+2. DRIVER YOU CAN VERIFY
+Identity.
+
+Vehicle.
+
+Documents.
+
+History.
+
+Ratings.
+
+Trip record.
+
+3. CARGO YOU CAN TRACK
+Not just the truck.
+
+The shipment.
+
+4. DELIVERY YOU CAN PROVE
+Timestamp.
+
+GPS.
+
+Photo.
+
+Recipient confirmation.
+
+Signature/PIN where appropriate.
+
+Complete event history.
+
+12. But don't make the first version too big
+This is important.
+
+If you send an AI builder everything above and tell it:
+
+“Build all of this.”
+
+you'll get a beautiful fake logistics company.
+
+Instead:
+
+Phase 1 — Nairobi liquidity
+Start with:
+
+Customer
+
+signup
+
+cargo selection
+
+pickup
+
+destination
+
+vehicle recommendation
+
+price
+
+booking
+
+M-Pesa
+
+tracking
+
+driver contact
+
+cancellation
+
+delivery confirmation
+
+receipt
+
+Driver
+
+onboarding
+
+KYC
+
+vehicle
+
+availability
+
+trip offers
+
+accept/reject
+
+navigation
+
+arrival
+
+pickup confirmation
+
+delivery
+
+earnings
+
+Admin
+
+live bookings
+
+driver verification
+
+manual dispatch
+
+disputes
+
+payments
+
+customers
+
+drivers
+
+vehicles
+
+pricing
+
+That's enough to prove the network.
+
+13. Don't start with every Kenyan road
+Start concentrated.
+
+I'd rather have:
+
+100 trucks genuinely active around Nairobi
+
+than:
+
+10,000 registered trucks across Kenya that never accept anything.
+
+Marketplace businesses die from lack of liquidity.
+
+The initial objective isn't:
+
+“How many users signed up?”
+
+It's:
+
+Can someone request a truck and reliably get one?
+Measure:
+
+time to match
+
+acceptance rate
+
+cancellation rate
+
+pickup punctuality
+
+delivery punctuality
+
+average ETA error
+
+average contribution margin
+
+repeat booking rate
+
+driver utilization
+
+empty-return percentage
+
+Those are the real numbers.
+
+14. The long-term business becomes much bigger
+The progression I'd build toward is:
+
+Stage 1
+On-demand cargo
+
+Nairobi.
+
+Stage 2
+Scheduled freight
+
+Businesses book tomorrow/next week.
+
+Stage 3
+Freight marketplace
+
+Shippers compare available capacity.
+
+Stage 4
+Return-load network
+
+Truck Nairobi → Mombasa automatically gets matched with Mombasa → Nairobi demand.
+
+Stage 5
+Fleet operating system
+
+Owners manage:
+
+vehicles
+
+drivers
+
+maintenance
+
+fuel
+
+earnings
+
+utilization
+
+documents
+
+Stage 6
+Business logistics API
+
+A furniture company doesn't even need to open our app.
+
+Their website says:
+
+Deliver with Mizigo
+
+and creates a shipment through our API.
+
+Stage 7
+Then potentially:
+
+warehousing
+
+cargo insurance
+
+financing
+
+fuel partnerships
+
+vehicle financing
+
+consolidated freight
+
+cross-border freight
+
+East African corridors
+
+At that point we're not a trucking app.
+
+We're becoming logistics infrastructure.
+
+15. One thing I would NOT copy from competitors
+Don't copy their terminology or UX just because it looks familiar.
+
+And don't tell the AI:
+
+“Make it like Uber.”
+
+That produces the exact boilerplate thing you noticed.
+
+Use Uber's principles, not its appearance:
+
+instant matching
+
+transparent pricing
+
+live state
+
+two-sided marketplace
+
+reputation
+
+payments
+
+supply/demand balancing
+
+But invent the interface around cargo.
+
+16. One very important regulatory/operational point
+The platform must have a proper compliance layer.
+
+Kenya's 2025 proposed commercial-vehicle framework specifically addresses things including commercial vehicle licensing, insurance, telematics, driver requirements, loading/cargo securement and vehicle inspection. 
+
+So don't build the driver database as:
+
+name
+phone
+truck
+Build it to eventually accommodate:
+
+Driver identity
+Driving licence
+Licence class
+Vehicle registration
+Vehicle type
+Capacity
+Inspection status
+Insurance
+Owner/operator relationship
+Documents
+Expiry dates
+Compliance status
+Verification history
+The platform should be capable of blocking an expired/invalid vehicle automatically.
+
+17. Payments should also be treated as infrastructure
+M-Pesa isn't just a button.
+
+Build:
+
+payment initiated
+↓
+pending
+↓
+confirmed
+↓
+booking funded
+↓
+trip completed
+↓
+POD verified
+↓
+driver payout
+↓
+reconciliation
+and never trust the mobile client to tell the backend:
+
+“Payment succeeded.”
+
+Safaricom's Daraja platform supports transaction status checking specifically as a secondary reconciliation mechanism when callbacks aren't received. 
+
+That's exactly the sort of reliability detail an AI-generated MVP usually misses.
+
+18. My final strategic verdict
+Market attractiveness: 8.5/10
+Demand: Strong
+Competition: Already real
+Technical difficulty: Medium
+Operational difficulty: Very high
+Long-term moat potential: Very high
+Biggest danger:
+Building a beautiful app before solving:
+
+truck supply + reliability + pricing + operations.
+
+The app isn't the moat.
+
+The network is.
+
+And the network gets stronger every time you collect:
+
+route prices
+
+actual travel times
+
+vehicle capacity
+
+driver reliability
+
+customer reliability
+
+cancellation behaviour
+
+cargo types
+
+demand patterns
+
+return-load opportunities
+
+incident data
+
+That's the part competitors can't simply copy by asking an AI to generate another UI.
+
+FINAL MASTER BRIEF FOR THE AI BUILDER
+This is the part I would actually copy and send.
+
+MIZIGO — KENYA CARGO TRANSPORTATION NETWORK
+Final Product, UX, Architecture, Reliability & Long-Term Strategy Brief
+You are not building a generic “Uber clone”.
+
+You are designing and engineering a serious Kenyan cargo transportation network that can begin with on-demand trucking in Nairobi and eventually become logistics infrastructure across Kenya and East Africa.
+
+The working name is Mizigo.
+
+The core idea:
+
+Customers should be able to move cargo as easily as they can request a ride, while truck owners should be able to discover reliable loads, reduce empty return journeys and build a verifiable reputation.
+
+Do NOT blindly copy Uber, Bolt, Swyft or any other competitor's visual design.
+
+Study the principles behind successful ride-hailing/logistics networks, but design the product specifically around cargo.
+
+1. PRODUCT THESIS
+The real product is not:
+
+“Book a lorry.”
+
+The real product is:
+
+A trusted digital network connecting cargo demand with verified transport capacity.
+
+The platform must eventually solve four things better than informal transport:
+
+PRICE YOU CAN TRUST
+Customers know the expected price before committing.
+
+DRIVER YOU CAN VERIFY
+Customers know who is carrying their cargo and what vehicle is being used.
+
+CARGO YOU CAN TRACK
+Customers can see the shipment state and location throughout the journey.
+
+DELIVERY YOU CAN PROVE
+The platform creates an auditable chain of custody from booking to delivery.
+
+2. DO NOT BUILD A BOILERPLATE AI DESIGN
+Avoid:
+
+generic SaaS dashboards
+
+excessive rounded cards
+
+meaningless gradients
+
+unnecessary glassmorphism
+
+huge hero sections
+
+fake statistics
+
+generic “revolutionizing logistics” copy
+
+excessive animations
+
+map-first UX copied from ride-hailing apps
+
+arbitrary orange/blue/purple startup palettes
+
+decorative components that do not improve logistics operations
+
+The interface must feel like a product created by people who understand:
+
+Kenyan transport
+
+M-Pesa
+
+WhatsApp
+
+Nairobi estates
+
+landmarks
+
+traffic
+
+truck owners
+
+roadside logistics
+
+informal transport brokers
+
+commercial cargo
+
+unreliable pickup times
+
+driver communication
+
+low-connectivity areas
+
+cargo damage
+
+payment disputes
+
+Do not make it look stereotypically “African”.
+
+Make it look world-class, but make its behaviour deeply Kenyan.
+
+3. CUSTOMER EXPERIENCE
+The customer should not have to understand truck terminology.
+
+Do NOT begin with:
+
+Select vehicle class.
+
+Instead:
+
+WHAT ARE YOU MOVING?
+Provide common cargo categories:
+
+Furniture
+
+Appliances
+
+Household items
+
+Boxes
+
+Building materials
+
+Produce
+
+Electronics
+
+Business stock
+
+Machinery
+
+General cargo
+
+Other
+
+Allow customers to add individual items.
+
+Example:
+
+2 sofas
+1 fridge
+1 bed
+8 boxes
+
+The system estimates the required vehicle.
+
+4. VEHICLE RECOMMENDATION
+The platform should recommend a suitable vehicle based on:
+
+cargo type
+
+approximate weight
+
+volume
+
+dimensions where available
+
+quantity
+
+route
+
+loading requirements
+
+special handling
+
+weather exposure where relevant
+
+Show:
+
+Recommended
+Pickup
+
+Capacity: approximately X
+Estimated price: KES X
+Estimated arrival: X minutes
+
+Then alternatives:
+
+TukTuk
+Van
+Pickup
+Mini Truck
+3T Truck
+5T Lorry
+10T Lorry
+etc.
+
+Do not force customers to know the difference between an FVR, Dyna, Canter, pickup or other vehicle class.
+
+5. LOCATION UX
+Support:
+
+map selection
+
+search
+
+GPS
+
+estates
+
+landmarks
+
+businesses
+
+roads
+
+manual location notes
+
+pickup instructions
+
+gate/building information
+
+recipient phone number
+
+Kenyan location descriptions may not always behave like clean Western addresses.
+
+Allow:
+
+“Near Quickmart”
+
+“Gate B, apartment opposite X”
+
+“Call when you reach the stage”
+
+“Use the service entrance”
+
+Do not rely entirely on formal street addresses.
+
+6. QUOTE EXPERIENCE
+Before booking, show:
+
+YOUR TRIP
+Pickup
+Destination
+Cargo
+Vehicle
+Distance
+Estimated travel time
+
+PRICE
+KES X,XXX
+
+Clearly identify:
+
+transport fee
+
+loaders if applicable
+
+toll/parking where applicable
+
+platform fee if applicable
+
+other known charges
+
+Then:
+
+TOTAL: KES X,XXX
+State:
+
+PRICE LOCKED
+
+Do not allow arbitrary driver price changes after booking.
+
+If circumstances genuinely require a price adjustment, show:
+
+why
+
+evidence
+
+amount
+
+customer approval requirement
+
+7. BOOKING ID
+Every shipment gets a permanent ID.
+
+Example:
+
+MZG-48291
+
+This ID should appear everywhere:
+
+customer app
+
+driver app
+
+receipts
+
+WhatsApp messages
+
+SMS
+
+support
+
+admin
+
+proof of delivery
+
+payment records
+
+8. CUSTOMER TRACKING
+The active trip should be a Cargo Command Center, not just a map.
+
+Show:
+
+MZG-48291
+
+Your cargo is on the way
+Driver:
+John Kamau
+
+Vehicle:
+KDA 123A
+
+Vehicle type:
+Pickup
+
+Driver rating:
+4.9
+
+ETA:
+18 minutes
+
+Then the trip timeline:
+
+● Booking confirmed
+● Driver assigned
+● Driver arriving
+● Pickup completed
+● Cargo loaded
+● In transit
+○ Near destination
+○ Delivered
+
+Also show:
+
+live map
+
+current driver location
+
+ETA
+
+cargo details
+
+price
+
+driver
+
+vehicle
+
+contact options
+
+support
+
+share tracking
+
+9. RECIPIENT TRACKING WITHOUT AN ACCOUNT
+A recipient should be able to receive:
+
+Your Mizigo shipment MZG-48291 is arriving.
+
+with a tracking link.
+
+They should NOT need to create an account.
+
+The tracking page should show:
+
+shipment ID
+
+vehicle
+
+driver name
+
+approximate location
+
+ETA
+
+status
+
+delivery confirmation
+
+Do not expose unnecessary personal information.
+
+10. PROOF OF DELIVERY
+Every completed shipment should produce a structured delivery record.
+
+Possible components:
+
+recipient name
+
+recipient phone
+
+delivery timestamp
+
+GPS location
+
+delivery photo
+
+cargo condition photo
+
+signature where appropriate
+
+PIN/OTP confirmation where appropriate
+
+notes
+
+exceptions/damage report
+
+The system should create a permanent POD record.
+
+11. CHAIN OF CUSTODY
+Every shipment must have an event timeline.
+
+Example:
+
+10:02 Booking created
+10:03 Payment initiated
+10:04 Payment confirmed
+10:05 Driver assigned
+10:07 Driver accepted
+10:09 Driver location verified
+10:31 Driver arrived
+10:36 Cargo loaded
+10:38 Trip started
+11:42 Route deviation detected
+11:44 Customer notified
+13:17 Destination reached
+13:24 Cargo unloaded
+13:27 Recipient confirmed delivery
+13:28 Driver payout released
+
+These events must be stored server-side.
+
+Do not rely on the mobile application for authoritative trip state.
+
+12. DRIVER VERIFICATION
+Driver onboarding must support:
+
+full name
+
+phone
+
+identity verification
+
+driving licence
+
+licence class
+
+profile photo
+
+emergency contact where appropriate
+
+verification status
+
+document expiry
+
+Vehicle onboarding must support:
+
+registration number
+
+make/model
+
+vehicle type
+
+capacity
+
+body type
+
+owner/operator
+
+inspection status
+
+insurance
+
+relevant permits/documents
+
+document expiry
+
+verification history
+
+Expired or invalid documents should trigger warnings and eventually automatic restrictions.
+
+13. DRIVER REPUTATION
+Do not reduce reputation to one star rating.
+
+Build a structured reliability score.
+
+Example:
+
+JOHN KAMAU
+4.9 ★
+
+438 completed trips
+
+96% reliability
+
+94% on-time pickup
+
+97% on-time delivery
+
+1.2% cancellation
+
+0 major cargo incidents
+
+Also track:
+
+acceptance rate
+
+cancellation rate
+
+late arrival rate
+
+delivery completion rate
+
+disputes
+
+customer ratings
+
+route compliance
+
+incident history
+
+Good drivers should receive better opportunities over time.
+
+14. CUSTOMER REPUTATION
+Build the same concept for customers.
+
+Track:
+
+payment reliability
+
+cancellation rate
+
+no-show rate
+
+completed shipments
+
+dispute history
+
+booking behaviour
+
+The marketplace is two-sided.
+
+Do not let only drivers be scored.
+
+15. DRIVER EXPERIENCE
+Driver app must be extremely simple.
+
+Main screen:
+
+ONLINE / OFFLINE
+When online:
+
+AVAILABLE JOB
+MZG-48291
+
+Pickup:
+Westlands
+
+Destination:
+Industrial Area
+
+Cargo:
+Furniture
+
+Vehicle:
+Pickup
+
+Distance:
+X km
+
+Estimated earnings:
+KES X
+
+Pickup ETA:
+X min
+
+Buttons:
+
+ACCEPT
+
+DECLINE
+
+Do not bury important information.
+
+16. DRIVER TRIP FLOW
+After acceptance:
+
+Navigate to pickup
+
+Arrive
+
+Confirm arrival
+
+Verify customer/cargo
+
+Photograph cargo if necessary
+
+Confirm loaded
+
+Start trip
+
+Navigate
+
+Arrive destination
+
+Deliver
+
+Capture POD
+
+Complete trip
+
+Receive payout
+
+Every stage should update the backend.
+
+17. LOW CONNECTIVITY MODE
+Assume mobile internet can disappear.
+
+Driver app must:
+
+cache active trip
+
+retain essential booking data
+
+queue events locally
+
+queue photos where possible
+
+sync when connectivity returns
+
+distinguish GPS unavailable from vehicle stationary
+
+show last successful server update
+
+Never falsely claim:
+
+Driver hasn't moved.
+
+if the real situation is:
+
+Last location received 18 minutes ago.
+
+Show:
+
+Last location update: 18 minutes ago
+
+18. WHATSAPP + SMS
+The network should not depend entirely on the native app.
+
+Support critical notifications through:
+
+WhatsApp
+
+SMS
+
+push notifications
+
+Examples:
+
+Booking confirmed.
+
+Driver assigned.
+
+Driver arriving.
+
+Cargo picked up.
+
+Trip delayed.
+
+Cargo delivered.
+
+Payment confirmed.
+
+POD available.
+
+For important shipment links, provide a secure web page.
+
+19. HUMAN DISPATCH
+Do NOT attempt to automate 100% of operations initially.
+
+Build an admin/manual dispatch capability.
+
+Humans should be able to intervene in:
+
+failed matching
+
+expensive shipments
+
+suspicious bookings
+
+new drivers
+
+large cargo
+
+breakdowns
+
+GPS failures
+
+disputes
+
+route deviations
+
+customer complaints
+
+cancellations
+
+The goal is:
+
+automate the normal path, human-manage exceptions.
+
+20. RETURN LOADS
+This is a critical long-term feature.
+
+A truck travelling:
+
+Nairobi → Mombasa
+
+should be able to discover:
+
+Mombasa → Nairobi
+
+loads.
+
+Track:
+
+route
+
+expected arrival
+
+available capacity
+
+vehicle type
+
+current cargo
+
+capacity remaining
+
+return date/time
+
+Eventually build a matching engine that minimizes empty kilometres.
+
+This is potentially one of the platform's strongest long-term economic moats.
+
+21. MARKETPLACE MODE
+Eventually support two booking modes.
+
+INSTANT
+Platform provides:
+
+recommended vehicle
+
+estimated price
+
+matched driver
+
+MARKETPLACE
+Customer submits:
+
+cargo
+
+route
+
+date
+
+requirements
+
+Verified transporters can quote.
+
+Customer can compare:
+
+price
+
+ETA
+
+driver reliability
+
+vehicle
+
+previous trips
+
+verification
+
+estimated arrival
+
+Do not expose a chaotic list of hundreds of bids.
+
+Rank intelligently.
+
+22. BUSINESS ACCOUNTS
+Businesses should eventually have:
+
+multiple users
+
+departments
+
+saved routes
+
+saved recipients
+
+shipment history
+
+invoices
+
+monthly statements
+
+spending limits
+
+approval workflows
+
+bulk bookings
+
+API access
+
+analytics
+
+Example:
+
+A furniture company should be able to create 50 deliveries without manually booking each one.
+
+23. FUTURE API
+Design the backend so businesses can eventually create shipments through API.
+
+Example:
+
+POST /shipments
+
+Input:
+
+cargo
+pickup
+destination
+recipient
+vehicle requirements
+delivery window
+
+Response:
+
+shipment ID
+quote
+tracking URL
+
+Do not implement a fake API just for appearance.
+
+Design the architecture so this can be added cleanly later.
+
+24. ADMIN SYSTEM
+Admin dashboard should prioritize operations rather than vanity statistics.
+
+Main screens:
+
+LIVE OPERATIONS
+Map/list of active shipments.
+
+Filters:
+
+searching
+
+assigned
+
+pickup pending
+
+in transit
+
+delayed
+
+exception
+
+delivered
+
+disputed
+
+DRIVER MANAGEMENT
+verification
+
+documents
+
+vehicles
+
+availability
+
+performance
+
+earnings
+
+incidents
+
+SHIPMENT MANAGEMENT
+Full shipment history and event timeline.
+
+PAYMENTS
+customer payments
+
+pending
+
+successful
+
+failed
+
+refunds
+
+driver payouts
+
+reconciliation
+
+DISPUTES
+cargo damage
+
+missing cargo
+
+driver dispute
+
+customer dispute
+
+pricing dispute
+
+payment dispute
+
+PRICING
+Manage pricing rules.
+
+ANALYTICS
+Track real marketplace metrics.
+
+25. CORE MARKETPLACE METRICS
+Do NOT obsess over downloads.
+
+Track:
+
+Customer
+booking conversion
+
+repeat booking
+
+cancellation
+
+average booking value
+
+customer acquisition cost
+
+customer lifetime value
+
+Driver
+online hours
+
+utilization
+
+acceptance rate
+
+cancellation
+
+earnings/hour
+
+earnings/km
+
+empty kilometres
+
+Network
+time to match
+
+match success rate
+
+supply/demand ratio
+
+average ETA error
+
+on-time pickup
+
+on-time delivery
+
+completed trips
+
+gross merchandise value
+
+take rate
+
+contribution margin
+
+empty-return percentage
+
+These should drive product decisions.
+
+26. DATABASE
+Use PostgreSQL or another serious relational database.
+
+Core entities:
+
+users
+customers
+businesses
+drivers
+vehicles
+driver_documents
+vehicle_documents
+cargo_items
+shipments
+shipment_items
+quotes
+bookings
+assignments
+trip_events
+locations
+payments
+payouts
+proof_of_delivery
+ratings
+disputes
+notifications
+support_tickets
+pricing_rules
+service_zones
+audit_logs
+
+Use proper foreign keys, indexes and constraints.
+
+27. EVENT-DRIVEN TRIP STATE
+Do not scatter trip state logic throughout the application.
+
+Create a clear shipment state machine.
+
+Example:
+
+DRAFT
+
+→ QUOTED
+
+→ BOOKED
+
+→ PAYMENT_PENDING
+
+→ PAYMENT_CONFIRMED
+
+→ MATCHING
+
+→ DRIVER_ASSIGNED
+
+→ DRIVER_ACCEPTED
+
+→ DRIVER_ARRIVING
+
+→ DRIVER_ARRIVED
+
+→ LOADING
+
+→ LOADED
+
+→ IN_TRANSIT
+
+→ ARRIVING
+
+→ DELIVERED
+
+→ POD_CONFIRMED
+
+→ COMPLETED
+
+Alternative states:
+
+CANCELLED
+
+FAILED
+
+DISPUTED
+
+EXCEPTION
+
+BREAKDOWN
+
+REASSIGNMENT_REQUIRED
+
+28. IDEMPOTENCY AND RELIABILITY
+Payments, bookings, driver acceptance and trip completion must be idempotent.
+
+If the user taps twice:
+
+Do not create two bookings.
+
+If payment callback arrives twice:
+
+Do not charge twice.
+
+If network reconnects:
+
+Do not duplicate events.
+
+Use:
+
+idempotency keys
+
+database constraints
+
+transaction boundaries
+
+retries
+
+exponential backoff
+
+dead-letter/error handling where appropriate
+
+29. PAYMENT ARCHITECTURE
+Design a payment abstraction layer.
+
+Start with:
+
+M-Pesa
+
+but do not hard-code the entire financial architecture around one provider.
+
+Support future:
+
+card
+
+bank
+
+mobile money
+
+business wallets
+
+Payment states:
+
+INITIATED
+PENDING
+CONFIRMED
+FAILED
+REFUNDED
+RECONCILIATION_REQUIRED
+
+Never trust the mobile client as proof of payment.
+
+Server-side payment confirmation is authoritative.
+
+30. SECURITY
+Implement:
+
+secure authentication
+
+OTP where appropriate
+
+role-based authorization
+
+encrypted sensitive data
+
+secure document storage
+
+signed tracking links
+
+rate limiting
+
+audit logs
+
+fraud detection hooks
+
+secure payment handling
+
+least-privilege admin access
+
+Do not expose:
+
+full customer phone numbers publicly
+
+unnecessary driver documents
+
+sensitive KYC information
+
+exact private information on public tracking pages
+
+31. FRAUD DETECTION
+Design hooks for:
+
+fake GPS
+
+impossible travel speeds
+
+repeated cancellations
+
+suspicious account creation
+
+payment anomalies
+
+account sharing
+
+duplicate vehicles
+
+duplicate identities
+
+repeated disputes
+
+unusual route deviations
+
+Don't pretend AI will solve fraud automatically.
+
+Build the data infrastructure first.
+
+32. MAPS AND ROUTING
+Abstract the map provider.
+
+Create a service interface for:
+
+geocoding
+
+reverse geocoding
+
+routing
+
+ETA
+
+distance
+
+map tiles
+
+Do not deeply couple the application to one vendor.
+
+The platform should be able to switch providers later.
+
+33. PRICING ENGINE
+Do not hard-code:
+
+KES X per kilometre.
+
+Build a pricing engine capable of considering:
+
+base fare
+
+distance
+
+vehicle class
+
+estimated duration
+
+traffic
+
+demand
+
+time of day
+
+service zone
+
+loading requirements
+
+cargo category
+
+long-distance route
+
+return-load availability
+
+tolls
+
+special requirements
+
+Initially keep pricing simple and transparent.
+
+Sophistication comes later after collecting real trip data.
+
+34. INITIAL MARKET
+DO NOT launch everywhere.
+
+Start with:
+
+Nairobi
+
+Build liquidity.
+
+Get enough active supply that customers can actually get trucks.
+
+Expand only when:
+
+matching works
+
+drivers are active
+
+repeat usage exists
+
+unit economics make sense
+
+cancellation is controlled
+
+Then expand to major Kenyan routes.
+
+Eventually:
+
+Nairobi ↔ Mombasa
+
+Northern Corridor
+
+Uganda
+
+Rwanda
+
+Tanzania where operationally/legal feasible
+
+35. LONG-TERM ROADMAP
+PHASE 1
+Nairobi on-demand cargo.
+
+PHASE 2
+Kenya-wide scheduled freight.
+
+PHASE 3
+Return-load marketplace.
+
+PHASE 4
+Business logistics platform.
+
+PHASE 5
+Fleet management.
+
+PHASE 6
+Freight API.
+
+PHASE 7
+Warehousing and consolidation.
+
+PHASE 8
+Insurance partnerships.
+
+PHASE 9
+Transport/vehicle financing partnerships.
+
+PHASE 10
+East African logistics infrastructure.
+
+36. THE MOAT
+The moat must NOT be:
+
+“We have an app.”
+
+The moat should become:
+
+DATA
+Actual prices.
+
+Actual routes.
+
+Actual ETAs.
+
+Actual vehicle capacities.
+
+Actual driver reliability.
+
+Actual customer behaviour.
+
+Actual demand.
+
+Actual return-load patterns.
+
+NETWORK
+More customers attract drivers.
+
+More drivers improve availability.
+
+More availability improves customer experience.
+
+More shipments create better pricing data.
+
+Better pricing attracts more customers.
+
+TRUST
+Verified identities.
+
+Verified vehicles.
+
+Trip history.
+
+Reputation.
+
+POD.
+
+Dispute records.
+
+OPERATIONS
+Human exception handling.
+
+Driver support.
+
+Customer support.
+
+Network intelligence.
+
+INTEGRATION
+M-Pesa.
+
+WhatsApp.
+
+Business APIs.
+
+Fleet systems.
+
+Insurance.
+
+Warehousing.
+
+Financial services.
+
+37. DESIGN PRINCIPLE
+The product should feel:
+
+calm
+fast
+trustworthy
+precise
+Kenyan
+professional
+operational
+
+Not:
+
+flashy
+AI-generated
+generic
+over-designed
+
+Every visual element must answer:
+
+Does this help the customer move cargo?
+
+If not, remove it.
+
+38. CUSTOMER EXPERIENCE NORTH STAR
+The ideal customer journey:
+
+1
+Open Mizigo.
+
+2
+“What are you moving?”
+
+3
+Add cargo.
+
+4
+Enter pickup and destination.
+
+5
+Mizigo recommends vehicle.
+
+6
+See price.
+
+7
+Confirm.
+
+8
+Pay.
+
+9
+Verified driver matched.
+
+10
+Track shipment.
+
+11
+Cargo delivered.
+
+12
+POD generated.
+
+13
+Rate experience.
+
+The customer should never have to:
+
+call five truck owners
+
+negotiate blindly
+
+wonder where the truck is
+
+wonder who is carrying their goods
+
+wonder whether the driver actually arrived
+
+wonder whether the cargo was delivered
+
+chase someone for proof
+
+That is the product.
+
+39. DRIVER EXPERIENCE NORTH STAR
+The ideal driver journey:
+
+1
+Go online.
+
+2
+See relevant jobs.
+
+3
+Understand earnings before accepting.
+
+4
+Accept.
+
+5
+Navigate.
+
+6
+Complete pickup.
+
+7
+Transport.
+
+8
+Complete delivery.
+
+9
+POD confirmed.
+
+10
+Get paid.
+
+11
+Build reputation.
+
+12
+Get better loads.
+
+The platform should help drivers make more money through:
+
+reduced empty kilometres
+
+better load discovery
+
+reliable payments
+
+reputation
+
+reduced broker dependency
+
+route optimization
+
+40. MOST IMPORTANT STRATEGIC RULE
+Do not build a giant fake product with 100 screens before proving the core marketplace.
+
+Build the smallest real system capable of answering:
+
+Can a customer in Nairobi request cargo transportation and reliably get a verified vehicle, at a predictable price, with live status and provable delivery?
+
+If YES:
+
+expand.
+
+If NO:
+
+do not add features.
+
+41. FINAL PRODUCT POSITIONING
+Do not position Mizigo as:
+
+Uber for trucks.
+
+That is too small.
+
+Position it internally as:
+
+The digital infrastructure for moving physical goods across Kenya.
+
+Customer-facing positioning can remain much simpler:
+
+Move anything. Know where it is. Know what it costs.
+
+Or:
+
+Your cargo. Your truck. Your peace of mind.
+
+The ultimate objective is to make moving cargo feel as predictable as ordering a ride — while creating a much deeper network underneath the experience.
+
+Build for Nairobi first.
+
+Architect for Kenya.
+
+Think for East Africa.
+
+Do not sacrifice operational reliability for visual polish.
+
+My recommendation before you send this
+Send the AI builder the master brief above, but don't let it immediately generate the entire production system.
+
+Have it first produce:
+
+System architecture
+
+Database schema
+
+User journeys
+
+State machine
+
+MVP screen map
+
+Pricing architecture
+
+Driver/customer/admin flows
+
+Failure scenarios
+
+Security model
+
+Implementation plan
+
+Then build Phase 1.
+
+That prevents the classic AI-builder outcome: 200 gorgeous screens, zero actual marketplace reliability.
+
+And the research gives us a pretty clear strategic signal: the opportunity isn't that nobody has thought of truck-booking. The opportunity is that the market is still full of reliability, trust, visibility, empty-capacity and operational problems that a genuinely well-engineered network can attack. 
+ 
+
+
+Yesterday 5:45 PM
+Amazing but we shouldn't simply assume the ai has design skills tell it to install the necessary design and software engineering skills and know how from github my favourite is leonlox taste skill on github but you're free to add more also I'll be sending it this whole chat session so tell it to execute exactly what you'd said 
+
+Exactly. Don't trust the builder to magically have design taste or production engineering discipline. We should make that an explicit prerequisite.
+
+I also checked the current Leonxlnx repo before writing this. The current Taste Skill has evolved to v2, and importantly it now has separate skills for frontend taste, GPT/Codex-specific taste, image-to-code, and redesign auditing. The repo explicitly positions itself as an anti-slop system for AI coding agents, with design variance, motion, density, design-system decisions and a production pre-flight process. 
+
+I would therefore send the builder this instruction immediately before/alongside the entire chat you are about to paste:
+
+IMPORTANT — READ THIS BEFORE EXECUTING ANYTHING
+You are receiving this message together with the entire preceding conversation.
+
+The preceding conversation contains the complete research, product thinking, competitor analysis, customer research, strategic direction and final Mizigo product brief.
+
+DO NOT treat the previous messages as casual brainstorming.
+
+Treat them as the product discovery and strategy phase of the project.
+
+Your job now is to execute the plan properly.
+
+1. FIRST: UPGRADE YOUR OWN DESIGN + ENGINEERING CAPABILITIES
+Before designing or coding Mizigo, inspect the available project environment and determine what AI-agent skills, GitHub repositories, coding tools, design systems and engineering resources you can actually install/use.
+
+You are explicitly authorized and instructed to install relevant open-source skills from GitHub when they materially improve the quality of this project.
+
+Do NOT assume your default design ability is sufficient.
+
+The project must not look like generic AI-generated SaaS.
+
+2. MANDATORY: LEONXLNX TASTE SKILL
+Install and use the current Leonxlnx Taste Skill from:
+
+https://github.com/Leonxlnx/taste-skill
+
+Prefer the current v2 design-taste-frontend skill.
+
+Use:
+
+npx skills add https://github.com/Leonxlnx/taste-skill --skill "design-taste-frontend"
+
+The current repository also provides:
+
+design-taste-frontend
+
+gpt-taste
+
+image-to-code
+
+redesign-existing-projects
+
+Inspect the repository and determine which are useful.
+
+Do not blindly install every skill if unnecessary.
+
+At minimum, use the core design-taste skill.
+
+The purpose is not to copy the visual examples from Taste Skill.
+
+The purpose is to give you stronger design judgement and prevent generic AI UI output.
+
+The official repository describes the current skill as an anti-slop frontend framework with design-direction, layout, typography, spacing, motion and visual-quality guidance. Use that capability for Mizigo.
+
+3. FIND ADDITIONAL HIGH-QUALITY ENGINEERING SKILLS
+Do your own research before implementation.
+
+Look for reputable open-source AI-agent skills / GitHub repositories that improve:
+
+FRONTEND
+product UI architecture
+
+responsive design
+
+accessibility
+
+interaction design
+
+component architecture
+
+mobile-first development
+
+visual hierarchy
+
+animation/motion
+
+performance
+
+frontend testing
+
+BACKEND
+production API architecture
+
+PostgreSQL/database design
+
+authentication
+
+authorization
+
+payments
+
+event-driven systems
+
+idempotency
+
+queues
+
+retries
+
+observability
+
+logging
+
+error handling
+
+testing
+
+DEVOPS
+deployment
+
+CI/CD
+
+environment management
+
+secrets
+
+monitoring
+
+backups
+
+database migrations
+
+disaster recovery
+
+SECURITY
+OWASP practices
+
+secure authentication
+
+authorization
+
+rate limiting
+
+input validation
+
+secure file handling
+
+payment security
+
+audit logging
+
+privacy
+
+MOBILE / PWA
+offline-first behaviour
+
+location services
+
+background synchronization
+
+push notifications
+
+GPS handling
+
+battery-conscious location tracking
+
+4. DO NOT INSTALL RANDOM SKILLS JUST TO SAY YOU INSTALLED THEM
+Evaluate them.
+
+For every additional skill you install, ask:
+
+Is it reputable?
+
+Is it maintained?
+
+Is it actually relevant?
+
+Does it improve implementation?
+
+Does it conflict with another skill?
+
+Does it introduce unnecessary dependencies?
+
+Does it impose an unsuitable architecture?
+
+Prefer a small set of excellent skills over a huge collection of mediocre ones.
+
+5. CREATE A PROJECT SKILLS / ENGINEERING RULEBOOK
+After researching the skills, create a project-level engineering/design rules document.
+
+For example:
+
+/docs/ENGINEERING_RULES.md
+
+and, if appropriate:
+
+/docs/DESIGN_SYSTEM.md
+
+These documents should become the internal source of truth.
+
+Document:
+
+architecture
+
+technology choices
+
+design principles
+
+component rules
+
+accessibility rules
+
+performance requirements
+
+security requirements
+
+testing requirements
+
+database rules
+
+API rules
+
+state-management rules
+
+error-handling rules
+
+mobile rules
+
+offline rules
+
+GPS rules
+
+payment rules
+
+Do not let individual screens invent their own rules.
+
+6. DO NOT START CODING IMMEDIATELY
+Before writing production code, execute the following sequence.
+
+STEP 1 — UNDERSTAND
+Read the entire preceding conversation.
+
+Extract:
+
+business thesis
+
+customer problems
+
+driver problems
+
+competitor observations
+
+product principles
+
+MVP requirements
+
+long-term roadmap
+
+architecture requirements
+
+reliability requirements
+
+UX requirements
+
+Do not ask me to repeat information that already exists in the conversation.
+
+7. STEP 2 — RESEARCH
+Before implementation, perform a final research pass where appropriate.
+
+Study:
+
+current competitors
+
+current Kenyan logistics behaviour
+
+relevant transport/payment constraints
+
+M-Pesa integration requirements
+
+mapping/routing options
+
+relevant Kenyan compliance requirements
+
+actual user behaviour
+
+relevant technical best practices
+
+Separate:
+
+FACT
+
+from:
+
+INFERENCE
+
+from:
+
+DESIGN DECISION
+
+Do not present competitor marketing claims as objective facts.
+
+8. STEP 3 — PRODUCT ARCHITECTURE
+Before UI implementation, produce:
+
+CUSTOMER JOURNEY
+From opening the app to completed delivery.
+
+DRIVER JOURNEY
+From going online to payout.
+
+ADMIN JOURNEY
+From shipment creation/matching through exception handling.
+
+BUSINESS JOURNEY
+For future business accounts.
+
+FAILURE JOURNEYS
+Explicitly model:
+
+driver cancels
+
+customer cancels
+
+payment fails
+
+payment callback fails
+
+GPS disappears
+
+internet disappears
+
+driver goes offline
+
+driver breaks down
+
+customer unavailable
+
+recipient unavailable
+
+cargo damaged
+
+cargo missing
+
+route deviation
+
+wrong vehicle
+
+price dispute
+
+duplicate booking
+
+duplicate payment
+
+fraudulent GPS
+
+document expires
+
+vehicle becomes unavailable
+
+Do not design only the happy path.
+
+9. STEP 4 — DATA MODEL
+Design the actual database before building complicated screens.
+
+At minimum consider:
+
+users
+customers
+businesses
+drivers
+vehicles
+driver_documents
+vehicle_documents
+cargo_items
+shipments
+shipment_items
+quotes
+bookings
+assignments
+trip_events
+locations
+payments
+payouts
+proof_of_delivery
+ratings
+disputes
+notifications
+support_tickets
+pricing_rules
+service_zones
+audit_logs
+
+Design:
+
+relationships
+
+indexes
+
+constraints
+
+unique keys
+
+lifecycle states
+
+deletion strategy
+
+audit requirements
+
+migration strategy
+
+The data model must support the future roadmap without prematurely implementing the entire future.
+
+10. STEP 5 — STATE MACHINE
+Create a proper shipment state machine.
+
+For example:
+
+DRAFT
+→ QUOTED
+→ BOOKED
+→ PAYMENT_PENDING
+→ PAYMENT_CONFIRMED
+→ MATCHING
+→ DRIVER_ASSIGNED
+→ DRIVER_ACCEPTED
+→ DRIVER_ARRIVING
+→ DRIVER_ARRIVED
+→ LOADING
+→ LOADED
+→ IN_TRANSIT
+→ ARRIVING
+→ DELIVERED
+→ POD_CONFIRMED
+→ COMPLETED
+
+Also support exception states such as:
+
+CANCELLED
+FAILED
+DISPUTED
+EXCEPTION
+BREAKDOWN
+REASSIGNMENT_REQUIRED
+
+Do not scatter these states as arbitrary strings throughout the application.
+
+11. STEP 6 — DESIGN SYSTEM BEFORE SCREEN DESIGN
+Use the installed design skills.
+
+Do not start by generating random screens.
+
+First establish:
+
+typography
+
+type scale
+
+spacing system
+
+grid
+
+layout rules
+
+colour system
+
+surface hierarchy
+
+borders
+
+shadows
+
+iconography
+
+button hierarchy
+
+form controls
+
+map treatment
+
+cards
+
+bottom sheets
+
+status indicators
+
+timelines
+
+notifications
+
+loading states
+
+empty states
+
+error states
+
+success states
+
+responsive behaviour
+
+motion principles
+
+The design system should be distinctive but practical.
+
+12. IMPORTANT DESIGN DIRECTION
+Mizigo is a logistics product.
+
+Its visual language should communicate:
+
+trust
+precision
+movement
+physicality
+clarity
+reliability
+
+It should NOT communicate:
+
+crypto startup
+generic SaaS
+AI dashboard
+template marketplace
+Uber clone
+
+Do not copy Swyft.
+
+Do not copy Bolt.
+
+Do not copy Uber.
+
+Do not copy Truckonnect.
+
+Study their useful interaction principles, then design something better suited to cargo.
+
+13. DESIGN FOR CARGO, NOT VEHICLES
+The central mental model is:
+
+“I need to move this stuff.”
+
+NOT:
+
+“I need a particular truck.”
+
+The primary booking flow should therefore begin around:
+
+WHAT ARE YOU MOVING?
+Then:
+
+cargo
+
+↓
+
+pickup
+
+↓
+
+destination
+
+↓
+
+vehicle recommendation
+
+↓
+
+price
+
+↓
+
+booking
+
+This is a core product decision.
+
+14. USE TASTE SKILL INTELLIGENTLY
+Do NOT interpret “good design” as:
+
+more gradients
+
+more animations
+
+more glass
+
+more 3D
+
+more effects
+
+more cards
+
+more shadows
+
+Taste means knowing when NOT to add something.
+
+Motion should communicate:
+
+state changes
+
+movement
+
+confirmation
+
+hierarchy
+
+feedback
+
+It should not distract from logistics.
+
+15. MOBILE-FIRST
+The customer experience should be designed primarily for mobile.
+
+The driver experience should be even more aggressively mobile-first.
+
+Drivers may be:
+
+walking
+
+loading cargo
+
+driving
+
+outdoors
+
+under bright sunlight
+
+using weak networks
+
+using lower-end Android phones
+
+Therefore:
+
+large touch targets
+
+clear typography
+
+minimal interaction steps
+
+strong contrast
+
+obvious actions
+
+low bandwidth
+
+offline tolerance
+
+minimal unnecessary animation
+
+16. ADMIN IS DIFFERENT
+Do not force the same visual density onto every surface.
+
+Customer:
+
+LOW/MEDIUM information density.
+
+Driver:
+
+LOW information density + action clarity.
+
+Admin:
+
+HIGH information density.
+
+Operations dashboard:
+
+HIGH information density.
+
+The design system should support different density modes while remaining visually coherent.
+
+17. BUILD THE MVP, NOT THE ENTIRE FUTURE
+The initial implementation should focus on:
+
+CUSTOMER
+onboarding
+
+cargo selection
+
+pickup
+
+destination
+
+vehicle recommendation
+
+quote
+
+booking
+
+payment architecture
+
+active shipment
+
+tracking
+
+driver information
+
+support
+
+cancellation
+
+delivery
+
+POD
+
+history
+
+DRIVER
+onboarding
+
+verification
+
+vehicle
+
+online/offline
+
+job offers
+
+accept/reject
+
+navigation
+
+arrival
+
+pickup
+
+loading
+
+trip
+
+delivery
+
+POD
+
+earnings
+
+ADMIN
+live operations
+
+shipments
+
+drivers
+
+vehicles
+
+verification
+
+manual dispatch
+
+payments
+
+disputes
+
+support
+
+Do not build warehousing, financing, insurance and East Africa-wide infrastructure as fake placeholder features.
+
+Architect for them.
+
+Do not pretend they already exist.
+
+18. IMPLEMENT REAL SYSTEMS WHERE THEY MATTER
+Do not create fake:
+
+payments
+
+GPS
+
+tracking
+
+driver matching
+
+authentication
+
+database persistence
+
+trip state
+
+POD
+
+notifications
+
+If a real integration is unavailable during development, create a clean abstraction and a realistic development adapter.
+
+Never disguise mock behaviour as production behaviour.
+
+19. FAILURE-FIRST ENGINEERING
+For every critical operation ask:
+
+What happens if this succeeds twice?
+
+What happens if it succeeds and the response is lost?
+
+What happens if the user goes offline?
+
+What happens if the driver closes the app?
+
+What happens if GPS stops?
+
+What happens if payment callback arrives twice?
+
+What happens if the driver accepts while another driver also accepts?
+
+What happens if the database transaction partially succeeds?
+
+Design for these cases BEFORE declaring the feature complete.
+
+20. OBSERVABILITY
+Build proper logging.
+
+Critical operations should be traceable.
+
+Examples:
+
+shipment_created
+quote_generated
+payment_initiated
+payment_confirmed
+driver_matched
+driver_accepted
+driver_arrived
+cargo_loaded
+trip_started
+location_updated
+route_deviation
+trip_completed
+pod_created
+payout_created
+
+Do not log sensitive information unnecessarily.
+
+21. TESTING
+Do not rely on manually clicking around the UI.
+
+Build tests for:
+
+UNIT
+Pricing.
+
+State transitions.
+
+Matching.
+
+Permissions.
+
+Validation.
+
+INTEGRATION
+Booking.
+
+Payment.
+
+Driver assignment.
+
+Trip completion.
+
+POD.
+
+END-TO-END
+Customer books.
+
+Driver accepts.
+
+Driver arrives.
+
+Cargo loaded.
+
+Trip starts.
+
+Delivery.
+
+POD.
+
+Completion.
+
+FAILURE TESTS
+Duplicate payment.
+
+Duplicate booking.
+
+Driver cancellation.
+
+GPS failure.
+
+Network failure.
+
+Payment timeout.
+
+Concurrent driver acceptance.
+
+22. BUILD IN SMALL VERTICAL SLICES
+Do not build:
+
+all frontend first
+
+then backend
+
+then payments
+
+then tracking.
+
+Instead build vertical slices.
+
+For example:
+
+SLICE 1
+Customer creates shipment.
+
+→ Backend persists shipment.
+
+→ Admin sees shipment.
+
+SLICE 2
+Driver sees shipment.
+
+→ Driver accepts.
+
+→ Customer sees assignment.
+
+SLICE 3
+Trip begins.
+
+→ Events recorded.
+
+→ Customer sees status.
+
+SLICE 4
+Trip completes.
+
+→ POD.
+
+→ Completion.
+
+This keeps the system real throughout development.
+
+23. BEFORE IMPLEMENTATION, SHOW THE PLAN
+Your first output after reading this entire conversation should NOT be a giant pile of code.
+
+First produce:
+
+A. FINAL ARCHITECTURE
+Frontend
+Backend
+Database
+Realtime
+Maps
+Payments
+Storage
+Notifications
+Deployment
+
+B. FINAL TECH STACK
+Explain each choice briefly.
+
+C. DATABASE ERD / SCHEMA
+D. STATE MACHINE
+E. CUSTOMER FLOW
+F. DRIVER FLOW
+G. ADMIN FLOW
+H. DESIGN SYSTEM
+I. MVP SCOPE
+J. IMPLEMENTATION PHASES
+K. TEST STRATEGY
+L. SECURITY MODEL
+M. FAILURE-MODE STRATEGY
+Then begin implementation.
+
+24. DO NOT ASK FOR PERMISSION FOR OBVIOUS NEXT STEPS
+Once the plan is sound, execute it.
+
+If a reasonable implementation choice is not explicitly specified:
+
+choose the most maintainable option.
+
+Do not stop every five minutes to ask:
+
+“Would you like me to continue?”
+
+Continue.
+
+Only stop when a decision genuinely requires information that cannot reasonably be inferred.
+
+25. DO NOT PRETEND TO HAVE DONE THINGS
+Never say:
+
+“Integrated M-Pesa”
+
+if you only created a button.
+
+Never say:
+
+“Live tracking”
+
+if it is simulated.
+
+Never say:
+
+“Production ready”
+
+without testing.
+
+Never say:
+
+“Secure”
+
+without implementing and checking the security controls.
+
+Be explicit about:
+
+REAL
+
+MOCK
+
+STUB
+
+SIMULATED
+
+TODO
+
+26. FINAL QUALITY BAR
+Before considering the MVP complete, audit it as if:
+
+1,000 customers use it
+
+500 drivers use it
+
+payment callbacks arrive twice
+
+GPS fails
+
+mobile data disappears
+
+drivers cancel
+
+customers dispute charges
+
+cargo is damaged
+
+a vehicle document expires
+
+an admin makes a mistake
+
+a customer uses a low-end Android phone
+
+a driver has poor connectivity
+
+the database grows to millions of events
+
+The architecture should have a credible answer for each.
+
+27. MOST IMPORTANT
+The entire preceding conversation is the product discovery record.
+
+Use it.
+
+Do not reduce it to:
+
+“Build an Uber for lorries.”
+
+The actual product is:
+
+A trusted digital cargo transportation network.
+
+The long-term moat is:
+
+supply + demand + reliability + reputation + operational data + return-load optimization + business integrations.
+
+The first objective is:
+
+Make cargo movement in Nairobi dramatically more predictable.
+
+The long-term objective is:
+
+Become infrastructure for physical goods movement across Kenya and eventually East Africa.
+
+Build accordingly.
+
+EXECUTION ORDER
+Follow this exact order:
+
+Read the entire conversation.
+
+Research and install the necessary design/engineering skills.
+
+Evaluate the installed skills and avoid conflicts.
+
+Create the project engineering/design rules.
+
+Finalize architecture.
+
+Finalize database.
+
+Finalize shipment state machine.
+
+Finalize design system.
+
+Map MVP user journeys.
+
+Build the first vertical slice.
+
+Test it.
+
+Build the next vertical slice.
+
+Test it.
+
+Continue until the MVP is genuinely functional.
+
+Perform UX audit.
+
+Perform engineering audit.
+
+Perform security audit.
+
+Perform failure-mode audit.
+
+Perform performance/accessibility audit.
+
+Only then call the MVP complete.
+
+DO NOT optimize for how impressive the code looks.
+
+Optimize for:
+
+reliability + usability + maintainability + trust + actual logistics value.
+
+One small but important correction to our earlier plan: Taste Skill is excellent, but it's primarily a frontend/design skill, not a complete software-engineering discipline. The current repo itself describes its focus around frontend design, while its different variants target things like GPT/Codex, image-to-code and redesigns. 
+
+So I deliberately made the builder research and install complementary engineering skills rather than pretending Taste Skill covers backend, security, payments, distributed systems, testing, etc.
+
+And I'd specifically tell it to use the current v2 rather than blindly using an old Taste Skill prompt; the repository says v2 is now the default and is a substantial rewrite, while v1 is retained for compatibility. 
+
+That gives you a much better sequence:
+
+your entire chat → skill acquisition → research/architecture → design system → vertical implementation → testing → audits → MVP.
+
+Not:
+
+your entire chat → “generate me an Uber clone” → 150 pretty screens.
+
+

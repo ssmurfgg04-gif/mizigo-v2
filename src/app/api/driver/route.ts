@@ -1,0 +1,89 @@
+// GET /api/driver — driver surface data (home | requests | earnings | trips | vehicle)
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { ensureSeed } from "@/lib/seed";
+import { ACTIVE_STATES } from "@/lib/state-machine";
+import { DEMAND_ZONES } from "@/lib/matching";
+import { shipmentDTO } from "@/lib/shipments";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  await ensureSeed();
+  const { searchParams } = new URL(req.url);
+  const driverId = searchParams.get("driverId");
+  if (!driverId) return NextResponse.json({ error: "driverId required" }, { status: 400 });
+
+  const driver = await db.driver.findUnique({
+    where: { id: driverId },
+    include: { user: true, vehicles: { include: { category: true } } },
+  });
+  if (!driver) return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+
+  const [active, history, payouts] = await Promise.all([
+    db.shipment.findFirst({
+      where: { driverId, status: { in: ["DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "DRIVER_ARRIVED", "LOADING", "LOADED", "IN_TRANSIT", "ARRIVING", "DELIVERED", "POD_CONFIRMED"] } },
+      include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.shipment.findMany({
+      where: { driverId, status: { in: [...ACTIVE_STATES, "COMPLETED", "CANCELLED"] } },
+      include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.payout.findMany({ where: { driverId }, orderBy: { createdAt: "desc" } }),
+  ]);
+
+  const completed = history.filter((h) => h.status === "COMPLETED");
+  const DAY = 86400_000;
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+  const weekStart = new Date(Date.now() - 7 * DAY);
+  const monthStart = new Date(Date.now() - 30 * DAY);
+
+  const sum = (from: Date) => completed.filter((c) => new Date(c.stateEnteredAt) >= from).reduce((a, c) => a + c.driverEarnings, 0);
+  const todayTrips = completed.filter((c) => new Date(c.stateEnteredAt) >= todayStart);
+  const todayEarnings = todayTrips.reduce((a, c) => a + c.driverEarnings, 0);
+
+  // 7-day chart
+  const chart = [];
+  for (let i = 6; i >= 0; i--) {
+    const dayStart = new Date(todayStart.getTime() - i * DAY);
+    const dayEnd = new Date(dayStart.getTime() + DAY);
+    const dayTrips = completed.filter((c) => new Date(c.stateEnteredAt) >= dayStart && new Date(c.stateEnteredAt) < dayEnd);
+    chart.push({
+      day: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dayStart.getDay()],
+      earnings: dayTrips.reduce((a, c) => a + c.driverEarnings, 0),
+      trips: dayTrips.length,
+    });
+  }
+
+  const withdrawn = payouts.filter((p) => p.status === "PAID").reduce((a, p) => a + p.amount, 0);
+
+  return NextResponse.json({
+    driver: {
+      id: driver.id, status: driver.status, rating: driver.rating, trips: driver.tripsCompleted,
+      acceptanceRate: driver.acceptanceRate, onTimePickup: driver.onTimePickup, onTimeDelivery: driver.onTimeDelivery,
+      cancellationRate: driver.cancellationRate, incidents: driver.incidents, verification: driver.verification,
+      licenceClass: driver.licenceClass, licenceExpiry: driver.licenceExpiry, onlineMinutes: driver.onlineMinutes,
+      user: { id: driver.user.id, name: driver.user.name, phone: driver.user.phone, avatarSeed: driver.user.avatarSeed },
+      vehicles: driver.vehicles.map((v) => ({
+        id: v.id, make: v.make, model: v.model, registration: v.registration, bodyType: v.bodyType, capacityKg: v.capacityKg,
+        category: v.category?.name ?? "", docs: { registration: v.docRegistration, insurance: v.docInsurance, inspection: v.docInspection },
+        insuranceExpiry: v.insuranceExpiry, inspectionExpiry: v.inspectionExpiry,
+      })),
+    },
+    active: active ? shipmentDTO(active) : null,
+    history: history.map(shipmentDTO),
+    earnings: {
+      today: todayEarnings, week: sum(weekStart), month: sum(monthStart),
+      todayTrips: todayTrips.length, avgPerTrip: todayTrips.length ? Math.round(todayEarnings / todayTrips.length) : 0,
+      chart,
+      wallet: Math.max(0, sum(monthStart) - withdrawn),
+      payouts,
+      grossFares: completed.filter((c) => new Date(c.stateEnteredAt) >= monthStart).reduce((a, c) => a + c.fareTotal, 0),
+      commission: completed.filter((c) => new Date(c.stateEnteredAt) >= monthStart).reduce((a, c) => a + c.commission, 0),
+    },
+    demand: DEMAND_ZONES,
+    notifications: await db.notification.findMany({ where: { userId: driver.userId }, orderBy: { createdAt: "desc" }, take: 10 }),
+  });
+}

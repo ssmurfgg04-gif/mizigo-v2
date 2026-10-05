@@ -1,0 +1,104 @@
+"use client";
+// MIZIGO client types — mirrors of server DTOs (src/lib/shipments.ts)
+
+export interface FareLine { key: string; label: string; amount: number }
+export interface Fare {
+  base: number; distance: number; duration: number; loading: number; stops: number; platform: number;
+  total: number; minimumApplied: boolean; lines: FareLine[]; driverEarnings: number; commission: number;
+}
+
+export interface PlaceHit {
+  name: string; area: string; category: string; lat: number; lng: number; popular?: boolean;
+  source?: "search" | "saved"; label?: string;
+}
+
+export interface CategoryQuote {
+  key: string; name: string; description: string; capacityKg: number; bodyType: string;
+  dimensions: string; volumeM3: number; fare: Fare; etaMin: number; supply: number;
+  recommended: boolean; fits: boolean; oversized: boolean;
+}
+
+export interface QuoteResponse {
+  distanceKm: number; durationMin: number; weightKg: number; recommendedKey: string; peak: boolean;
+  quotes: CategoryQuote[];
+  nearby: { driverId: string; name: string; lat: number; lng: number; rating: number; vehicle: string; categoryKey: string; distanceKm: number }[];
+}
+
+export interface LivePosition {
+  lat: number; lng: number; heading: number; progress: number; etaMin: number | null;
+  leg: "TO_PICKUP" | "TO_DROPOFF" | "IDLE"; lastPingMin: number;
+}
+
+export interface ShipmentDTO {
+  id: string; code: string; shareToken: string; status: string;
+  createdAt: string; stateEnteredAt: string; scheduledAt: string | null;
+  route: {
+    pickup: { name: string; area: string; lat: number; lng: number; note: string | null; contact: string | null; phone: string | null };
+    dropoff: { name: string; area: string; lat: number; lng: number; note: string | null; contact: string | null; phone: string | null };
+    polyline: { lat: number; lng: number }[];
+    distanceKm: number; durationMin: number;
+  };
+  cargo: { category: string; load: string; helpers: number; special: string[]; notes: string | null; items: { name: string; qty: number; weightKg: number }[] };
+  vehicle: { id: string; make: string; model: string; registration: string; bodyType: string; capacityKg: number } | null;
+  category: { key: string; name: string; capacityKg: number; bodyType: string };
+  driver: { id: string; name: string; rating: number; trips: number; phone: string; licenceClass: string; initials: string } | null;
+  customer: { id: string; name: string; phone: string; business: string | null };
+  fare: { base: number; distance: number; duration: number; loading: number; stops: number; platform: number; total: number; driverEarnings: number; commission: number };
+  payment: { method: string; status: string; ref: string | null; paidAt: string | null };
+  pod: { recipient: string; verifiedAt: string; lat: number | null; lng: number | null; photo: boolean } | null;
+  cancelledBy: string | null; cancelReason: string | null;
+  events: { id: string; type: string; label: string; actor: string; lat: number | null; lng: number | null; at: string }[];
+  ratings: { byRole: string; stars: number; tags: string[]; comment: string | null }[];
+  live: LivePosition | null;
+}
+
+export interface CustomerHome {
+  user: { id: string; name: string; phone: string; accountType: string; businessName: string | null; rating: number } | null;
+  active: ShipmentDTO | null;
+  trips: ShipmentDTO[];
+  saved: { id: string; label: string; name: string; area: string; lat: number; lng: number }[];
+  notifications: { id: string; title: string; body: string; createdAt: string; read: boolean }[];
+  stats: { completed: number; spent: number };
+}
+
+export interface DriverHome {
+  driver: {
+    id: string; status: string; rating: number; trips: number; acceptanceRate: number;
+    onTimePickup: number; onTimeDelivery: number; cancellationRate: number; incidents: number;
+    verification: string; licenceClass: string; licenceExpiry: string | null; onlineMinutes: number;
+    user: { id: string; name: string; phone: string; avatarSeed: string };
+    vehicles: {
+      id: string; make: string; model: string; registration: string; bodyType: string; capacityKg: number;
+      category: string; docs: { registration: string; insurance: string; inspection: string };
+      insuranceExpiry: string | null; inspectionExpiry: string | null;
+    }[];
+  };
+  active: ShipmentDTO | null;
+  history: ShipmentDTO[];
+  earnings: {
+    today: number; week: number; month: number; todayTrips: number; avgPerTrip: number;
+    chart: { day: string; earnings: number; trips: number }[];
+    wallet: number;
+    payouts: { id: string; amount: number; status: string; createdAt: string; ref: string | null }[];
+    grossFares: number; commission: number;
+  };
+  demand: { name: string; level: string }[];
+  notifications: { id: string; title: string; body: string; createdAt: string }[];
+}
+
+export interface AdminOverview {
+  kpis: {
+    activeDeliveries: number; todayBookings: number; revenueToday: number; platformEarningsToday: number;
+    onlineDrivers: number; busyDrivers: number; totalDrivers: number; totalVehicles: number;
+    cancellationRate: number; avgDeliveryTime: number; completedTotal: number; pendingDisputes: number;
+  };
+  live: ShipmentDTO[];
+  drivers: { id: string; name: string; status: string; rating: number; trips: number; verification: string; lat: number; lng: number; vehicle: string | null; registration: string | null; category: string | null }[];
+  payments: { id: string; checkoutReqId: string; method: string; amount: number; status: string; mpesaReceipt: string | null; createdAt: string }[];
+}
+
+export interface Bootstrap {
+  categories: { id: string; key: string; name: string; description: string; capacityKg: number; baseFare: number; perKmRate: number; perMinRate: number; minimumFare: number; loadingFee: number; extraStopFee: number }[];
+  zone: { id: string; key: string; name: string; platformFee: number; commissionRate: number; peakMultiplier: number } | null;
+  demo: Record<string, { email?: string; phone?: string; name: string; business?: string }>;
+}
