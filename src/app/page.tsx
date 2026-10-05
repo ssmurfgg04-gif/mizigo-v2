@@ -5,18 +5,24 @@
 // ambient copy + device frame. Welcome (login) is a dark cinematic HUD over
 // Nairobi freight-yard photography (Terminal-industries inspired, webp ~60KB).
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Building2, Smartphone, Truck, ArrowRight, Wifi, WifiOff } from "lucide-react";
 import { useSession } from "@/store/session";
 import Providers from "./providers";
-import CustomerApp from "@/components/mizigo/customer/CustomerApp";
-import DriverApp from "@/components/mizigo/driver/DriverApp";
-import AdminApp from "@/components/mizigo/admin/AdminApp";
-import TrackView from "@/components/mizigo/customer/TrackView";
 import { Logo } from "@/components/mizigo/shared/ui";
 import { api } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
+
+// per-surface code splitting: a customer visitor never downloads the driver/admin bundles
+const CustomerApp = dynamic(() => import("@/components/mizigo/customer/CustomerApp"), { ssr: false });
+const DriverApp = dynamic(() => import("@/components/mizigo/driver/DriverApp"), { ssr: false });
+const AdminApp = dynamic(() => import("@/components/mizigo/admin/AdminApp"), { ssr: false });
+const TrackView = dynamic(() => import("@/components/mizigo/customer/TrackView"), {
+  ssr: false,
+  loading: () => <div className="min-h-[100dvh] bg-[var(--paper)]" />,
+});
 
 export default function Page() {
   // useSearchParams needs a Suspense boundary for static prerender
@@ -40,6 +46,17 @@ function HeroField({ picture, className = "" }: { picture: React.ReactNode; clas
       <div className="absolute inset-x-0 top-0 h-[38%] animate-mz-scan bg-[linear-gradient(to_bottom,transparent,rgba(255,255,255,0.055),transparent)]" />
     </div>
   );
+}
+
+/** keyboard/AT users who prefer reduced motion shouldn't get SMIL animations */
+const REDUCE_MQ = "(prefers-reduced-motion: reduce)";
+function subscribeReduce(cb: () => void) {
+  const mq = window.matchMedia(REDUCE_MQ);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+function usePrefersReducedMotion(): boolean {
+  return useSyncExternalStore(subscribeReduce, () => window.matchMedia(REDUCE_MQ).matches, () => false);
 }
 
 function PageContent() {
@@ -121,7 +138,7 @@ function PageContent() {
           <HeroField
             className="hidden lg:block"
             picture={
-              <img src="/hero-desktop.webp" alt="" className="h-full w-full object-cover" loading="eager" />
+              <img src="/hero-desktop.webp" alt="" className="h-full w-full object-cover" loading="eager" fetchPriority="high" />
             }
           />
 
@@ -198,7 +215,7 @@ function PageContent() {
 }
 
 /** animated route line: pickup → dropoff with a moving vehicle dot (SMIL) */
-function RouteHud() {
+function RouteHud({ still = false }: { still?: boolean }) {
   const route = "M44 118 C 118 84, 206 130, 322 46";
   return (
     <svg viewBox="0 0 400 150" className="h-auto w-full" aria-hidden="true">
@@ -216,11 +233,11 @@ function RouteHud() {
       />
       {/* vehicle in motion along the route */}
       <g>
-        <circle r="7" fill="#E8590C" opacity="0.18">
-          <animateMotion dur="7s" repeatCount="indefinite" path={route} />
+        <circle r="7" fill="#E8590C" opacity="0.18" cx={still ? 183 : undefined} cy={still ? 82 : undefined}>
+          {still ? null : <animateMotion dur="7s" repeatCount="indefinite" path={route} />}
         </circle>
-        <circle r="3.4" fill="#E8590C" stroke="#FFFFFF" strokeWidth="1.4">
-          <animateMotion dur="7s" repeatCount="indefinite" path={route} />
+        <circle r="3.4" fill="#E8590C" stroke="#FFFFFF" strokeWidth="1.4" cx={still ? 183 : undefined} cy={still ? 82 : undefined}>
+          {still ? null : <animateMotion dur="7s" repeatCount="indefinite" path={route} />}
         </circle>
       </g>
       {/* origin */}
@@ -241,12 +258,13 @@ function RouteHud() {
 
 function Welcome() {
   const { setSurface } = useSession();
+  const reduceMotion = usePrefersReducedMotion();
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-[var(--night)]">
       {/* cinematic field: freight yard at night, HUD telemetry */}
       <HeroField
         picture={
-          <img src="/hero-mobile.webp" alt="" className="h-full w-full object-cover" loading="eager" />
+          <img src="/hero-mobile.webp" alt="" className="h-full w-full object-cover" loading="eager" fetchPriority="high" />
         }
       />
 
@@ -277,7 +295,7 @@ function Welcome() {
 
           {/* route telemetry (decorative — hidden on short viewports) */}
           <div className="mz-hide-short mt-auto pt-6">
-            <RouteHud />
+            <RouteHud still={reduceMotion} />
             <div className="mt-1 flex flex-wrap gap-1.5">
               {["6 vehicle classes", "Live tracking + POD", "M-PESA built in"].map((t, i) => (
                 <span

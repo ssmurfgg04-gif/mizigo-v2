@@ -7,6 +7,7 @@ import { Button } from "@/components/mizigo/shared/ui";
 import { CARGO_CATEGORIES, LOAD_SIZES, SPECIAL_HANDLING } from "@/lib/pricing";
 import { useSession } from "@/store/session";
 import { toast } from "@/hooks/use-toast";
+import { t } from "@/lib/i18n";
 
 const CAT_ICONS: Record<string, LucideIcon> = {
   furniture: Sofa, appliances: Refrigerator, household: Package, construction: HardHat,
@@ -14,7 +15,7 @@ const CAT_ICONS: Record<string, LucideIcon> = {
 };
 
 export default function CargoStep({ categories }: { categories: { key: string; name: string }[] }) {
-  const { draft, patchDraft, setBookingStep } = useSession();
+  const { lang, draft, patchDraft, setBookingStep } = useSession();
   const [itemSearch, setItemSearch] = useState("");
   const cat = CARGO_CATEGORIES.find((c) => c.key === draft.category);
   const itemCount = draft.items.reduce((a, i) => a + i.qty, 0);
@@ -64,7 +65,7 @@ export default function CargoStep({ categories }: { categories: { key: string; n
               className={`flex flex-col items-center gap-2 rounded-[14px] border-2 px-2 py-3.5 transition active:translate-y-px ${active ? "border-[var(--brand)] bg-[var(--brand-soft)]" : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--ink-3)]"}`}
               aria-pressed={active}
             >
-              <Icon size={20} strokeWidth={2.1} className={active ? "text-[var(--brand)]" : "text-[var(--ink-2)]"} />
+              <Icon size={20} strokeWidth={2.1} className={active ? "text-[var(--brand-deep)]" : "text-[var(--ink-2)]"} />
               <span className={`text-center text-[10.5px] font-bold leading-tight ${active ? "text-[var(--brand-ink)]" : "text-[var(--ink-2)]"}`}>{c.label}</span>
             </button>
           );
@@ -75,8 +76,8 @@ export default function CargoStep({ categories }: { categories: { key: string; n
         <div className="animate-mz-fade-in space-y-6">
           {/* item builder */}
           <section className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
-            <p className="text-[15px] font-extrabold tracking-tight">Add items</p>
-            <p className="mt-0.5 text-[12.5px] font-medium text-[var(--ink-2)]">Tap what you&apos;re moving. Quantities matter more than weights.</p>
+            <p className="text-[15px] font-extrabold tracking-tight">{t("cargo.addItems", lang)}</p>
+            <p className="mt-0.5 text-[12.5px] font-medium text-[var(--ink-2)]">{t("cargo.itemHint", lang)}</p>
             <div className="mt-3 flex h-12 items-center rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3.5 focus-within:border-[var(--brand)]">
               <input
                 value={itemSearch}
@@ -89,7 +90,7 @@ export default function CargoStep({ categories }: { categories: { key: string; n
             {suggestions.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {suggestions.map((s) => (
-                  <button key={s} onClick={() => addItem(s)} className="rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3.5 py-2 text-[13px] font-bold transition hover:border-[var(--brand)] hover:text-[var(--brand)]">
+                  <button key={s} onClick={() => addItem(s)} className="rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3.5 py-2 text-[13px] font-bold transition hover:border-[var(--brand)] hover:text-[var(--brand-deep)]">
                     + {s}
                   </button>
                 ))}
@@ -111,11 +112,11 @@ export default function CargoStep({ categories }: { categories: { key: string; n
                   <div key={i.name} className="flex items-center gap-3 py-2.5">
                     <span className="min-w-0 flex-1 truncate text-[14px] font-bold">{i.name}</span>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => setQty(i.name, -1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] transition hover:bg-[var(--surface-2)]" aria-label={`Reduce ${i.name}`}>
+                      <button onClick={() => setQty(i.name, -1)} className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] transition hover:bg-[var(--surface-2)]" aria-label={`Reduce ${i.name}`}>
                         <Minus size={14} strokeWidth={2.6} />
                       </button>
                       <span className="tnum w-8 text-center text-[15px] font-extrabold">{i.qty}</span>
-                      <button onClick={() => setQty(i.name, 1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] transition hover:bg-[var(--surface-2)]" aria-label={`Add ${i.name}`}>
+                      <button onClick={() => setQty(i.name, 1)} className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] transition hover:bg-[var(--surface-2)]" aria-label={`Add ${i.name}`}>
                         <Plus size={14} strokeWidth={2.6} />
                       </button>
                       <button onClick={() => patchDraft({ items: draft.items.filter((x) => x.name !== i.name) })} className="ml-1 flex h-9 w-9 items-center justify-center rounded-full text-[var(--ink-3)] transition hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]" aria-label={`Remove ${i.name}`}>

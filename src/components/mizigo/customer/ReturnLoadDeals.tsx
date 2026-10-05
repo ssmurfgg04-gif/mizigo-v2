@@ -65,7 +65,7 @@ export default function ReturnLoadDeals() {
                   <VehicleAvatar category={leg.categoryKey} size={44} />
                 </div>
                 <p className="mt-2 flex items-center gap-1 truncate text-[13.5px] font-extrabold tracking-tight">
-                  <MapPin size={12} className="shrink-0 text-[var(--brand)]" />
+                  <MapPin size={12} className="shrink-0 text-[var(--brand-deep)]" />
                   {leg.from.area} → {leg.to.area}
                 </p>
                 <p className="mt-0.5 truncate text-[11.5px] font-medium text-[var(--ink-3)]">
@@ -119,7 +119,7 @@ function BookSheet({ leg, onClose, user, onBooked }: { leg: ReturnLeg; onClose: 
       >
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--brand)]">{t("deals.badge", lang)}</p>
+            <p className="text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--brand-deep)]">{t("deals.badge", lang)}</p>
             <h3 className="mt-1 text-[19px] font-extrabold tracking-tight">{leg.from.area} → {leg.to.area}</h3>
           </div>
           <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface-2)]" aria-label="Close"><X size={16} /></button>

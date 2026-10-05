@@ -47,6 +47,24 @@ export function fmtDateTimeEAT(d: Date | string): string {
   return `${fmtDateEAT(d)} · ${fmtTimeEAT(d)}`;
 }
 
+/** Build a Date at a given EAT wall-clock time (hours/mins in Nairobi local time). */
+export function atEAT(base: Date, hour: number, minute = 0): Date {
+  // EAT = UTC+3: shift base to EAT wall-clock, set the time, shift back to UTC
+  const eat = new Date(base.getTime() + EAT_OFFSET_MS);
+  eat.setUTCHours(hour, minute, 0, 0);
+  return new Date(eat.getTime() - EAT_OFFSET_MS);
+}
+
+/** ISO string → value for <input type="datetime-local"> displayed in EAT. */
+export function toDatetimeLocalEAT(iso: string): string {
+  return new Date(new Date(iso).getTime() + EAT_OFFSET_MS).toISOString().slice(0, 16);
+}
+
+/** <input type="datetime-local"> value (EAT wall-clock) → ISO string (UTC). */
+export function fromDatetimeLocalEAT(value: string): string {
+  return new Date(new Date(`${value}:00Z`).getTime() - EAT_OFFSET_MS).toISOString();
+}
+
 export function relTimeEAT(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
   const diff = Date.now() - date.getTime();

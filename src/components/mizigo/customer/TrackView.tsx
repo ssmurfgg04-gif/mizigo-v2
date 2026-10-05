@@ -33,7 +33,11 @@ export default function TrackView() {
     queryKey: ["track", trackToken],
     queryFn: () => api<{ tracking: TrackingData }>(`/api/track/${trackToken}`),
     enabled: !!trackToken,
-    refetchInterval: 2500,
+    // stop polling once the delivery reaches a terminal state
+    refetchInterval: (q) => {
+      const st = q.state.data?.tracking?.status;
+      return st === "COMPLETED" || st === "CANCELLED" || st === "DISPUTED" ? false : 2500;
+    },
   });
 
   const t = data?.tracking;

@@ -10,12 +10,13 @@ import { useSession } from "@/store/session";
 import { Button, Row } from "@/components/mizigo/shared/ui";
 import { kes, fmtDateTimeEAT, fmtTimeEAT } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
+import { t } from "@/lib/i18n";
 import { shareTrackLink } from "@/components/mizigo/shared/share";
 
 const QUICK_TAGS = ["Arrived on time", "Careful with cargo", "Professional", "Good communication", "Vehicle clean"];
 
 export function RateScreen() {
-  const { focusShipmentId, setBookingStep, setCustomerTab } = useSession();
+  const { focusShipmentId, setBookingStep, setCustomerTab, lang } = useSession();
   const [stars, setStars] = useState(0);
   const [tags, setTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -57,7 +58,7 @@ export function RateScreen() {
         <div className="mt-3 flex gap-2" role="radiogroup" aria-label="Star rating">
           {[1, 2, 3, 4, 5].map((i) => (
             <button key={i} onClick={() => setStars(i)} className="p-1.5 transition active:scale-90" aria-label={`${i} star${i > 1 ? "s" : ""}`} aria-pressed={stars === i}>
-              <Star size={34} strokeWidth={1.4} className={i <= stars ? "fill-[var(--brand)] text-[var(--brand)]" : "text-[var(--line)]"} />
+              <Star size={34} strokeWidth={1.4} className={i <= stars ? "fill-[var(--brand)] text-[var(--brand-deep)]" : "text-[var(--line)]"} />
             </button>
           ))}
         </div>
@@ -75,7 +76,7 @@ export function RateScreen() {
       </div>
       <div className="space-y-2.5">
         <Button variant="brand" className="w-full" onClick={submit} loading={busy} disabled={!stars}>
-          Submit rating
+          {t("rate.submit", lang)}
         </Button>
         <Button variant="ghost" className="w-full" onClick={() => setBookingStep("receipt")}>Skip</Button>
       </div>

@@ -11,7 +11,7 @@ import type { QuoteResponse } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, Row } from "@/components/mizigo/shared/ui";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
-import { kes, fmtKm, fmtDateTimeEAT } from "@/lib/format";
+import { kes, fmtKm, fmtDateTimeEAT, atEAT, toDatetimeLocalEAT, fromDatetimeLocalEAT } from "@/lib/format";
 import { CARGO_CATEGORIES } from "@/lib/pricing";
 import { t } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
@@ -27,9 +27,9 @@ const QUOTE_VEHICLES = ["lorry_7t", "lorry_10t"];
 
 function scheduleOptions(): { label: string; sub: string; at: Date }[] {
   const now = new Date();
-  const today430 = new Date(now); today430.setHours(16, 30, 0, 0);
-  const tomorrow8 = new Date(now.getTime() + 86400_000); tomorrow8.setHours(8, 0, 0, 0);
-  const tomorrow1430 = new Date(now.getTime() + 86400_000); tomorrow1430.setHours(14, 30, 0, 0);
+  const today430 = atEAT(now, 16, 30);
+  const tomorrow8 = atEAT(new Date(now.getTime() + 86400_000), 8, 0);
+  const tomorrow1430 = atEAT(new Date(now.getTime() + 86400_000), 14, 30);
   const list = [
     { label: "Today", sub: "4:30 PM", at: today430 },
     { label: "Tomorrow", sub: "8:00 AM", at: tomorrow8 },
@@ -183,8 +183,8 @@ export default function ReviewStep() {
               <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Or pick any date &amp; time (within 14 days)</span>
               <input
                 type="datetime-local"
-                value={draft.scheduledAt ? new Date(draft.scheduledAt).toISOString().slice(0, 16) : ""}
-                onChange={(e) => patchDraft({ scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                value={draft.scheduledAt ? toDatetimeLocalEAT(draft.scheduledAt) : ""}
+                onChange={(e) => patchDraft({ scheduledAt: e.target.value ? fromDatetimeLocalEAT(e.target.value) : null })}
                 className="mt-1.5 h-12 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[14px] font-semibold outline-none focus:border-[var(--brand)]"
               />
             </label>
@@ -204,7 +204,7 @@ export default function ReviewStep() {
           <p className="text-[15.5px] font-extrabold">{vehicle.name}</p>
           <p className="text-[12.5px] font-semibold text-[var(--ink-2)]">Arrives in about {vehicle.etaMin} min</p>
         </div>
-        <button onClick={() => setBookingStep("vehicle")} className="text-[13px] font-bold text-[var(--brand)]">Change</button>
+        <button onClick={() => setBookingStep("vehicle")} className="text-[13px] font-bold text-[var(--brand-deep)]">Change</button>
       </div>
 
       {/* fare */}
@@ -248,7 +248,7 @@ export default function ReviewStep() {
               <Button variant="outline" className="h-11" onClick={() => { patchDraft({ promoCode: promoInput.trim() }); }}>Apply</Button>
             </div>
           ) : (
-            <button onClick={() => setPromoOpen(true)} className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand)]">
+            <button onClick={() => setPromoOpen(true)} className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand-deep)]">
               <Plus size={13} /> Add promo code
             </button>
           )}
@@ -292,7 +292,7 @@ export default function ReviewStep() {
             </Button>
             <p className="text-center text-[11.5px] font-semibold text-[var(--ink-3)]">
               {vehicle.name} jobs are priced by transporters. Or{" "}
-              <button onClick={() => setBookingStep("payment")} className="font-extrabold text-[var(--brand)] underline">pay the instant estimate</button>.
+              <button onClick={() => setBookingStep("payment")} className="font-extrabold text-[var(--brand-deep)] underline">pay the instant estimate</button>.
             </p>
           </>
         ) : (

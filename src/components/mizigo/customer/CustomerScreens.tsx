@@ -7,10 +7,10 @@ import { Banknote, Bell, ChevronRight, CreditCard, FileText, Languages, LogOut, 
 import { api, post } from "@/lib/api-client";
 import type { CustomerHome, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
-import { Button, EmptyState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus } from "@/components/mizigo/shared/ui";
+import { Button, EmptyState, ErrorState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus } from "@/components/mizigo/shared/ui";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
-import { kes, fmtDateTimeEAT, relTimeEAT } from "@/lib/format";
+import { kes, fmtDateTimeEAT, fmtPhone, relTimeEAT } from "@/lib/format";
 import { STATUS_LABEL, ACTIVE_STATES } from "@/lib/state-machine";
 import { LANGUAGES, t } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
@@ -19,13 +19,14 @@ import { useSettings } from "@/components/mizigo/shared/useSettings";
 
 // ─── Trips ───
 export function TripsScreen() {
-  const { user, focusShipmentId, setFocusShipment, setBookingStep } = useSession();
+  const { user, focusShipmentId, setFocusShipment, setBookingStep, lang } = useSession();
   const [tab, setTab] = useState<"ALL" | "ACTIVE" | "COMPLETED" | "CANCELLED">("ALL");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>("/api/customer"),
     enabled: !!user,
+    retry: 1,
     refetchInterval: 8000,
   });
 
@@ -39,17 +40,29 @@ export function TripsScreen() {
 
   if (detail) return <TripDetail shipment={detail} onBack={() => setFocusShipment(null)} />;
 
+  if (isError) {
+    return (
+      <div className="pt-6">
+        <ErrorState
+          title="Couldn't load your deliveries"
+          body="Check your connection and try again."
+          actions={<Button variant="brand" onClick={() => refetch()}>Try again</Button>}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-6">
-      <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">Your deliveries</h1>
+      <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">{t("trips.title", lang)}</h1>
       <div className="flex gap-2">
-        {(["ALL", "ACTIVE", "COMPLETED", "CANCELLED"] as const).map((t) => (
+        {(["ALL", "ACTIVE", "COMPLETED", "CANCELLED"] as const).map((x) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-full px-4 py-2 text-[12.5px] font-bold capitalize transition ${tab === t ? "bg-[var(--ink)] text-white" : "bg-[var(--surface)] text-[var(--ink-2)] border border-[var(--line)]"}`}
+            key={x}
+            onClick={() => setTab(x)}
+            className={`rounded-full px-4 py-2 text-[12.5px] font-bold transition ${tab === x ? "bg-[var(--ink)] text-white" : "bg-[var(--surface)] text-[var(--ink-2)] border border-[var(--line)]"}`}
           >
-            {t.toLowerCase()}
+            {t(`trips.${x.toLowerCase()}`, lang)}
           </button>
         ))}
       </div>
@@ -58,7 +71,7 @@ export function TripsScreen() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<PackageOpen size={22} />}
-          title="No deliveries here"
+          title={t("trips.empty", lang)}
           body={tab === "ALL" ? "You'll see your completed deliveries here." : `No ${tab.toLowerCase()} deliveries yet.`}
           action={<Button variant="outline" onClick={() => setBookingStep("cargo")}>Move something</Button>}
         />
@@ -90,7 +103,7 @@ export function TripsScreen() {
 }
 
 function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: () => void }) {
-  const { setBookingStep, setFocusShipment, setTrackToken, patchDraft, resetDraft } = useSession();
+  const { setBookingStep, setFocusShipment, setTrackToken, patchDraft, resetDraft, lang } = useSession();
   const [podOpen, setPodOpen] = useState(true);
   const canRepeat = s.status === "COMPLETED";
 
@@ -186,7 +199,7 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
         <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
           <div className="flex items-center justify-between">
             <SectionTitle>Proof of delivery</SectionTitle>
-            <button onClick={downloadPod} className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand)]">
+            <button onClick={downloadPod} className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand-deep)]">
               <FileText size={13} /> Download
             </button>
           </div>
@@ -218,25 +231,25 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
       {/* live delivery opened from anywhere → straight to the live map */}
       {ACTIVE_STATES.includes(s.status as never) && (
         <Button variant="brand" className="w-full" onClick={() => setBookingStep("active")}>
-          Track delivery live
+          {t("trips.trackLive", lang)}
         </Button>
       )}
 
       {/* unrated delivered shipment → rate first */}
       {(s.status === "COMPLETED" || s.status === "POD_CONFIRMED") && !s.ratings.some((r) => r.byRole === "CUSTOMER") && (
         <Button variant="brand" className="w-full" onClick={() => setBookingStep("rate")}>
-          Rate this delivery
+          {t("trips.rateDelivery", lang)}
         </Button>
       )}
 
       <div className="grid grid-cols-2 gap-2.5">
         {canRepeat && (
           <Button variant="brand" className={s.status === "DISPUTED" ? "col-span-2" : ""} onClick={bookAgain}>
-            Book again
+            {t("trips.bookAgain", lang)}
           </Button>
         )}
         <Button variant="outline" onClick={() => { void shareTrackLink(s.id); }}>
-          Share tracking
+          {t("trips.shareTracking", lang)}
         </Button>
       </div>
 
@@ -251,7 +264,7 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
 
 // ─── Wallet ───
 export function WalletScreen() {
-  const { user, setFocusShipment, setCustomerTab } = useSession();
+  const { user, setFocusShipment, setCustomerTab, lang } = useSession();
   const { data, isLoading } = useQuery({
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>("/api/customer"),
@@ -272,12 +285,12 @@ export function WalletScreen() {
 
   return (
     <div className="space-y-4 pb-6">
-      <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">Wallet</h1>
+      <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">{t("wallet.title", lang)}</h1>
 
       <SectionTitle>Payment methods</SectionTitle>
       <div className="space-y-2.5">
         {[
-          { icon: Smartphone, label: "M-PESA", desc: `0${user?.phone.slice(1) ?? ""} · default`, active: true },
+          { icon: Smartphone, label: "M-PESA", desc: `${user ? fmtPhone(user.phone) : ""} · default`, active: true },
           { icon: Banknote, label: "Cash", desc: "Pay the driver on completion", active: false },
           { icon: CreditCard, label: "Card", desc: "Coming soon", active: false },
         ].map((m) => (
@@ -289,17 +302,17 @@ export function WalletScreen() {
               <span className="block text-[15px] font-extrabold">{m.label}</span>
               <span className="block text-[12.5px] font-medium text-[var(--ink-2)]">{m.desc}</span>
             </span>
-            {m.active && <span className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--brand)]">Active</span>}
+            {m.active && <span className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--brand-deep)]">Active</span>}
           </div>
         ))}
       </div>
 
-      <SectionTitle>Notifications</SectionTitle>
+      <SectionTitle>{t("wallet.notifications", lang)}</SectionTitle>
       <div className="overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">
         {isLoading ? (
           <div className="px-4 py-6"><ListSkeleton rows={2} /></div>
         ) : (data?.notifications?.length ?? 0) === 0 ? (
-          <EmptyState icon={<Bell size={22} />} title="You're all caught up" body="Delivery updates will appear here." />
+          <EmptyState icon={<Bell size={22} />} title={t("wallet.caughtUp", lang)} body={t("wallet.caughtUpBody", lang)} />
         ) : (
           data!.notifications.map((n) => (
             <button
@@ -307,7 +320,7 @@ export function WalletScreen() {
               onClick={() => openNotification(n.shipmentCode)}
               className="flex w-full items-start gap-3 border-b border-[var(--line)] px-4 py-3.5 text-left transition last:border-b-0 hover:bg-[var(--surface-2)]"
             >
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Bell size={14} /></span>
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Bell size={14} /></span>
               <span className="flex-1">
                 <span className="block text-[13.5px] font-bold">{n.title}</span>
                 <span className="block text-[12px] font-medium text-[var(--ink-2)]">{n.body}</span>
@@ -356,8 +369,8 @@ export function AccountScreen() {
         </span>
         <div className="flex-1">
           <p className="text-[17px] font-extrabold tracking-tight">{u?.name}</p>
-          <p className="tnum text-[13px] font-semibold text-[var(--ink-2)]">0{u?.phone.slice(1) ?? ""}</p>
-          {u?.businessName && <p className="text-[12px] font-bold text-[var(--brand)]">{u.businessName} · Business</p>}
+          <p className="tnum text-[13px] font-semibold text-[var(--ink-2)]">{u ? fmtPhone(u.phone) : ""}</p>
+          {u?.businessName && <p className="text-[12px] font-bold text-[var(--brand-deep)]">{u.businessName} · Business</p>}
         </div>
       </div>
 
@@ -441,10 +454,10 @@ export function AccountScreen() {
         </div>
 
         <div className="px-4 py-4">
-          <p className="text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Help &amp; support</p>
+          <p className="text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">{t("account.helpSupport", lang)}</p>
           <div className="mt-2 space-y-2">
             <a href={`tel:${settings.supportPhone.replace(/\s/g, "")}`} className="block rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-[13.5px] font-bold">Get help with a delivery · {settings.supportPhone}</a>
-            <button onClick={() => toast({ title: "Safety centre", description: `Verify plates, share tracking and goods-in-transit cover live from an active trip (Get help → Safety centre). 24/7 line: ${settings.supportPhone}` })} className="w-full rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-left text-[13.5px] font-bold">Safety centre</button>
+            <button onClick={() => toast({ title: "Safety centre", description: `Verify plates, share tracking and goods-in-transit cover live from an active trip (Get help → Safety centre). 24/7 line: ${settings.supportPhone}` })} className="w-full rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-left text-[13.5px] font-bold">{t("account.safetyCentre", lang)}</button>
           </div>
         </div>
       </div>
@@ -454,7 +467,7 @@ export function AccountScreen() {
           Switch to driver app
         </Button>
         <Button variant="ghost" className="w-full" onClick={() => { post("/api/auth", { action: "logout" }).catch(() => null); logout(); }}>
-          <LogOut size={15} /> Log out
+          <LogOut size={15} /> {t("account.logOut", lang)}
         </Button>
       </div>
       <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo · Nairobi, Kenya · v2 sandbox</p>

@@ -10,7 +10,7 @@ import type { CustomerHome } from "@/lib/types";
 import { kes, etaText, relTimeEAT, fmtTimeEAT } from "@/lib/format";
 import { useSession } from "@/store/session";
 import { t } from "@/lib/i18n";
-import { Button, ChevronLink, EmptyState, ListSkeleton, SectionTitle, StatusBadge, toneForStatus, Stars } from "@/components/mizigo/shared/ui";
+import { Button, ChevronLink, EmptyState, ErrorState, ListSkeleton, SectionTitle, StatusBadge, toneForStatus, Stars } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ReturnLoadDeals from "./ReturnLoadDeals";
@@ -31,6 +31,7 @@ export default function HomeScreen() {
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>("/api/customer"),
     enabled: !!user,
+    retry: 1,
     refetchInterval: (query) => (query.state.data?.active ? 2500 : 15000),
   });
   const d = q.data;
@@ -48,6 +49,18 @@ export default function HomeScreen() {
   const active = d?.active;
   const recent = (d?.trips ?? []).filter((t) => !["CANCELLED"].includes(t.status)).slice(0, 3);
   const isQuoted = active?.status === "QUOTED";
+
+  if (q.isError) {
+    return (
+      <div className="pt-6">
+        <ErrorState
+          title="Couldn't load your home"
+          body="Check your connection and try again."
+          actions={<Button variant="brand" onClick={() => q.refetch()}>Try again</Button>}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5 pb-6">
@@ -85,7 +98,7 @@ export default function HomeScreen() {
           <p className="mt-0.5 text-[12.5px] font-semibold text-[var(--ink-2)]">
             {active.quotes.filter((x) => x.status === "PENDING").length} quote{active.quotes.filter((x) => x.status === "PENDING").length === 1 ? "" : "s"} so far · {active.category.name} job
           </p>
-          <span className="mt-2.5 inline-flex items-center gap-1 text-[13px] font-bold text-[var(--brand)]">
+          <span className="mt-2.5 inline-flex items-center gap-1 text-[13px] font-bold text-[var(--brand-deep)]">
             Compare quotes <ChevronRight size={14} strokeWidth={2.8} />
           </span>
         </button>
@@ -122,7 +135,7 @@ export default function HomeScreen() {
             {active.scheduledAt && active.status === "MATCHING" && (
               <p className="mt-1 text-[12px] font-bold text-[var(--ink-3)]">Scheduled · {fmtTimeEAT(active.scheduledAt)}</p>
             )}
-            <span className="mt-3 inline-flex items-center gap-1.5 text-[13.5px] font-bold text-[var(--brand)]">
+            <span className="mt-3 inline-flex items-center gap-1.5 text-[13.5px] font-bold text-[var(--brand-deep)]">
               Track delivery <ChevronRight size={15} strokeWidth={2.8} />
             </span>
           </div>
@@ -147,7 +160,7 @@ export default function HomeScreen() {
             onClick={() => startBooking()}
             className="mt-2.5 flex w-full items-center gap-3.5 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5 text-left transition hover:border-[var(--ink-3)]"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Package size={17} strokeWidth={2.4} /></span>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Package size={17} strokeWidth={2.4} /></span>
             <span className="min-w-0 flex-1">
               <span className="block text-[10.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">To</span>
               <span className="block truncate text-[14.5px] font-bold">Where should it go?</span>
@@ -216,16 +229,16 @@ export default function HomeScreen() {
 
       {/* recent deliveries */}
       <section>
-        <SectionTitle action={<ChevronLink onClick={() => setCustomerTab("trips")}>All deliveries</ChevronLink>}>{t("home.recent", lang)}</SectionTitle>
+        <SectionTitle action={<ChevronLink onClick={() => setCustomerTab("trips")}>{t("home.allDeliveries", lang)}</ChevronLink>}>{t("home.recent", lang)}</SectionTitle>
         <div className="mt-3">
           {q.isLoading ? (
             <ListSkeleton rows={2} />
           ) : recent.length === 0 ? (
             <EmptyState
               icon={<PackageOpen size={22} />}
-              title="No deliveries yet"
-              body="You'll see your completed deliveries here."
-              action={<Button variant="outline" onClick={() => startBooking()}>Move something</Button>}
+              title={t("home.noDeliveries", lang)}
+              body={t("home.noDeliveriesBody", lang)}
+              action={<Button variant="outline" onClick={() => startBooking()}>{t("home.moveSomething", lang)}</Button>}
             />
           ) : (
             <div className="space-y-2.5">

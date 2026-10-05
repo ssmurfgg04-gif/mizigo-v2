@@ -105,7 +105,7 @@ export default function QuoteMarketStep() {
           <div className="rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--surface)] px-5 py-8 text-center">
             <div className="relative mx-auto h-14 w-14">
               <span className="absolute inset-0 animate-mz-radar rounded-full bg-[var(--brand)] opacity-20" />
-              <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+              <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]">
                 <MessageSquareQuote size={22} />
               </span>
             </div>
@@ -137,7 +137,7 @@ export default function QuoteMarketStep() {
                         <BadgeCheck size={14} className="text-[var(--success)]" />
                       </p>
                       <p className="flex items-center gap-1 text-[12px] font-semibold text-[var(--ink-2)]">
-                        <Star size={11} className="fill-[var(--brand)] text-[var(--brand)]" /> {q.driver?.rating.toFixed(1)} · {q.driver?.trips} cargo trips
+                        <Star size={11} className="fill-[var(--brand)] text-[var(--brand-deep)]" /> {q.driver?.rating.toFixed(1)} · {q.driver?.trips} cargo trips
                       </p>
                       <p className="truncate text-[12px] font-medium text-[var(--ink-3)]">
                         {q.vehicle ? `${q.vehicle.make} ${q.vehicle.model} · ${q.vehicle.registration}` : s.category.name}

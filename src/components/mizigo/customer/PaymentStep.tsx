@@ -115,7 +115,7 @@ export default function PaymentStep() {
         <div className="flex flex-1 flex-col items-center justify-center gap-6 py-10 text-center">
           <div className="relative">
             <span className="absolute inset-0 animate-mz-radar rounded-full bg-[var(--brand)] opacity-20" />
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]">
               <Smartphone size={34} strokeWidth={2} />
             </div>
           </div>
@@ -160,7 +160,7 @@ export default function PaymentStep() {
                 />
                 <div className="mt-3 flex gap-2">
                   <button onClick={() => setPhase("stk")} className="h-11 flex-1 rounded-[8px] bg-white/10 text-[13px] font-bold">CANCEL</button>
-                  <button onClick={confirmPin} className="h-11 flex-1 rounded-[8px] bg-[var(--brand)] text-[13px] font-extrabold">OK</button>
+                  <button onClick={confirmPin} className="h-11 flex-1 rounded-[8px] bg-[var(--brand-deep)] text-[13px] font-extrabold">OK</button>
                 </div>
               </div>
               <p className="mt-3 text-[11.5px] font-semibold text-[var(--ink-3)]">Sandbox only · no real money moves</p>

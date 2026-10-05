@@ -77,7 +77,7 @@ export default function ReturnLoadPublisher({ data }: { data: DriverHome }) {
   return (
     <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">
       <button onClick={() => setOpen(!open)} className="flex w-full items-center gap-3.5 p-4 text-left">
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-soft)] text-[var(--brand)]">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-soft)] text-[var(--brand-deep)]">
           <BadgePercent size={20} strokeWidth={2.2} />
         </span>
         <span className="flex-1">
@@ -182,7 +182,7 @@ export default function ReturnLoadPublisher({ data }: { data: DriverHome }) {
               <div key={l.id} className="flex items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] p-3">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--surface)]"><VehicleAvatar category={l.categoryKey} size={32} /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1 truncate text-[13px] font-extrabold"><MapPin size={12} className="text-[var(--brand)]" /> {l.fromArea} → {l.toArea}</p>
+                  <p className="flex items-center gap-1 truncate text-[13px] font-extrabold"><MapPin size={12} className="text-[var(--brand-deep)]" /> {l.fromArea} → {l.toArea}</p>
                   <p className="mt-0.5 text-[11.5px] font-semibold text-[var(--ink-3)]">
                     {kes(l.priceKes, { compact: true })} · {l.maxWeightKg.toLocaleString()} kg · {l.cargoNote}
                   </p>

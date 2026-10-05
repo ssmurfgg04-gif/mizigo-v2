@@ -14,9 +14,10 @@ import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import { etaText, kes } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
+import { t } from "@/lib/i18n";
 
 export default function MatchingStep() {
-  const { user, focusShipmentId, setBookingStep, setFocusShipment, resetDraft } = useSession();
+  const { user, focusShipmentId, setBookingStep, setFocusShipment, resetDraft, lang } = useSession();
 
 function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
   const [requested, setRequested] = useState(false);
@@ -91,7 +92,7 @@ function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--brand)] opacity-60" />
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-[var(--brand)]" />
               </span>
-              <p className="text-[18px] font-extrabold tracking-tight">{requested ? "Requesting your vehicle" : "Finding a vehicle…"}</p>
+              <p className="text-[18px] font-extrabold tracking-tight">{requested ? t("booking.requestVehicle", lang) : t("matching.finding", lang)}</p>
             </div>
             <p className="mt-1 text-[13px] font-medium text-[var(--ink-2)]">Looking for the best match near {s.route.pickup.area}.</p>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
@@ -126,7 +127,7 @@ function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
         {matched && s.driver && (
           <div className="animate-mz-slide-up">
             <div className="flex items-center justify-between">
-              <StatusBadge tone="success"><BadgeCheck size={13} /> Driver found</StatusBadge>
+              <StatusBadge tone="success"><BadgeCheck size={13} /> {t("matching.driverFound", lang)}</StatusBadge>
               <span className="tnum text-[12px] font-bold text-[var(--ink-3)]">{s.code}</span>
             </div>
             <div className="mt-3 flex items-center gap-3.5">
@@ -145,7 +146,7 @@ function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
               </div>
               <div className="text-right">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Arrives in</p>
-                <p className="tnum text-[19px] font-extrabold text-[var(--brand)]">{etaText(s.live?.etaMin ?? 7)}</p>
+                <p className="tnum text-[19px] font-extrabold text-[var(--brand-deep)]">{etaText(s.live?.etaMin ?? 7)}</p>
               </div>
             </div>
             <div className="mt-3 flex items-center gap-1.5 rounded-[10px] bg-[var(--warn-soft)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--warn)]">
@@ -153,10 +154,10 @@ function setCustomerTabHome() { useSession.getState().setCustomerTab("home"); }
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2.5">
               <Button variant="outline" onClick={() => toast({ title: "Calling driver", description: `Connecting you to ${s.driver!.name.split(" ")[0]}… (sandbox)` })}>
-                <Phone size={16} /> Call
+                <Phone size={16} /> {t("matching.call", lang)}
               </Button>
               <Button variant="outline" onClick={() => setChatOpen(true)}>
-                <MessageCircle size={16} /> Message
+                <MessageCircle size={16} /> {t("matching.message", lang)}
               </Button>
             </div>
             {focusShipmentId && chatOpen && <ChatSheet shipmentId={focusShipmentId} role="CUSTOMER" onClose={() => setChatOpen(false)} />}

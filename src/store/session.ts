@@ -130,7 +130,7 @@ export const useSession = create<SessionState>()(
     {
       name: "mizigo-session",
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ surface: s.surface, user: s.user, driverId: s.driverId, customerTab: s.customerTab, driverTab: s.driverTab, adminTab: s.adminTab, lang: s.lang }),
+      partialize: (s) => ({ surface: s.surface, trackToken: s.trackToken, user: s.user, driverId: s.driverId, customerTab: s.customerTab, driverTab: s.driverTab, adminTab: s.adminTab, lang: s.lang }),
     }
   )
 );

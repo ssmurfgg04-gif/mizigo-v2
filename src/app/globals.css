@@ -74,7 +74,7 @@
   --surface-2: #F1EFEA;
   --ink: #17181C;
   --ink-2: #5A5C63;
-  --ink-3: #8B8D94;
+  --ink-3: #6E7178; /* WCAG AA on paper/surface — small labels + timestamps */
   --line: #E4E1DA;
   --brand: #E8590C;
   --brand-deep: #C2410C;
@@ -164,6 +164,13 @@
   --border: var(--line);
   --input: var(--line);
   --ring: var(--brand);
+}
+
+/* keyboard-only focus ring — visible for tab users, invisible for pointers */
+:focus-visible {
+  outline: 2px solid var(--brand-deep);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 @layer base {

@@ -10,16 +10,17 @@ import ProblemScreen from "./ProblemScreen";
 import { RateScreen, ReceiptScreen } from "./ReceiptFlow";
 import { TripsScreen, WalletScreen, AccountScreen } from "./CustomerScreens";
 import HomeScreen from "./HomeScreen";
+import { t as tr } from "@/lib/i18n";
 
 const TABS = [
-  { key: "home", label: "Home", icon: Home },
-  { key: "trips", label: "Trips", icon: Package },
-  { key: "wallet", label: "Wallet", icon: Wallet },
-  { key: "account", label: "Account", icon: User },
+  { key: "home", labelKey: "nav.home", icon: Home },
+  { key: "trips", labelKey: "nav.trips", icon: Package },
+  { key: "wallet", labelKey: "nav.wallet", icon: Wallet },
+  { key: "account", labelKey: "nav.account", icon: User },
 ] as const;
 
 export default function CustomerApp() {
-  const { user, customerTab, setCustomerTab, bookingStep, setBookingStep } = useSession();
+  const { user, customerTab, setCustomerTab, bookingStep, setBookingStep, lang } = useSession();
 
   if (!user) return <Onboarding />;
 
@@ -62,7 +63,7 @@ export default function CustomerApp() {
                   aria-current={active ? "page" : undefined}
                 >
                   <t.icon size={21} strokeWidth={active ? 2.4 : 2} className={active ? "text-[var(--ink)]" : "text-[var(--ink-3)]"} />
-                  <span className={`text-[10.5px] font-bold ${active ? "text-[var(--ink)]" : "text-[var(--ink-3)]"}`}>{t.label}</span>
+                  <span className={`text-[10.5px] font-bold ${active ? "text-[var(--ink)]" : "text-[var(--ink-3)]"}`}>{tr(t.labelKey, lang)}</span>
                   <span className={`h-1 w-1 rounded-full ${active ? "bg-[var(--brand)]" : "bg-transparent"}`} />
                 </button>
               );

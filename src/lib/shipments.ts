@@ -118,20 +118,27 @@ export async function applyTransition(
     data.cancelReason = meta?.reason ?? null;
     if (s.paymentStatus === "CONFIRMED") {
       data.paymentStatus = "REFUNDED";
-      await db.paymentEvent.updateMany({ where: { shipmentId: s.id, status: "CONFIRMED" }, data: { status: "REFUNDED" } });
     }
   }
 
-  const [updated] = await db.$transaction([
-    db.shipment.update({ where: { id: s.id }, data }),
-    db.shipmentEvent.create({
-      data: {
-        shipmentId: s.id, type: rule.type, label: meta?.label ?? rule.label, actor,
-        lat: meta?.lat ?? (rule.to === "DRIVER_ARRIVED" ? s.pickupLat : rule.type === "POD_CONFIRMED" ? s.dropoffLat : null),
-        lng: meta?.lng ?? (rule.to === "DRIVER_ARRIVED" ? s.pickupLng : rule.type === "POD_CONFIRMED" ? s.dropoffLng : null),
-      },
-    }),
-  ]);
+  // ── atomic claim: the status flip is conditional on the state we validated,
+  // so exactly one concurrent caller wins (races → 409, never double-transition).
+  // Single-statement UPDATE — SQLite-safe (interactive transactions deadlock here).
+  const claimed = await db.shipment.updateMany({ where: { id: s.id, status: s.status }, data });
+  if (!claimed.count) {
+    return { ok: false, error: `Cannot ${action.replace(/-/g, " ")} — the delivery just changed state. Refresh and try again.`, code: 409 };
+  }
+  await db.shipmentEvent.create({
+    data: {
+      shipmentId: s.id, type: rule.type, label: meta?.label ?? rule.label, actor,
+      lat: meta?.lat ?? (rule.to === "DRIVER_ARRIVED" ? s.pickupLat : rule.type === "POD_CONFIRMED" ? s.dropoffLat : null),
+      lng: meta?.lng ?? (rule.to === "DRIVER_ARRIVED" ? s.pickupLng : rule.type === "POD_CONFIRMED" ? s.dropoffLng : null),
+    },
+  });
+  if (rule.to === "CANCELLED" && s.paymentStatus === "CONFIRMED") {
+    await db.paymentEvent.updateMany({ where: { shipmentId: s.id, status: "CONFIRMED" }, data: { status: "REFUNDED" } });
+  }
+  const updated = s; // the pre-transaction snapshot + applied `data` describe the result
 
   // side effects on driver state
   if (rule.to === "DRIVER_EN_ROUTE" && s.driverId) {

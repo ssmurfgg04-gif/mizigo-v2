@@ -13,13 +13,13 @@ import {
 import { api, post } from "@/lib/api-client";
 import type { DriverHome, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
-import { Button, EmptyState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus, AvatarInitials } from "@/components/mizigo/shared/ui";
+import { Button, EmptyState, ErrorState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus, AvatarInitials } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import ReturnLoadPublisher from "./ReturnLoadPublisher";
 import { driverReliability } from "@/lib/matching";
-import { kes, etaText, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
+import { kes, etaText, fmtDateEAT, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
 import { post as apiPost, loginWithOtp } from "@/lib/api-client";
@@ -70,7 +70,7 @@ function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: 
             Earning {kes(active.fare.driverEarnings)}
             {active.live?.etaMin != null && active.live.etaMin > 0 ? ` · ${etaText(active.live.etaMin)} to pickup` : " · at the pickup"}
           </p>
-          <span className="mt-2.5 inline-flex items-center gap-1 text-[13px] font-bold text-[var(--brand)]">
+          <span className="mt-2.5 inline-flex items-center gap-1 text-[13px] font-bold text-[var(--brand-deep)]">
             Open trip <ChevronRight size={14} strokeWidth={2.8} />
           </span>
         </button>
@@ -137,7 +137,7 @@ function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: 
         <div className="flex-1">
           <p className="text-[15px] font-extrabold">{data.driver.user.name}</p>
           <p className="flex items-center gap-1 text-[12.5px] font-semibold text-[var(--ink-2)]">
-            <Star size={12} className="fill-[var(--brand)] text-[var(--brand)]" /> {data.driver.rating.toFixed(1)} · {data.driver.trips} trips · {Math.round(data.driver.onTimeDelivery * 100)}% on time
+            <Star size={12} className="fill-[var(--brand)] text-[var(--brand-deep)]" /> {data.driver.rating.toFixed(1)} · {data.driver.trips} trips · {Math.round(data.driver.onTimeDelivery * 100)}% on time
           </p>
         </div>
         <StatusBadge tone="success">Verified</StatusBadge>
@@ -276,7 +276,7 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
                     {!done && ["IN_TRANSIT", "ARRIVING"].includes(s.status) && (
                       <button
                         onClick={() => { setDoneStops([...doneStops, i]); act("stop-done", { stopIndex: i }); }}
-                        className="rounded-full bg-[var(--brand)] px-3 py-1.5 text-[11.5px] font-extrabold text-white"
+                        className="rounded-full bg-[var(--brand-deep)] px-3 py-1.5 text-[11.5px] font-extrabold text-white"
                       >
                         Mark done
                       </button>
@@ -293,11 +293,11 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
         {/* chat + last message */}
         {(s.messages?.length ?? 0) > 0 ? (
           <button onClick={() => setChatOpen(true)} className="mt-3 flex w-full items-center gap-2.5 rounded-[10px] bg-[var(--brand-soft)] px-3.5 py-2.5 text-left">
-            <MessageCircle size={15} className="shrink-0 text-[var(--brand)]" />
+            <MessageCircle size={15} className="shrink-0 text-[var(--brand-deep)]" />
             <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold text-[var(--brand-ink)]">{s.messages![s.messages!.length - 1].senderRole === "DRIVER" ? "You" : s.customer.name.split(" ")[0]}: “{s.messages![s.messages!.length - 1].body}”</span>
           </button>
         ) : (
-          <button onClick={() => setChatOpen(true)} className="mt-3 flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand)]">
+          <button onClick={() => setChatOpen(true)} className="mt-3 flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--brand-deep)]">
             <MessageCircle size={14} /> Message the customer
           </button>
         )}
@@ -343,7 +343,7 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
                   <button
                     key={i}
                     onClick={() => { const p = [...(cargoCheckPhotos(i))]; setCargoCheck({ itemsOk: true, photos: i + 1, condition: "No damage" }); toast({ title: "Photo captured", description: "Timestamp + GPS attached." }); }}
-                    className="flex h-20 items-center justify-center rounded-[12px] border-2 border-dashed border-[var(--line)] text-[var(--ink-3)] transition hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                    className="flex h-20 items-center justify-center rounded-[12px] border-2 border-dashed border-[var(--line)] text-[var(--ink-3)] transition hover:border-[var(--brand)] hover:text-[var(--brand-deep)]"
                     aria-label={`Take photo ${i + 1}`}
                   >
                     <span className="text-[11px] font-bold">Photo {i + 1}</span>
@@ -555,7 +555,7 @@ function DriverTripsScreen({ data }: { data: DriverHome }) {
                         key={v}
                         disabled={busy}
                         onClick={() => setRating({ shipmentId: t.id, stars: v })}
-                        className={`text-[24px] leading-none transition ${rating?.shipmentId === t.id && rating.stars >= v ? "text-[var(--brand)]" : "text-[var(--line)]"} hover:text-[var(--brand)]`}
+                        className={`text-[24px] leading-none transition ${rating?.shipmentId === t.id && rating.stars >= v ? "text-[var(--brand-deep)]" : "text-[var(--line)]"} hover:text-[var(--brand-deep)]`}
                         aria-label={`${v} star${v === 1 ? "" : "s"}`}
                       >
                         <Star className="fill-current" size={22} />
@@ -574,7 +574,7 @@ function DriverTripsScreen({ data }: { data: DriverHome }) {
               )}
               {t.status === "COMPLETED" && iRated && (
                 <p className="mt-2.5 flex items-center gap-1.5 border-t border-dashed border-[var(--line)] pt-2.5 text-[11.5px] font-bold text-[var(--ink-3)]">
-                  <Star size={12} className="fill-[var(--brand)] text-[var(--brand)]" /> You rated this customer
+                  <Star size={12} className="fill-[var(--brand)] text-[var(--brand-deep)]" /> You rated this customer
                 </p>
               )}
             </div>
@@ -702,7 +702,7 @@ function DriverAccountScreen({ data }: { data: DriverHome }) {
   const v = data.driver.vehicles[0];
   const [docsOpen, setDocsOpen] = useState(false);
 
-  const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "—");
+  const fmtDate = (d: string | null) => (d ? fmtDateEAT(d) : "—");
   const docTone = (status: string) => (status === "VERIFIED" ? "success" : status === "PENDING" ? "warn" : "danger");
 
   return (
@@ -933,14 +933,27 @@ export default function DriverApp() {
   const { user, driverId, driverTab, setDriverTab, setSurface, setUser } = useSession();
   const [tripOpen, setTripOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["driver-home", driverId],
     queryFn: () => api<DriverHome>("/api/driver"),
     enabled: !!driverId,
+    retry: 1,
     refetchInterval: (q) => (q.state.data?.active ? 2500 : 12000),
   });
 
   if (!driverId) return <DriverLogin />;
+
+  if (isError) {
+    return (
+      <div className="p-5">
+        <ErrorState
+          title="Couldn't load your driver dashboard"
+          body="Check your connection and try again — your jobs and earnings are safe."
+          actions={<Button variant="brand" onClick={() => refetch()}>Try again</Button>}
+        />
+      </div>
+    );
+  }
 
   if (isLoading || !data) {
     return <div className="space-y-4 p-5"><ListSkeleton rows={4} /></div>;

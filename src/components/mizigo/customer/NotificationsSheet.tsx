@@ -56,7 +56,7 @@ export default function NotificationsSheet({ notifications, trips, onClose }: { 
                 onClick={() => open(n.shipmentCode)}
                 className="flex w-full items-start gap-3 border-b border-[var(--line)] px-5 py-3.5 text-left transition last:border-b-0 hover:bg-[var(--surface-2)]"
               >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Bell size={14} /></span>
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Bell size={14} /></span>
                 <span className="flex-1">
                   <span className="block text-[13.5px] font-bold">{n.title}</span>
                   <span className="block text-[12px] font-medium text-[var(--ink-2)]">{n.body}</span>

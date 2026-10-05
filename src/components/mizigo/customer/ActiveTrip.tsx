@@ -110,7 +110,7 @@ export default function ActiveTrip() {
           {s.live && s.live.leg !== "IDLE" && (
             <div className="text-right">
               <p className="text-[10.5px] font-bold uppercase tracking-widest text-[var(--ink-3)]">ETA</p>
-              <p className="tnum text-[18px] font-extrabold text-[var(--brand)]">{etaText(s.live.etaMin ?? 0)}</p>
+              <p className="tnum text-[18px] font-extrabold text-[var(--brand-deep)]">{etaText(s.live.etaMin ?? 0)}</p>
             </div>
           )}
         </div>
@@ -224,7 +224,7 @@ export default function ActiveTrip() {
         <p className="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] font-semibold text-[var(--ink-3)]">
           <ShieldCheck size={12} /> Your trip is tracked from pickup to delivery.
         </p>
-        <button onClick={() => setHelpOpen(true)} className="mt-1.5 flex w-full items-center justify-center gap-1.5 text-[12.5px] font-bold text-[var(--brand)]">
+        <button onClick={() => setHelpOpen(true)} className="mt-1.5 flex w-full items-center justify-center gap-1.5 text-[12.5px] font-bold text-[var(--brand-deep)]">
           <LifeBuoy size={13} /> Get help with this delivery
         </button>
       </div>
@@ -240,14 +240,14 @@ export default function ActiveTrip() {
             <p className="tnum mt-0.5 text-[12px] font-semibold text-[var(--ink-3)]">Booking {s.code} · {s.route.pickup.area} → {s.route.dropoff.area} · {s.driver ? s.driver.name : "driver pending"}</p>
             <div className="mt-4 space-y-2.5">
               <button onClick={() => { setHelpOpen(false); toast({ title: "Calling support", description: `${settings.supportPhone} · free from Safaricom lines (sandbox)` }); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Phone size={16} /></span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Phone size={16} /></span>
                 <span className="flex-1">
                   <span className="block text-[14px] font-extrabold">Call support</span>
                   <span className="block text-[12px] font-medium text-[var(--ink-2)]">{settings.supportPhone} · 24/7</span>
                 </span>
               </button>
               <button onClick={() => { setHelpOpen(false); setChatOpen(true); }} className="flex w-full items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5 text-left">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><MessageCircle size={16} /></span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><MessageCircle size={16} /></span>
                 <span className="flex-1">
                   <span className="block text-[14px] font-extrabold">Message your driver</span>
                   <span className="block text-[12px] font-medium text-[var(--ink-2)]">Quick messages · numbers stay private</span>
@@ -287,7 +287,7 @@ export default function ActiveTrip() {
             </p>
             <div className="mt-4 space-y-2.5">
               <Button variant="danger" className="w-full" onClick={async () => {
-                await post(`/api/shipments/${s.id}/action`, { action: "cancel", actor: "CUSTOMER", reason: "Cancelled by customer" });
+                await post(`/api/shipments/${s.id}/action`, { action: "cancel", reason: "Cancelled by customer" }).catch(() => null);
                 toast({ title: "Delivery cancelled" });
                 setCancelOpen(false);
                 setBookingStep("idle");
@@ -327,7 +327,7 @@ export default function ActiveTrip() {
                 </div>
               </div>
               <div className="flex items-start gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Share2 size={16} /></span>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Share2 size={16} /></span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[14px] font-extrabold">Let someone follow this delivery</p>
                   <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-[var(--ink-2)]">Share a tracking link — the recipient sees live progress and proof of delivery. No account needed.</p>
@@ -335,7 +335,7 @@ export default function ActiveTrip() {
                 </div>
               </div>
               <div className="flex items-start gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Phone size={16} /></span>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Phone size={16} /></span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[14px] font-extrabold">24/7 support line</p>
                   <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-2)]">Talk to a human about anything on this trip · {settings.supportPhone}</p>

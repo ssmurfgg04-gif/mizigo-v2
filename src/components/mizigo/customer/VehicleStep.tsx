@@ -113,7 +113,7 @@ export default function VehicleStep() {
               </div>
               <button
                 onClick={() => setBreakdown(breakdown === recommended.key ? null : recommended.key)}
-                className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-bold text-[var(--brand)]"
+                className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-bold text-[var(--brand-deep)]"
               >
                 Price breakdown <ChevronDown size={13} className={breakdown === recommended.key ? "rotate-180 transition" : "transition"} />
               </button>

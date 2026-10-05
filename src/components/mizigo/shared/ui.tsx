@@ -14,7 +14,7 @@ type Tone = "success" | "active" | "pending" | "warn" | "danger" | "info" | "neu
 
 const TONES: Record<Tone, { wrap: string; icon: ReactNode }> = {
   success: { wrap: "bg-[var(--success-soft)] text-[var(--success)]", icon: <CheckCircle2 size={13} strokeWidth={2.4} /> },
-  active: { wrap: "bg-[var(--brand-soft)] text-[var(--brand)]", icon: <Loader2 size={13} strokeWidth={2.4} className="animate-spin" /> },
+  active: { wrap: "bg-[var(--brand-soft)] text-[var(--brand-deep)]", icon: <Loader2 size={13} strokeWidth={2.4} className="animate-spin" /> },
   pending: { wrap: "bg-[var(--surface-2)] text-[var(--ink-3)]", icon: <Circle size={13} strokeWidth={2.4} /> },
   warn: { wrap: "bg-[var(--warn-soft)] text-[var(--warn)]", icon: <Clock size={13} strokeWidth={2.4} /> },
   danger: { wrap: "bg-[var(--danger-soft)] text-[var(--danger)]", icon: <XCircle size={13} strokeWidth={2.4} /> },
@@ -180,7 +180,7 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
 
 export function ChevronLink({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex items-center gap-0.5 text-[13px] font-bold text-[var(--brand)]">
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-0.5 text-[13px] font-bold text-[var(--brand-deep)]">
       {children}
       <ChevronRight size={14} strokeWidth={2.6} />
     </button>
@@ -205,7 +205,7 @@ export function Stars({ value, size = 14, className = "" }: { value: number; siz
 export function AvatarInitials({ initials, size = 46, tone = "ink" }: { initials: string; size?: number; tone?: "ink" | "brand" | "surface" }) {
   const styles = {
     ink: "bg-[var(--ink)] text-white",
-    brand: "bg-[var(--brand)] text-white",
+    brand: "bg-[var(--brand-deep)] text-white",
     surface: "bg-[var(--surface-2)] text-[var(--ink)]",
   }[tone];
   return (

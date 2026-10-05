@@ -66,7 +66,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const pending = await db.paymentEvent.findFirst({ where: { shipmentId: s.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
     if (!pending) {
       // re-read: the snapshot `s` may predate another caller's confirmation
-      const now = await db.shipment.findUnique({ where: { id: s.id }, select: { paymentStatus: true } });
+      let now = await db.shipment.findUnique({ where: { id: s.id }, select: { paymentStatus: true } });
+      if (now?.paymentStatus !== "CONFIRMED") {
+        // a concurrent confirmation may be mid-flight (event flipped, shipment not yet)
+        await new Promise((r) => setTimeout(r, 300));
+        now = await db.shipment.findUnique({ where: { id: s.id }, select: { paymentStatus: true } });
+      }
       if (now?.paymentStatus === "CONFIRMED") return NextResponse.json({ ok: true, alreadyPaid: true, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
       return NextResponse.json({ error: "No pending payment. Start again." }, { status: 409 });
     }

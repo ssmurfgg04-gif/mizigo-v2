@@ -82,7 +82,7 @@ export default function ChatSheet({ shipmentId, role, onClose }: { shipmentId: s
               <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[80%] rounded-[14px] px-4 py-2.5 text-[13.5px] font-semibold leading-relaxed ${
-                    mine ? "rounded-br-[4px] bg-[var(--brand)] text-white" : "rounded-bl-[4px] bg-[var(--surface-2)] text-[var(--ink)]"
+                    mine ? "rounded-br-[4px] bg-[var(--brand-deep)] text-white" : "rounded-bl-[4px] bg-[var(--surface-2)] text-[var(--ink)]"
                   }`}
                 >
                   {m.body}
@@ -103,7 +103,7 @@ export default function ChatSheet({ shipmentId, role, onClose }: { shipmentId: s
                 key={q}
                 onClick={() => send(q)}
                 disabled={busy}
-                className="shrink-0 rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3.5 py-2 text-[12.5px] font-bold text-[var(--ink-2)] transition hover:border-[var(--brand)] hover:text-[var(--brand)] disabled:opacity-50"
+                className="shrink-0 rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3.5 py-2 text-[12.5px] font-bold text-[var(--ink-2)] transition hover:border-[var(--brand)] hover:text-[var(--brand-deep)] disabled:opacity-50"
               >
                 {q}
               </button>
@@ -124,7 +124,7 @@ export default function ChatSheet({ shipmentId, role, onClose }: { shipmentId: s
           <button
             onClick={() => send(text)}
             disabled={busy || !text.trim()}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white transition active:scale-95 disabled:opacity-40"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--brand-deep)] text-white transition active:scale-95 disabled:opacity-40"
             aria-label="Send message"
           >
             <Send size={17} />

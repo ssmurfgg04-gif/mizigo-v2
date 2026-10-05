@@ -160,7 +160,7 @@ export default function Onboarding() {
           />
           <Button className="mt-5 w-full" onClick={verify} loading={busy}>Verify</Button>
           <div className="mt-4 flex justify-between text-[13px] font-semibold">
-            <button onClick={requestOtp} className="text-[var(--brand)]">Resend code</button>
+            <button onClick={requestOtp} className="text-[var(--brand-deep)]">Resend code</button>
             <button onClick={() => setStep("phone")} className="text-[var(--ink-2)]">Change number</button>
           </div>
         </div>

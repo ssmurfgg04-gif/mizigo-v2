@@ -12,7 +12,7 @@ import type { AdminOverview, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, Row, SectionTitle, StatusBadge, toneForStatus, AvatarInitials } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
-import { kes, fmtDateTimeEAT, relTimeEAT, etaText } from "@/lib/format";
+import { kes, fmtDateTimeEAT, fmtPhone, relTimeEAT, etaText } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
 import type { SessionUser } from "@/store/session";
@@ -168,7 +168,7 @@ function OverviewTab() {
         {kpis.map((x) => (
           <div key={x.label} className="rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-4">
             <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--ink-3)]">{x.label}</p>
-            <p className={`tnum mt-1.5 text-[24px] font-extrabold tracking-tight ${x.tone === "brand" ? "text-[var(--brand)]" : x.tone === "success" ? "text-[var(--success)]" : x.tone === "danger" ? "text-[var(--danger)]" : ""}`}>
+            <p className={`tnum mt-1.5 text-[24px] font-extrabold tracking-tight ${x.tone === "brand" ? "text-[var(--brand-deep)]" : x.tone === "success" ? "text-[var(--success)]" : x.tone === "danger" ? "text-[var(--danger)]" : ""}`}>
               {x.value}
             </p>
           </div>
@@ -320,7 +320,7 @@ function ShipmentsTab() {
           </thead>
           <tbody className="divide-y divide-[var(--line)]">
             {(data?.shipments ?? []).map((s) => (
-              <tr key={s.id} onClick={() => setDetail(s)} className="cursor-pointer text-[13px] transition hover:bg-[var(--surface-2)]">
+              <tr key={s.id} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setDetail(s); } }} onClick={() => setDetail(s)} className="cursor-pointer text-[13px] transition hover:bg-[var(--surface-2)]">
                 <td className="tnum px-4 py-3 font-extrabold">{s.code}</td>
                 <td className="px-4 py-3 font-semibold">{s.customer.name}</td>
                 <td className="px-4 py-3 font-medium text-[var(--ink-2)]">{s.route.pickup.area} → {s.route.dropoff.area}</td>
@@ -349,7 +349,7 @@ function ShipmentsTab() {
             <div className="mt-4 space-y-3">
               <div className="rounded-[12px] bg-[var(--surface-2)] p-4">
                 <Row label="Customer" value={detail.customer.name} />
-                <Row label="Phone" value={`0${detail.customer.phone.slice(1)}`} />
+                <Row label="Phone" value={fmtPhone(detail.customer.phone)} />
                 <Row label="Pickup" value={detail.route.pickup.name} />
                 <Row label="Drop-off" value={detail.route.dropoff.name} />
                 <Row label="Vehicle" value={detail.vehicle ? `${detail.vehicle.make} ${detail.vehicle.model} · ${detail.vehicle.registration}` : "—"} />
@@ -369,7 +369,7 @@ function ShipmentsTab() {
                           <span className="block text-[13px] font-extrabold">{d.name} · ★ {d.rating.toFixed(1)}</span>
                           <span className="block text-[11.5px] font-semibold text-[var(--ink-3)]">{d.vehicle} · {d.registration}</span>
                         </span>
-                        <span className="text-[11.5px] font-extrabold text-[var(--brand)]">Assign</span>
+                        <span className="text-[11.5px] font-extrabold text-[var(--brand-deep)]">Assign</span>
                       </button>
                     ))}
                     {(data?.dispatchDrivers ?? []).filter((d) => d.categories.includes(detail.category.key)).length === 0 && (
@@ -444,7 +444,7 @@ function DriversTab() {
           </thead>
           <tbody className="divide-y divide-[var(--line)]">
             {(data?.drivers ?? []).map((d) => (
-              <tr key={d.id} onClick={() => setDetail(d.id)} className="cursor-pointer text-[13px] transition hover:bg-[var(--surface-2)]">
+              <tr key={d.id} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setDetail(d.id); } }} onClick={() => setDetail(d.id)} className="cursor-pointer text-[13px] transition hover:bg-[var(--surface-2)]">
                 <td className="px-4 py-3">
                   <span className="flex items-center gap-2.5">
                     <AvatarInitials initials={d.name.split(" ").map((w) => w[0]).slice(0, 2).join("")} size={30} />
@@ -785,7 +785,7 @@ function PayoutsTab() {
                 </div>
                 <div className="flex items-center gap-4 text-right">
                   <span className="tnum text-[12px] font-semibold text-[var(--ink-2)]">gross {kes(l.gross)}</span>
-                  <span className="tnum text-[12px] font-semibold text-[var(--brand)]">platform {kes(l.commission)}</span>
+                  <span className="tnum text-[12px] font-semibold text-[var(--brand-deep)]">platform {kes(l.commission)}</span>
                   <span className="tnum font-extrabold">net {kes(l.net)}</span>
                 </div>
               </div>
@@ -925,7 +925,7 @@ function AnalyticsTab() {
           {(data?.topRoutes ?? []).map((r) => (
             <div key={r.route} className="flex items-center justify-between rounded-[10px] bg-[var(--surface-2)] px-4 py-3">
               <span className="text-[13px] font-bold">{r.route}</span>
-              <span className="tnum text-[13px] font-extrabold text-[var(--brand)]">{r.count}</span>
+              <span className="tnum text-[13px] font-extrabold text-[var(--brand-deep)]">{r.count}</span>
             </div>
           ))}
         </div>

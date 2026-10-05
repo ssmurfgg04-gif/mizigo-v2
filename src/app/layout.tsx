@@ -18,6 +18,7 @@ const appMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? process.env.URL ?? "https://mizigo.netlify.app"),
   title: "Mizigo · Move anything. Anywhere.",
   description:
     "Book the right vehicle for your cargo in Nairobi and track your delivery from pickup to drop-off. Tuk-tuks, pickups, canters and lorries, one app.",
@@ -47,7 +48,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   themeColor: "#17181C",
   viewportFit: "cover",
 };

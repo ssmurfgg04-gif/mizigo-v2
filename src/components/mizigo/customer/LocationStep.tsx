@@ -3,7 +3,7 @@
 // Multi-stop support (plan §35) and save-place (plan §39).
 // Kenyan reality: landmarks and instructions matter more than street addresses.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
 import { api, post } from "@/lib/api-client";
@@ -16,12 +16,19 @@ import { toast } from "@/hooks/use-toast";
 export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
   const { user, draft, patchDraft, setBookingStep } = useSession();
   const qc = useQueryClient();
-  const [q, setQ] = useState("");
+  const [qRaw, setQ] = useState("");
+  const [q, setQDebounced] = useState("");
   const [addingStop, setAddingStop] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveLabel, setSaveLabel] = useState("");
   const isPickup = mode === "pickup";
   const selected = isPickup ? draft.pickup : draft.dropoff;
+
+  // debounce the search so typing doesn't fire a request per keystroke
+  useEffect(() => {
+    const id = window.setTimeout(() => setQDebounced(qRaw.trim()), 250);
+    return () => window.clearTimeout(id);
+  }, [qRaw]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["locations", q, user?.id],
@@ -112,7 +119,7 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
             </div>
             <button
               onClick={() => setSaveOpen(!saveOpen)}
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition ${saveOpen ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand)]" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--brand)] hover:text-[var(--brand)]"}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition ${saveOpen ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-deep)]" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--brand)] hover:text-[var(--brand-deep)]"}`}
               aria-label="Save this place"
             >
               <Star size={16} className={saveOpen ? "fill-[var(--brand)]" : ""} />
@@ -170,7 +177,7 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
             <p className="mt-1 text-[12.5px] font-medium text-[var(--ink-2)]">Multi-stop deliveries drop items at up to 2 extra points on the way.</p>
           )}
           {!addingStop && draft.stops.length < 2 && (
-            <button onClick={() => setAddingStop(true)} className="mt-2.5 flex items-center gap-1.5 text-[13px] font-bold text-[var(--brand)]">
+            <button onClick={() => setAddingStop(true)} className="mt-2.5 flex items-center gap-1.5 text-[13px] font-bold text-[var(--brand-deep)]">
               <Plus size={14} /> {draft.stops.length === 0 ? "Add another stop" : "Add one more stop"}
             </button>
           )}
@@ -184,7 +191,7 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
           <div className="mt-2 space-y-1.5">
             {data!.saved.map((s) => (
               <button key={s.label} onClick={() => choose(s)} className="flex w-full items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-left transition hover:border-[var(--ink-3)]">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)]"><Star size={14} /></span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Star size={14} /></span>
                 <span className="flex-1">
                   <span className="block text-[14px] font-bold">{s.name}</span>
                   <span className="block text-[12px] font-medium text-[var(--ink-3)]">{s.label} · {s.area}</span>
