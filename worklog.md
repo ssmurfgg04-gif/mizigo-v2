@@ -101,3 +101,37 @@ Work Log:
 Stage Summary:
 - LIVE at https://github.com/ssmurfgg04-gif/mizigo-v2 (main, 4 commits, clean history)
 - Token exposed in chat — user advised to rotate it after this session
+
+---
+Task ID: 4
+Agent: Super Z (main agent)
+Task: Mine v1 goodness into v2, new logo + vehicle icons, cinematic login, mobile responsiveness, Netlify-ready build, push.
+
+Work Log:
+- V1 mining: diffed v1 (b5d6b05) → HEAD across all customer screens: v2 was purely additive (0 deletions in Onboarding/TrackView, 2 in ActiveTrip); v1 lessons (palette.ts SVG hexes, server-authoritative, honest sandbox, single-accent) confirmed intact and re-applied to all new visual work
+- Netlify deployment (user's #1 priority):
+  * netlify.toml (build:netlify command, @netlify/plugin-nextjs@5.16.1, functions included_files for Prisma engines, no-store on /api)
+  * next.config.ts: output standalone now skipped when NETLIFY=1 (plugin builds its own bundles)
+  * package.json: postinstall prisma generate, build:netlify script
+  * prisma/schema.prisma: binaryTargets native + rhel-openssl-1.0.x + rhel-openssl-3.0.x + debian-openssl-3.0.x (Lambda runtime coverage)
+  * db.ts: NETLIFY shim → DATABASE_URL=file:/tmp/mizigo.db (writable /tmp), prod log level errors-only, PrismaClient cached on globalThis in all environments
+  * Runtime self-bootstrap: prisma migrate diff → src/lib/ddl.ts (34 IF NOT EXISTS statements via scripts/make_ddl.py) + src/lib/db-ready.ts ensureDB() (single-flight schema+seed) wired into all 15 API handlers (scripts/wire_ensure_db.py)
+  * Cold-start simulation: fresh /tmp SQLite → bootstrap seeds itself → FULL 80-check e2e ALL PASS against NETLIFY=1 production build on :3100
+- Logo redesign: "route-M" mark (M as delivery route, orange waypoint dot at the valley) in Logo component + public/logo.svg; full asset set via scripts/make_icons.mjs: favicon.ico + 16/32 PNG, apple-touch 180, PWA 192/512 + maskable, 1200×630 OG card (VLM-verified text rendering); manifest.webmanifest; layout metadata (icons/OG/twitter/appleWebApp) + viewportFit cover
+- Vehicle icons: VehicleAvatar rewritten — premium side-view illustrations for all 6 categories (tuktuk w/ spare wheel + roof rail, pickup w/ strapped boxes, van w/ window band, canter stake flatbed, lorry 7t canvas tilt, lorry 10t corrugated container + tandem axles), shared Wheel/Ground/lights subroutines, top-view kept for map markers; VLM verified: all 6 distinguishable, consistent direction, no glitches
+- Login redesign (Terminal-Industries-inspired, user brief: light assets, webp):
+  * Generated 2 cinematic night freight-yard photos (z-ai image), baked 1.1px gaussian on desktop to dissolve container markings, sharp webp: 46KB + 63KB
+  * Welcome: photo + ink scrims + telemetry grid + scanline sweep + Ken Burns; HUD mono coordinates line w/ live dot; route telemetry SVG (SMIL moving vehicle dot, marching brand dashes, green origin, brand pin); staggered glass chips; role sheet unchanged light surface
+  * Desktop shell: photo field behind ambient copy + device frame
+- Responsiveness (user: fit most mobile sizes, adapt on desktop):
+  * Phones now edge-to-edge full-bleed (no frame/no notch below lg), device frame only on lg+
+  * Phone height max(480px,82dvh) — no more min-height overflow on short desktop windows (caught via DOM measurement at 577px viewport)
+  * Hero content scrolls on short viewports, sheet never clips; ≤640px height hides decorative route/chips (mz-hide-short) + tighter spacing; safe-area pt-safe/pb-safe; verified 320×568, 390×844, 412×915, 1280×577, 1440×900
+- VLM rounds this session (6 checks): OG card, vehicle step (2), desktop login ×3, mobile 320+390, driver home/earnings/account, admin console — caught + fixed: role sheet below fold on short viewports, min-h overflow, container-marking artifacts
+- QA: eslint clean, tsc clean (src), NETLIFY=1 build green, 80/80 e2e on BOTH dev :3000 and simulated Netlify :3100
+- Docs: README Netlify deploy section + design-layer notes + asset regen commands; DESIGN_SYSTEM.md logomark/vehicle/hero sections
+
+Stage Summary:
+- MIZIGO v2 is Netlify-ready: connect repo → deploy, API self-bootstraps SQLite in /tmp (no DB service needed for the sandbox)
+- New route-M brand system end-to-end (app + favicons + PWA + OG), premium vehicle illustration set, cinematic yet light (109KB) login
+- Fully responsive: SE → tablet → desktop; 80/80 e2e green on dev and simulated serverless

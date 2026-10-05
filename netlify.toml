@@ -1,0 +1,32 @@
+# MIZIGO — Netlify deployment
+# Connect the repo at https://app.netlify.com (New site from Git) and it picks
+# this file up automatically. First deploy bootstraps SQLite in the function's
+# /tmp and seeds demo data on the first API hit (see src/lib/db-ready.ts).
+
+[build]
+  command = "npm run build:netlify"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # let Netlify's Next runtime own the build output
+  NEXT_TELEMETRY_DISABLED = "true"
+
+# Netlify's Next.js runtime (App Router, route handlers → functions)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  # keep the Prisma query engines (multi-platform) inside the function bundle
+  included_files = [
+    "node_modules/.prisma/**/*",
+    "node_modules/@prisma/client/**/*",
+    "node_modules/prisma/libquery_engine*/*",
+    "node_modules/@prisma/engines/*"
+  ]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+  Cache-Control = "no-store"

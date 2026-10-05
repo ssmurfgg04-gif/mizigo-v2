@@ -77,15 +77,21 @@ export function Logo({ size = "md", wordmark = true, tone = "ink" }: { size?: "s
   const c = tone === "ink" ? "text-[var(--ink)]" : "text-white";
   return (
     <span className={cx("inline-flex items-center gap-2 font-extrabold tracking-[-0.03em]", c)}>
+      {/* route-M: an M drawn as a delivery route — origin leg, two arcs, and an
+          orange waypoint dot where the cargo lands. Reads as M + map pin. */}
       <svg width={dims} height={dims} viewBox="0 0 32 32" aria-hidden="true">
         <rect x="1" y="1" width="30" height="30" rx="9" fill={tone === "ink" ? C.ink : C.white} />
-        <g stroke={tone === "ink" ? "white" : C.ink} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <path d="M9 22.5 L9 12.5" />
-          <path d="M9 12.5 L16 9.5 L23 12.5" />
-          <path d="M23 12.5 L23 22.5" />
-          <path d="M9 22.5 L23 22.5" />
-          <path d="M13 22.5 L13 17 L19 17 L19 22.5" stroke={C.brand} />
+        <g
+          stroke={tone === "ink" ? C.white : C.ink}
+          strokeWidth="2.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        >
+          <path d="M8.5 22.7 L8.5 9.3 L13.3 16" />
+          <path d="M18.7 16 L23.5 9.3 L23.5 22.7" />
         </g>
+        <circle cx="16" cy="18.2" r="2.9" fill={C.brand} />
       </svg>
       {wordmark && <span className={word}>MIZIGO</span>}
     </span>

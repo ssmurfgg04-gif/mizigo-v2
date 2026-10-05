@@ -2,7 +2,8 @@
 """End-to-end API test of the MIZIGO booking lifecycle (state machine validation)."""
 import json, urllib.request, sys, time
 
-BASE = "http://localhost:3000"
+import os
+BASE = os.environ.get("MIZIGO_BASE", "http://localhost:3000")
 
 def call(path, method="GET", body=None):
     req = urllib.request.Request(BASE + path, method=method,

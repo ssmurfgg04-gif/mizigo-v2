@@ -4,6 +4,20 @@
 
 This is the sandbox MVP (v2): customer booking, driver operations and an admin console, built around a server-authoritative shipment state machine, a database-driven pricing engine and a matching engine — the way the product brief describes it (Uber's simplicity, cargo-specific intelligence, M-Pesa-first, deeply Kenyan behavior).
 
+## Deploy to Netlify
+
+The repo is Netlify-ready — no configuration needed beyond connecting it:
+
+1. Push to GitHub (done).
+2. [app.netlify.com](https://app.netlify.com) → **Add new site → Import an existing project** → pick the `mizigo-v2` repo.
+3. Build settings are read from `netlify.toml` (command `npm run build:netlify`, `@netlify/plugin-nextjs`). Click **Deploy**.
+
+On the first request after a deploy, the API bootstraps itself: SQLite is created in the function's writable `/tmp` (schema DDL + demo seed — see `src/lib/db-ready.ts`), so **no database service is required**. Notes for the demo: each warm function instance keeps its own data; a cold start reseeds fresh demo data (fine for a sandbox — it's labeled honestly in-app). For durable data, swap the Prisma datasource to Postgres/Turso and keep everything else.
+
+Prisma query engines for the Netlify function runtime are prebuilt via `binaryTargets` in `prisma/schema.prisma`.
+
+Local production-parity check: `rm -f /tmp/mizigo.db && NETLIFY=1 npm run build:netlify && NETLIFY=1 DATABASE_URL=file:/tmp/mizigo.db npx next start -p 3100` — the app self-bootstraps from an empty `/tmp` (80/80 e2e green against it).
+
 ## What's inside
 
 | Surface | Entry | Highlights |
@@ -12,6 +26,8 @@ This is the sandbox MVP (v2): customer booking, driver operations and an admin c
 | **Driver app** | `/?role=driver` (demo: Peter Kamau) | Online/offline, earnings today + 7-day chart, demand map, job offers with full earnings disclosure, step-by-step trip flow with cargo verification + POD capture, **quote submission for marketplace jobs**, **stop sequence with mark-done**, **chat with the customer**, **cargo issue reporting to ops**, **documents screen** (licence/insurance/inspection with expiry), wallet + M-PESA withdrawals |
 | **Admin console** | `/?role=admin` | KPI dashboard, live network map, bookings table + chain-of-custody drawers, **manual dispatch (assign driver)**, driver management with document verification, **customer/business accounts**, **live pricing editor** (zone + per-vehicle-category, no redeploy), payments, **payout ledger (B2C)**, disputes, **support exception queue**, **promotions manager**, analytics (+ **top drivers**), **platform settings** (advance-booking window, auto-dispatch toggle, quote expiry, hotline), audit log |
 | **Public tracking** | `/?view=track&token=…` | No-login recipient page: driver first name, vehicle, ETA, status, journey timeline. No phones or private data. |
+
+**Design layer** — route-M logomark with waypoint dot (favicons + PWA manifest + OG card in `public/`), premium side-view vehicle illustrations for all six classes (`VehicleAvatar`), cinematic login: night freight-yard photography (two webp assets, ~110KB total) under a Terminal-style telemetry HUD (live coordinates, animated route with a moving vehicle, scanline sweep, Ken Burns drift), fully responsive — edge-to-edge on phones (safe-area aware, adapts down to iPhone SE) and a device frame on desktop.
 
 ## Architecture (docs/)
 
@@ -51,4 +67,6 @@ bun run db:push     # SQLite schema
 bun run dev         # seeds demo data on first request
 ```
 
-Tests: `python3 scripts/e2e_test.py` (80 checks across the booking lifecycle, payments, matching, POD, pricing edits, promos, multi-stop, scheduling, the quote marketplace, manual dispatch, disputes, saved places, admin tabs and public-tracking privacy). Reseed anytime with `bun run scripts/reseed.ts`.
+Tests: `python3 scripts/e2e_test.py` (80 checks across the booking lifecycle, payments, matching, POD, pricing edits, promos, multi-stop, scheduling, the quote marketplace, manual dispatch, disputes, saved places, admin tabs and public-tracking privacy). Point it at another instance with `MIZIGO_BASE=http://localhost:3100`. Reseed anytime with `bun run scripts/reseed.ts`.
+
+Icon/asset regeneration: `node scripts/make_icons.mjs` (logo → favicon/PWA/OG set) · `node scripts/make_hero.mjs` (hero webp) · `python3 scripts/make_ddl.py` (schema → `src/lib/ddl.ts` after model changes).

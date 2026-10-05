@@ -6,12 +6,14 @@
 import { NextResponse } from "next/server";
 import { getShipmentFull, shipmentDTO, applyTransition, simulateLive } from "@/lib/shipments";
 import { db } from "@/lib/db";
+import { ensureDB } from "@/lib/db-ready";
 
 export const dynamic = "force-dynamic";
 
 const SEC = 1000;
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  await ensureDB();
   const { id } = await params;
   const demoAuto = new URL(req.url).searchParams.get("demo") === "auto";
   let s = await getShipmentFull({ id });

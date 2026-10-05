@@ -3,7 +3,7 @@
 // GET /api/shipments?userId= — customer trip history.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ensureSeed } from "@/lib/seed";
+import { ensureDB } from "@/lib/db-ready";
 import { newShipmentCode, newShareToken, getShipmentFull, shipmentDTO } from "@/lib/shipments";
 import { priceFor, estimateWeight, recommendCategory } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
@@ -11,7 +11,7 @@ import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  await ensureSeed();
+  await ensureDB();
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  await ensureSeed();
+  await ensureDB();
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });

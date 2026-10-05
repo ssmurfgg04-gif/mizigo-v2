@@ -245,14 +245,57 @@
   100% { stroke-dashoffset: 0; }
 }
 
+/* ── Cinematic hero (login) ─────────────────────────────────────────── */
+@keyframes mz-kenburns {
+  0% { transform: scale(1.06) translateX(0); }
+  100% { transform: scale(1.14) translateX(-1.6%); }
+}
+@keyframes mz-scan {
+  0% { transform: translateY(-130%); opacity: 0; }
+  14% { opacity: 0.8; }
+  60% { opacity: 0.8; }
+  100% { transform: translateY(130%); opacity: 0; }
+}
+@keyframes mz-chip-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .animate-mz-pulse { animation: mz-pulse 2s ease-in-out infinite; }
 .animate-mz-radar { animation: mz-radar 2.2s ease-out infinite; }
 .animate-mz-slide-up { animation: mz-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-mz-fade-in { animation: mz-fade-in 0.3s ease both; }
 .animate-mz-dash { animation: mz-dash 0.9s linear infinite; }
 .animate-mz-check { animation: mz-check 0.55s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-mz-kenburns { animation: mz-kenburns 26s ease-in-out infinite alternate; }
+.animate-mz-scan { animation: mz-scan 9s ease-in-out infinite; }
+.animate-mz-chip-in { animation: mz-chip-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* faint HUD grid over hero photography */
+.mz-telemetry-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 82%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 82%);
+}
+/* notched-phone safe areas */
+.pb-safe {
+  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
+}
+.pt-safe {
+  padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 2.75rem));
+}
+/* short viewports (iPhone SE class): decorative layers step aside */
+@media (max-height: 640px) {
+  .mz-hide-short { display: none; }
+  .pt-safe { padding-top: max(2.25rem, calc(env(safe-area-inset-top) + 1.75rem)); }
+  .mz-hero-gap { margin-top: 1.25rem; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .animate-mz-pulse, .animate-mz-radar, .animate-mz-dash { animation: none; }
   .animate-mz-slide-up, .animate-mz-fade-in { animation: none; }
+  .animate-mz-kenburns, .animate-mz-scan, .animate-mz-chip-in { animation: none; }
 }

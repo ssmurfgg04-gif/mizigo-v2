@@ -2,12 +2,12 @@
 import { NextResponse } from "next/server";
 import { searchPlaces } from "@/lib/geo";
 import { db } from "@/lib/db";
-import { ensureSeed } from "@/lib/seed";
+import { ensureDB } from "@/lib/db-ready";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  await ensureSeed();
+  await ensureDB();
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") ?? "";
   const userId = searchParams.get("userId");

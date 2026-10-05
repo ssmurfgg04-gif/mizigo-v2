@@ -1,7 +1,7 @@
 // GET /api/driver — driver surface data (home | requests | earnings | trips | vehicle)
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ensureSeed } from "@/lib/seed";
+import { ensureDB } from "@/lib/db-ready";
 import { ACTIVE_STATES } from "@/lib/state-machine";
 import { DEMAND_ZONES } from "@/lib/matching";
 import { shipmentDTO } from "@/lib/shipments";
@@ -9,7 +9,7 @@ import { shipmentDTO } from "@/lib/shipments";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  await ensureSeed();
+  await ensureDB();
   const { searchParams } = new URL(req.url);
   const driverId = searchParams.get("driverId");
   if (!driverId) return NextResponse.json({ error: "driverId required" }, { status: 400 });

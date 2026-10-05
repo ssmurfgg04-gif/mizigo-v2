@@ -4,10 +4,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getShipmentFull, shipmentDTO } from "@/lib/shipments";
 import { STATUS_LABEL } from "@/lib/state-machine";
+import { ensureDB } from "@/lib/db-ready";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+  await ensureDB();
   const { token } = await params;
   const s = await db.shipment.findUnique({ where: { shareToken: token } });
   if (!s) return NextResponse.json({ error: "Tracking link not found" }, { status: 404 });

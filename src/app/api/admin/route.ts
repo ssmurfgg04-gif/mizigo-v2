@@ -3,14 +3,14 @@
 // pricing | disputes | support | promotions | settings | analytics | audit
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ensureSeed } from "@/lib/seed";
+import { ensureDB } from "@/lib/db-ready";
 import { activeShipments, shipmentDTO } from "@/lib/shipments";
 import { STATUS_LABEL } from "@/lib/state-machine";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  await ensureSeed();
+  await ensureDB();
   const { searchParams } = new URL(req.url);
   const tab = searchParams.get("tab") ?? "overview";
 

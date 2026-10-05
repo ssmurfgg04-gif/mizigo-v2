@@ -1,12 +1,12 @@
 // POST /api/auth — action: "otp" | "verify"  (mock OTP provider; code returned in dev)
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ensureSeed } from "@/lib/seed";
+import { ensureDB } from "@/lib/db-ready";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  await ensureSeed();
+  await ensureDB();
   const body = await req.json().catch(() => ({}));
   const action = body.action as string;
 

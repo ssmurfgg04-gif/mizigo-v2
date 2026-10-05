@@ -4,6 +4,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // native = build machine (local + Netlify Ubuntu build image);
+  // rhel/debian targets cover AWS Lambda (Netlify function runtime).
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {

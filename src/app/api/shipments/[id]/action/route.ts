@@ -8,10 +8,12 @@ import { db } from "@/lib/db";
 import { applyTransition, getShipmentFull, shipmentDTO } from "@/lib/shipments";
 import { matchDriver } from "@/lib/matching";
 import { mpesaRef } from "@/lib/format";
+import { ensureDB } from "@/lib/db-ready";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  await ensureDB();
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");

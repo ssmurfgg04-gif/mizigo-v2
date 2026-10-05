@@ -1,12 +1,12 @@
 // GET /api/bootstrap — ensure seed, return marketplace config.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ensureSeed } from "@/lib/seed";
+import { ensureDB } from "@/lib/db-ready";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  await ensureSeed();
+  await ensureDB();
   const [categories, zone, counts] = await Promise.all([
     db.vehicleCategory.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.pricingZone.findFirst({ where: { key: "nairobi" } }),

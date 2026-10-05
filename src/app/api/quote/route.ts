@@ -1,7 +1,7 @@
 // POST /api/quote — price a draft booking. Rates come from DB only.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ensureSeed } from "@/lib/seed";
+import { ensureDB } from "@/lib/db-ready";
 import { priceFor, estimateWeight, recommendCategory, type CargoItem } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin, haversineKm } from "@/lib/geo";
 import { nearbyDrivers } from "@/lib/matching";
@@ -18,7 +18,7 @@ interface QuoteBody {
 }
 
 export async function POST(req: Request) {
-  await ensureSeed();
+  await ensureDB();
   const body = (await req.json().catch(() => null)) as QuoteBody | null;
   if (!body?.pickup?.lat || !body?.dropoff?.lat) {
     return NextResponse.json({ error: "Pickup and destination are required." }, { status: 400 });

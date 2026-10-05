@@ -73,3 +73,21 @@ Purposeful only: status-change transitions (timeline item activates), driver-fou
 ## Empty / loading / error states
 
 Every list has an empty state with one CTA. Live screens poll with skeletons that match final layout. Errors are human ("We couldn't find a vehicle nearby." + actions), never raw codes.
+
+## Logomark — the route-M
+
+The MIZIGO mark is an **M drawn as a delivery route**: two white strokes form the outer legs and diagonals; the valley vertex is replaced by a **signal-orange waypoint dot** (the cargo's destination pin). Tile: ink `#17181C`, radius 9/32, glyph stroke 2.7 round-caps.
+
+- Wordmark: Manrope 800, tracking −0.03em, always `MIZIGO` caps.
+- Uses: `<Logo />` (`tone="light"` on dark), favicon set + maskable PWA icon + OG card (`scripts/make_icons.mjs` regenerates all raster sizes from the same geometry).
+- Never stretch, recolor the dot, or place on busy photography without the scrim.
+
+## Vehicle illustration family
+
+`VehicleAvatar` renders **side-view** vector vehicles (default) or the simplified top-view (map markers, `view="top"`). One family: ink cargo bodies, brand-orange cabs, surface glass, detailed wheels (tire + rim ring + hub), headlights/taillights, ground shadow. Six silhouettes progress in size: tuktuk (with rear spare wheel + roof rail) → pickup (open bed, strapped boxes) → van (HiAce proportions, window band) → canter (stake-rail flatbed) → lorry 7t (canvas tilt + straps) → lorry 10t (corrugated container + brand stripe + tandem axles). All face right = direction of progress. SVG hex palette from `lib/palette.ts` (presentation attributes can't resolve CSS vars).
+
+## Cinematic hero (login)
+
+Night freight-yard photography (`hero-desktop.webp` 1344×768 ≈46KB, `hero-mobile.webp` 720×1260 ≈63KB; baked 1.1px gaussian to keep container markings ambient) under: ink scrim gradients (top/bottom/left), faint telemetry grid (`mz-telemetry-grid`), slow scanline sweep (`mz-scan`), Ken Burns drift (`mz-kenburns`). HUD language: JetBrains Mono 10.5px uppercase, tracking 0.14–0.18em, white/45; live-status dot pulses; route line = white 16% base + brand dashed marching overlay + SMIL vehicle dot + origin (green) + destination (brand pin). Role sheet stays warm surface — the single light panel on the dark field.
+
+**Responsive rules**: phones are edge-to-edge (`100dvh`, safe-area padding via `pt-safe`/`pb-safe`); hero content scrolls if short, sheet never clips; below 640px height the decorative route/chips step aside (`mz-hide-short`). Desktop ≥lg: ambient copy + device frame (`max(480px,82dvh)` phone, min never below 480px) over the shared photo field.

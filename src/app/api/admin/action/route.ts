@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { applyTransition } from "@/lib/shipments";
 import { mpesaRef } from "@/lib/format";
+import { ensureDB } from "@/lib/db-ready";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ async function audit(actor: string, action: string, target: string, detail?: str
 }
 
 export async function POST(req: Request) {
+  await ensureDB();
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");
   const actor = String(body.actor ?? "admin@mizigo.demo");
