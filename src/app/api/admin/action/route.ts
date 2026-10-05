@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { applyTransition } from "@/lib/shipments";
 import { mpesaRef } from "@/lib/format";
 import { ensureDB } from "@/lib/db-ready";
+import { requireRole, isResponse, rateLimit } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,14 @@ async function audit(actor: string, action: string, target: string, detail?: str
 
 export async function POST(req: Request) {
   await ensureDB();
+  // audited mutations are admin-only; the audit actor is the session identity
+  const session = requireRole(req, "ADMIN");
+  if (isResponse(session)) return session;
+  const limited = rateLimit(req, "admin:action", 90, 60_000);
+  if (limited) return limited;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");
-  const actor = String(body.actor ?? "admin@mizigo.demo");
+  const actor = `admin:${session.uid.slice(-8)}`;
 
   if (action === "pricing-zone") {
     const { id, ...fields } = body;

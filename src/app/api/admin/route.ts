@@ -6,11 +6,15 @@ import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { activeShipments, shipmentDTO } from "@/lib/shipments";
 import { STATUS_LABEL } from "@/lib/state-machine";
+import { requireRole, isResponse } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   await ensureDB();
+  // operations data is admin-only (PII, pricing, payouts)
+  const session = requireRole(req, "ADMIN");
+  if (isResponse(session)) return session;
   const { searchParams } = new URL(req.url);
   const tab = searchParams.get("tab") ?? "overview";
 

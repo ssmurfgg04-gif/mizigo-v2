@@ -10,6 +10,7 @@ import { useSession } from "@/store/session";
 import { Button, Row } from "@/components/mizigo/shared/ui";
 import { kes, fmtDateTimeEAT, fmtTimeEAT } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
+import { shareTrackLink } from "@/components/mizigo/shared/share";
 
 const QUICK_TAGS = ["Arrived on time", "Careful with cargo", "Professional", "Good communication", "Vehicle clean"];
 
@@ -141,9 +142,8 @@ export function ReceiptScreen() {
   };
 
   const share = () => {
-    setTrackToken(s.shareToken);
-    navigator.clipboard?.writeText(`${location.origin}/?view=track&token=${s.shareToken}`).catch(() => {});
-    toast({ title: "Share", description: "Tracking link copied — anyone can follow this delivery." });
+    // v1 lesson: mint a fresh recipient link on demand — raw tokens are never stored
+    void shareTrackLink(s.id);
   };
 
   const close = () => {

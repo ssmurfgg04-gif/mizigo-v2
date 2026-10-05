@@ -14,6 +14,7 @@ import { kes, fmtDateTimeEAT, relTimeEAT } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { LANGUAGES, t } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
+import { shareTrackLink } from "@/components/mizigo/shared/share";
 
 // ─── Trips ───
 export function TripsScreen() {
@@ -226,7 +227,7 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
             Book again
           </Button>
         )}
-        <Button variant="outline" onClick={() => { setTrackToken(s.shareToken); navigator.clipboard?.writeText(`${location.origin}/?view=track&token=${s.shareToken}`).catch(() => {}); toast({ title: "Tracking link copied" }); }}>
+        <Button variant="outline" onClick={() => { void shareTrackLink(s.id); }}>
           Share tracking
         </Button>
       </div>
@@ -441,7 +442,7 @@ export function AccountScreen() {
         <Button variant="outline" className="w-full" onClick={() => { setSurface("welcome"); }}>
           Switch to driver app
         </Button>
-        <Button variant="ghost" className="w-full" onClick={logout}>
+        <Button variant="ghost" className="w-full" onClick={() => { post("/api/auth", { action: "logout" }).catch(() => null); logout(); }}>
           <LogOut size={15} /> Log out
         </Button>
       </div>

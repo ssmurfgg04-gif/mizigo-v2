@@ -5,6 +5,7 @@ import { ensureDB } from "@/lib/db-ready";
 import { priceFor, estimateWeight, recommendCategory, isNightHour, type CargoItem } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin, haversineKm } from "@/lib/geo";
 import { nearbyDrivers } from "@/lib/matching";
+import { rateLimit, validCoord, clampInt, sanitizeItems, sanitizeStops } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,17 @@ interface QuoteBody {
 
 export async function POST(req: Request) {
   await ensureDB();
+  const limited = rateLimit(req, "quote", 40, 60_000);
+  if (limited) return limited;
   const body = (await req.json().catch(() => null)) as QuoteBody | null;
-  if (!body?.pickup?.lat || !body?.dropoff?.lat) {
+  // coordinates must be finite + inside the service region (fuzz-proof)
+  const pickupC = body ? validCoord(body.pickup?.lat, body.pickup?.lng) : null;
+  const dropoffC = body ? validCoord(body.dropoff?.lat, body.dropoff?.lng) : null;
+  if (!pickupC || !dropoffC) {
     return NextResponse.json({ error: "Pickup and destination are required." }, { status: 400 });
   }
+  const stops = sanitizeStops(body!.stops);
+  const items = sanitizeItems(body!.cargo?.items);
 
   const [zone, categories, driversRaw] = await Promise.all([
     db.pricingZone.findFirst({ where: { key: "nairobi" } }),
@@ -33,31 +41,32 @@ export async function POST(req: Request) {
   if (!zone) return NextResponse.json({ error: "No pricing zone configured" }, { status: 500 });
 
   // distance = pickup→stops→dropoff
-  const waypoints = [body.pickup, ...(body.stops ?? []), body.dropoff].map((p) => ({ lat: p.lat, lng: p.lng }));
+  const waypoints = [pickupC, ...stops, dropoffC];
   let distanceKm = 0;
   for (let i = 0; i < waypoints.length - 1; i++) distanceKm += routeDistanceKm(waypoints[i], waypoints[i + 1]);
   distanceKm = Math.round(distanceKm * 10) / 10;
   const durationMin = routeDurationMin(distanceKm);
-  const weightKg = estimateWeight(body.cargo.items ?? [], body.cargo.load ?? "MEDIUM");
+  const weightKg = estimateWeight(items, body!.cargo?.load ?? "MEDIUM");
   const extraStops = Math.max(0, waypoints.length - 2);
-  const needsCovered = (body.cargo.special ?? []).includes("covered");
+  const needsCovered = (body!.cargo?.special ?? []).includes("covered");
   const peak = new Date().getDay() >= 4 && new Date().getHours() >= 16; // Thu+ evenings (mock demand signal)
   // v1 pricing factors: night surcharge + planned-delivery discount
-  const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+  const scheduledAt = body!.scheduledAt ? new Date(body!.scheduledAt) : null;
   const refHour = scheduledAt ?? new Date();
   const night = isNightHour(refHour);
   const scheduled = !!scheduledAt;
 
-  const recommendedKey = recommendCategory(weightKg, categories, body.cargo.category);
+  const recommendedKey = recommendCategory(weightKg, categories, body!.cargo?.category);
+  const helpers = clampInt(body!.cargo?.helpers, 0, 6, 0);
 
   // ── promo preview (validated again server-side at booking) ──
   let promo: { code: string; discount: number } | { code: string; error: string } | null = null;
-  const rawPromo = String(body.promoCode ?? "").trim().toUpperCase();
+  const rawPromo = String(body!.promoCode ?? "").trim().toUpperCase();
   if (rawPromo) {
     const promoRow = await db.promoCode.findUnique({ where: { code: rawPromo } });
-    const customer = body.customerId ? await db.user.findUnique({ where: { id: body.customerId } }) : null;
-    const firstTrip = body.customerId
-      ? !(await db.shipment.count({ where: { customerId: body.customerId, status: { in: ["COMPLETED", "IN_TRANSIT", "ARRIVING", "DELIVERED", "POD_CONFIRMED"] } } }))
+    const customer = body!.customerId ? await db.user.findUnique({ where: { id: body!.customerId } }) : null;
+    const firstTrip = body!.customerId
+      ? !(await db.shipment.count({ where: { customerId: body!.customerId, status: { in: ["COMPLETED", "IN_TRANSIT", "ARRIVING", "DELIVERED", "POD_CONFIRMED"] } } }))
       : false;
     if (!promoRow || !promoRow.active) promo = { code: rawPromo, error: "That promo code isn't valid." };
     else if (promoRow.expiresAt && promoRow.expiresAt < new Date()) promo = { code: rawPromo, error: "That promo code has expired." };
@@ -70,7 +79,7 @@ export async function POST(req: Request) {
   const quotes = categories
     .filter((c) => !(needsCovered && c.bodyType === "open"))
     .map((c) => {
-      const fare = priceFor(c, zone, { distanceKm, durationMin, helpers: body.cargo.helpers ?? 0, extraStops, peak, night, scheduled });
+      const fare = priceFor(c, zone, { distanceKm, durationMin, helpers, extraStops, peak, night, scheduled });
       // apply promo preview to this quote's total
       let discount = 0;
       if (promo && "discount" in promo && promoRow) {
@@ -83,7 +92,7 @@ export async function POST(req: Request) {
       // arrival estimate: nearest online driver of this category
       const cands = driversRaw.filter((d) => d.status === "ONLINE" && d.verification === "VERIFIED");
       const nearest = cands
-        .map((d) => haversineKm({ lat: d.lat, lng: d.lng }, { lat: body.pickup.lat, lng: body.pickup.lng }))
+        .map((d) => haversineKm({ lat: d.lat, lng: d.lng }, pickupC))
         .sort((a, b) => a - b)[0];
       const etaMin = nearest != null ? Math.max(4, Math.round((nearest / 26) * 60) + 2) : 9 + c.sortOrder * 3;
       const fits = c.capacityKg >= weightKg;
@@ -108,7 +117,7 @@ export async function POST(req: Request) {
     quotes,
     nearby: nearbyDrivers(
       driversRaw.map((d) => ({ ...d, user: d.user ? { name: d.user.name } : null })),
-      { lat: body.pickup.lat, lng: body.pickup.lng }, 8
+      pickupC, 8
     ),
   });
 }

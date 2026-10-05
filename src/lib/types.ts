@@ -32,7 +32,7 @@ export interface LivePosition {
 }
 
 export interface ShipmentDTO {
-  id: string; code: string; shareToken: string; status: string;
+  id: string; code: string; status: string;
   createdAt: string; stateEnteredAt: string; scheduledAt: string | null;
   route: {
     pickup: { name: string; area: string; lat: number; lng: number; note: string | null; contact: string | null; phone: string | null };

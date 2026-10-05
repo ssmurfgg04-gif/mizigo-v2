@@ -4,10 +4,10 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity, BarChart3, Ban, Banknote, CheckCircle2, FileWarning, LayoutDashboard,
+  Activity, BarChart3, Ban, Banknote, Building2, CheckCircle2, FileWarning, LayoutDashboard,
   LifeBuoy, Loader2, Map as MapIcon, Package, Pencil, Plus, Search, Settings, ShieldCheck, Tag, Truck, Users, Wallet, XCircle,
 } from "lucide-react";
-import { api, post } from "@/lib/api-client";
+import { api, post, loginWithOtp } from "@/lib/api-client";
 import type { AdminOverview, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, Row, SectionTitle, StatusBadge, toneForStatus, AvatarInitials } from "@/components/mizigo/shared/ui";
@@ -15,6 +15,43 @@ import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import { kes, fmtDateTimeEAT, relTimeEAT, etaText } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
+import type { SessionUser } from "@/store/session";
+
+/** Sandbox operations sign-in — the same mock-OTP handshake as every surface. */
+function AdminLogin() {
+  const { setUser, setSurface } = useSession();
+  const [busy, setBusy] = useState(false);
+  const login = async () => {
+    setBusy(true);
+    try {
+      const user = await loginWithOtp<SessionUser>("0733000011");
+      if (user.role !== "ADMIN") {
+        toast({ title: "That account isn't an operator", variant: "destructive" });
+      } else {
+        setUser(user);
+      }
+    } catch (e) {
+      toast({ title: "Login failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex h-full min-h-[100dvh] flex-col items-center justify-center gap-6 bg-[var(--paper)] px-8 text-center">
+      <div className="max-w-sm">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[var(--ink)] text-white"><Building2 size={20} /></span>
+        <h1 className="mt-4 text-[24px] font-extrabold tracking-tight">Operations console</h1>
+        <p className="mt-1.5 text-[13.5px] font-medium text-[var(--ink-2)]">The network, pricing, dispatch and disputes — live.</p>
+      </div>
+      <Button variant="brand" className="w-full max-w-xs" onClick={login} loading={busy}>
+        Continue as Ops Control (sandbox)
+      </Button>
+      <button onClick={() => setSurface("welcome")} className="text-[13px] font-bold text-[var(--ink-3)] underline underline-offset-4">
+        Back to role select
+      </button>
+    </div>
+  );
+}
 
 const NAV = [
   { key: "overview", label: "Dashboard", icon: LayoutDashboard },
@@ -35,7 +72,10 @@ const NAV = [
 ] as const;
 
 export default function AdminApp() {
-  const { adminTab, setAdminTab, setSurface } = useSession();
+  const { adminTab, setAdminTab, setSurface, user } = useSession();
+
+  // ops console is admin-only — sign in with the sandbox operations account
+  if (user?.role !== "ADMIN") return <AdminLogin />;
 
   return (
     <div className="flex h-full min-h-0 bg-[var(--paper)]">

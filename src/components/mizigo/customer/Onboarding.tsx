@@ -4,9 +4,9 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Building2, Smartphone, User } from "lucide-react";
 import { Button, Logo, AvatarInitials } from "@/components/mizigo/shared/ui";
-import { post } from "@/lib/api-client";
+import { post, loginWithOtp } from "@/lib/api-client";
 import { fmtPhone } from "@/lib/format";
-import { useSession } from "@/store/session";
+import { useSession, type SessionUser } from "@/store/session";
 import { toast } from "@/hooks/use-toast";
 
 export default function Onboarding() {
@@ -72,10 +72,11 @@ export default function Onboarding() {
     setPhone(p);
     setBusy(true);
     try {
-      const r = await post<{ user: { id: string; phone: string; name: string; role: string; accountType: string; businessName: string | null; avatarSeed: string } }>("/api/auth", {
-        action: "verify", phone: p, code: "000000",
-      });
-      setUser(r.user);
+      // sandbox two-step: request the mock OTP, then verify with the shown code
+      const user = await loginWithOtp<SessionUser>(p);
+      setUser(user);
+    } catch (e) {
+      toast({ title: "Demo login failed", description: (e as Error).message, variant: "destructive" });
     } finally {
       setBusy(false);
     }

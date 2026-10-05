@@ -1,9 +1,10 @@
 // GET /api/return-loads — the empty-leg marketplace (v1 goodness: "Use the empty leg").
 // Public list of discounted return capacity that is already moving.
-// ?mine=1&driverId= — the driver's own published legs (any status).
+// ?mine=1 — the session driver's own published legs (any status).
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
+import { getSession } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +38,12 @@ export async function GET(req: Request) {
   await ensureDB();
   const { searchParams } = new URL(req.url);
   const mine = searchParams.get("mine");
-  const driverId = searchParams.get("driverId");
 
-  if (mine && driverId) {
+  if (mine) {
+    // the session's own driver profile — never a query param
+    const session = getSession(req);
+    const driverId = session?.did ?? null;
+    if (!driverId) return NextResponse.json({ error: "Sign in as a driver first." }, { status: 403 });
     const rows = await db.returnLoad.findMany({
       where: { driverId },
       orderBy: { createdAt: "desc" },

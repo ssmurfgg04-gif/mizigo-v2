@@ -22,7 +22,8 @@ import { driverReliability } from "@/lib/matching";
 import { kes, etaText, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
-import { post as apiPost } from "@/lib/api-client";
+import { post as apiPost, loginWithOtp } from "@/lib/api-client";
+import type { SessionUser } from "@/store/session";
 
 // ─── Home ───
 function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: () => void }) {
@@ -782,7 +783,7 @@ function DriverAccountScreen({ data }: { data: DriverHome }) {
         </div>
       )}
 
-      <Button variant="ghost" className="w-full" onClick={logout}><LogOut size={15} /> Log out</Button>
+      <Button variant="ghost" className="w-full" onClick={() => { apiPost("/api/auth", { action: "logout" }).catch(() => null); logout(); }}><LogOut size={15} /> Log out</Button>
       <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo Driver · v2 sandbox</p>
     </div>
   );
@@ -977,12 +978,15 @@ function DriverLogin() {
   const login = async () => {
     setBusy(true);
     try {
-      const v = await apiPost<{ user: { id: string; phone: string; name: string; role: string; accountType: string; businessName: string | null; avatarSeed: string; driverId: string | null } }>("/api/auth", { action: "verify", phone: "0712000002", code: "000000" });
-      if (v.user.driverId) {
-        setUser(v.user, v.user.driverId);
+      // sandbox two-step: request the mock OTP, verify with the shown code
+      const user = await loginWithOtp<SessionUser & { driverId: string | null }>("0712000002");
+      if (user.driverId) {
+        setUser(user, user.driverId);
       } else {
         toast({ title: "This number has no driver profile", variant: "destructive" });
       }
+    } catch (e) {
+      toast({ title: "Login failed", description: (e as Error).message, variant: "destructive" });
     } finally {
       setBusy(false);
     }

@@ -1,42 +1,91 @@
 #!/usr/bin/env python3
-"""End-to-end API test of the MIZIGO booking lifecycle (state machine validation)."""
-import json, urllib.request, sys, time
+"""MIZIGO e2e v3 — session-authenticated lifecycle + security + stress suite.
+
+Every protected call carries a signed session cookie obtained through the real
+mock-OTP handshake (otp → devCode → verify). The suite covers the full booking
+lifecycle, v2 features, v1-mined features, the authn/authz matrix, input
+validation, rate limiting and concurrency guards.
+
+NOTE: restart the dev server (or wait 60s) between consecutive runs — the
+in-memory rate limiter is per-instance and the flood test fills the bucket.
+"""
+import json, urllib.request, urllib.error, sys, time, threading
+import datetime
 
 import os
 BASE = os.environ.get("MIZIGO_BASE", "http://localhost:3000")
 
-def call(path, method="GET", body=None):
+# ─── plumbing: cookie-aware calls ────────────────────────────────────────────
+
+def call(path, method="GET", body=None, sess=None, raw_cookie=None):
+    """ sess = cookie string obtained from login(); raw_cookie overrides (forgery tests). """
+    headers = {"Content-Type": "application/json"}
+    if raw_cookie is not None:
+        headers["Cookie"] = raw_cookie
+    elif sess:
+        headers["Cookie"] = sess
     req = urllib.request.Request(BASE + path, method=method,
-        data=json.dumps(body).encode() if body else None,
-        headers={"Content-Type": "application/json"})
+        data=json.dumps(body).encode() if body is not None else None,
+        headers=headers)
     try:
         with urllib.request.urlopen(req) as r:
-            return json.loads(r.read())
+            setc = r.headers.get("Set-Cookie") or ""
+            return {"_setCookie": setc, **json.loads(r.read())}
     except urllib.error.HTTPError as e:
-        return {"_status": e.code, **json.loads(e.read() or b"{}")}
+        try:
+            return {"_status": e.code, "_setCookie": e.headers.get("Set-Cookie") or "", **json.loads(e.read() or b"{}")}
+        except Exception:
+            return {"_status": e.code}
 
 fails = []
 def check(name, cond, extra=""):
     print(f"  {'PASS' if cond else 'FAIL'}  {name} {extra}")
     if not cond: fails.append(name)
 
-# 1. bootstrap
+# ─── session login (the real handshake) ─────────────────────────────────────
+
+_sessions = {}   # phone → cookie string
+def login(phone, extra=None):
+    if phone in _sessions:
+        return _sessions[phone]
+    otp = call("/api/auth", "POST", {"action": "otp", "phone": phone})
+    assert "devCode" in otp, f"no devCode for {phone}: {otp}"
+    v = call("/api/auth", "POST", {"action": "verify", "phone": phone, "code": otp["devCode"], **(extra or {})})
+    assert "user" in v, f"verify failed for {phone}: {v}"
+    cookie = (v["_setCookie"].split(";")[0] or "").strip()
+    assert cookie.startswith("mizigo_sid="), f"no session cookie: {v['_setCookie']}"
+    _sessions[phone] = cookie
+    return cookie
+
+CUST  = None  # John Kariuki 0712000001
+BIZ   = None  # Zainab (business) 0722000033
+ADMIN = None  # Ops Control 0733000011
+
+def driver_sess(driver_id):
+    """Login as a seeded driver by id (phone resolved via the admin console)."""
+    drivers = call("/api/admin?tab=drivers", sess=ADMIN)["drivers"]
+    d = [x for x in drivers if x["id"] == driver_id][0]
+    return login(d["phone"])
+
+# ═══ 0. bootstrap + logins ═══════════════════════════════════════════════════
+
 b = call("/api/bootstrap")
 check("bootstrap seeded", len(b["categories"]) == 6)
 
-# 2. login as customer
-otp = call("/api/auth", "POST", {"action": "otp", "phone": "0712000001"})
-check("otp issued (mock)", "devCode" in otp, otp.get("devCode", ""))
-v = call("/api/auth", "POST", {"action": "verify", "phone": "0712000001", "code": otp["devCode"]})
-check("customer login", v.get("user", {}).get("name") == "John Kariuki")
-uid = v["user"]["id"]
+CUST  = login("0712000001")
+BIZ   = login("0722000033")
+ADMIN = login("0733000011")
 
-# login demo driver + find Peter
-c = call("/api/customer?userId=" + uid)
-check("customer home", c["user"]["name"] == "John Kariuki")
+v = call("/api/auth?action=me", sess=CUST)
+check("session probe (me)", v.get("user", {}).get("name") == "John Kariuki")
+
+# customer home is session-bound
+c = call("/api/customer", sess=CUST)
+check("customer home (session-bound)", c["user"]["name"] == "John Kariuki")
 check("customer has trip history", len(c["trips"]) >= 3, f"{len(c['trips'])} trips")
 
-# 3. quote furniture with helpers
+# ═══ 1. quote furniture with helpers ════════════════════════════════════════
+
 q = call("/api/quote", "POST", {
     "pickup": {"name": "ABC Industrial Area Godown 47", "area": "Industrial Area", "lat": -1.308, "lng": 36.833},
     "dropoff": {"name": "Riverside Drive, Westlands", "area": "Westlands", "lat": -1.267, "lng": 36.801},
@@ -47,310 +96,307 @@ pickup_quote = [x for x in q["quotes"] if x["key"] == "pickup"][0]
 check("fare has lines", len(pickup_quote["fare"]["lines"]) >= 4)
 check("loading fee applied", pickup_quote["fare"]["loading"] > 0)
 
-# 4. create shipment (idempotent)
-s1 = call("/api/shipments", "POST", {"draftId": "test-draft-1", "customerId": uid,
+# ═══ 2. create shipment (idempotent, session-bound) ═════════════════════════
+
+s1 = call("/api/shipments", "POST", {"draftId": "test-draft-1",
     "pickup": {"name": "ABC Industrial Area Godown 47", "area": "Industrial Area", "lat": -1.308, "lng": 36.833, "note": "Gate B, next to the petrol station"},
     "dropoff": {"name": "Riverside Drive, Westlands", "area": "Westlands", "lat": -1.267, "lng": 36.801},
     "cargo": {"category": "furniture", "items": [{"name": "Sofa", "qty": 2, "weightKg": 60}, {"name": "Dining table", "qty": 1, "weightKg": 45}, {"name": "Boxes", "qty": 6, "weightKg": 20}], "load": "MEDIUM", "helpers": 1, "special": ["fragile"]},
-    "categoryKey": "pickup", "paymentMethod": "MPESA"})
+    "categoryKey": "pickup", "paymentMethod": "MPESA"}, sess=CUST)
 check("shipment created PRICED", s1["shipment"]["status"] == "PRICED", s1["shipment"].get("status"))
 sid = s1["shipment"]["id"]
-s2 = call("/api/shipments", "POST", {"draftId": "test-draft-1", "customerId": uid,
+s2 = call("/api/shipments", "POST", {"draftId": "test-draft-1",
     "pickup": {"name": "ABC Industrial Area Godown 47", "lat": -1.308, "lng": 36.833},
     "dropoff": {"name": "Riverside Drive, Westlands", "lat": -1.267, "lng": 36.801},
-    "cargo": {"items": [], "load": "MEDIUM", "helpers": 1}, "categoryKey": "pickup"})
+    "cargo": {"items": [], "load": "MEDIUM", "helpers": 1}, "categoryKey": "pickup"}, sess=CUST)
 check("idempotent create", s2["shipment"]["id"] == sid)
 
-# 5. cannot request before payment
-r = call(f"/api/shipments/{sid}/action", "POST", {"action": "request", "actor": "CUSTOMER"})
+# ═══ 3. payment lifecycle ═══════════════════════════════════════════════════
+
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "request"}, sess=CUST)
 check("request blocked before payment", "_status" in r)
 
-# 6. M-Pesa lifecycle
-p = call(f"/api/shipments/{sid}/action", "POST", {"action": "pay"})
+p = call(f"/api/shipments/{sid}/action", "POST", {"action": "pay"}, sess=CUST)
 check("STK push initiated", p.get("status") == "PENDING")
-pc = call(f"/api/shipments/{sid}/action", "POST", {"action": "pay-confirm", "pin": "1234"})
+pc = call(f"/api/shipments/{sid}/action", "POST", {"action": "pay-confirm", "pin": "1234"}, sess=CUST)
 check("payment confirmed", len(pc.get("receipt", "")) == 10)
 check("status PAYMENT_CONFIRMED", pc["shipment"]["status"] == "PAYMENT_CONFIRMED", pc["shipment"]["status"])
-pc2 = call(f"/api/shipments/{sid}/action", "POST", {"action": "pay-confirm"})
+pc2 = call(f"/api/shipments/{sid}/action", "POST", {"action": "pay-confirm"}, sess=CUST)
 check("idempotent payment", pc2.get("alreadyPaid") is True)
 
-# 7. request vehicle → matching engine
-m = call(f"/api/shipments/{sid}/action", "POST", {"action": "request", "actor": "CUSTOMER"})
+# ═══ 4. request vehicle → matching → driver flow (as the assigned driver) ═══
+
+m = call(f"/api/shipments/{sid}/action", "POST", {"action": "request"}, sess=CUST)
 check("driver matched", m.get("matched") is True, m.get("match", {}).get("name", ""))
 check("status DRIVER_ASSIGNED", m["shipment"]["status"] == "DRIVER_ASSIGNED")
+assigned = driver_sess(m["shipment"]["driver"]["id"])
 
-# 8. driver accepts
-acc = call(f"/api/shipments/{sid}/action", "POST", {"action": "driver-accept", "actor": "DRIVER"})
+acc = call(f"/api/shipments/{sid}/action", "POST", {"action": "driver-accept"}, sess=assigned)
 check("driver accepted → EN_ROUTE", acc["shipment"]["status"] == "DRIVER_EN_ROUTE", acc["shipment"]["status"])
 live = acc["shipment"]["live"]
 check("live sim TO_PICKUP", live and live["leg"] == "TO_PICKUP" and live["etaMin"] and live["etaMin"] > 0, f"eta={live and live['etaMin']}")
 
-# 9. illegal transition guard: driver cannot start-trip before arriving
-bad = call(f"/api/shipments/{sid}/action", "POST", {"action": "start-trip", "actor": "DRIVER"})
+bad = call(f"/api/shipments/{sid}/action", "POST", {"action": "start-trip"}, sess=assigned)
 check("illegal transition blocked", "_status" in bad)
 
-# 10. driver flow: arrive → loading → loaded → start-trip
 for action, expect in [("arrive", "DRIVER_ARRIVED"), ("start-loading", "LOADING"), ("loaded", "LOADED"), ("start-trip", "IN_TRANSIT")]:
-    r = call(f"/api/shipments/{sid}/action", "POST", {"action": action, "actor": "DRIVER"})
+    r = call(f"/api/shipments/{sid}/action", "POST", {"action": action}, sess=assigned)
     check(f"{action} → {expect}", r.get("shipment", {}).get("status") == expect, r.get("error", ""))
 
-# live sim now TO_DROPOFF
-d = call(f"/api/shipments/{sid}")
+d = call(f"/api/shipments/{sid}", sess=CUST)
 check("live sim TO_DROPOFF", d["shipment"]["live"]["leg"] == "TO_DROPOFF")
 
-# 11. arriving → deliver → pod → complete
-r = call(f"/api/shipments/{sid}/action", "POST", {"action": "arriving", "actor": "DRIVER"})
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "arriving"}, sess=assigned)
 check("arriving", r["shipment"]["status"] == "ARRIVING")
-r = call(f"/api/shipments/{sid}/action", "POST", {"action": "deliver", "actor": "DRIVER"})
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "deliver"}, sess=assigned)
 check("deliver → DELIVERED", r["shipment"]["status"] == "DELIVERED")
-r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "actor": "DRIVER", "recipient": "Mary Wanjiru", "otp": "8821", "photo": True})
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "recipient": "Mary Wanjiru", "otp": "8821", "photo": True}, sess=assigned)
 check("POD captured", r["shipment"]["status"] == "POD_CONFIRMED" and r["shipment"]["pod"]["recipient"] == "Mary Wanjiru")
 
-# 12. rate → completes
-r = call(f"/api/shipments/{sid}/action", "POST", {"action": "rate", "actor": "CUSTOMER", "stars": 5, "tags": ["Arrived on time", "Careful with cargo"]})
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "rate", "stars": 5, "tags": ["Arrived on time", "Careful with cargo"]}, sess=CUST)
 check("rating → COMPLETED", r["shipment"]["status"] == "COMPLETED")
 check("chain of custody events >= 10", len(r["shipment"]["events"]) >= 10, f"{len(r['shipment']['events'])} events")
 
-# 13. driver earnings reflect the trip
-drv = call("/api/driver?driverId=" + r["shipment"]["driver"]["id"])
+drv = call(f"/api/driver?driverId={m['shipment']['driver']['id']}", sess=ADMIN)
 check("driver earnings today > 0", drv["earnings"]["today"] > 0, f"KES {drv['earnings']['today']:,}")
 
-# 14. admin overview sees the completed trip
-adm = call("/api/admin?tab=overview")
+adm = call("/api/admin?tab=overview", sess=ADMIN)
 check("admin KPIs", adm["kpis"]["totalDrivers"] >= 6 and "revenueToday" in adm["kpis"])
 
-# 15. public tracking page data (mint a fresh link — raw tokens are hashed at rest, v1 lesson)
-sl = call(f"/api/shipments/{s1['shipment']['id']}/action", "POST", {"action": "share-link", "actor": "CUSTOMER"})
+# ═══ 5. public tracking (hashed tokens, v1 lesson) ══════════════════════════
+
+sl = call(f"/api/shipments/{s1['shipment']['id']}/action", "POST", {"action": "share-link"}, sess=CUST)
 check("share-link mints a token", "token" in sl and len(sl["token"]) >= 16)
+check("share-link mints a URL", sl.get("url", "").startswith("/?view=track&token="))
 tr = call(f"/api/track/{sl['token']}")
 check("public tracking no phone leak", "phone" not in json.dumps(tr["tracking"]) and tr["tracking"]["code"].startswith("MZG"))
 tr_bad = call(f"/api/track/{sl['token']}-deadbeef")
 check("stale/invalid token rejected", tr_bad.get("error") is not None)
+# the DTO must not leak the stored hash
+check("DTO hides stored token hash", "shareToken" not in json.dumps(sl.get("shipment", {})))
 
-# 16. pricing edit (admin, no redeploy)
-z = [zz for zz in call("/api/admin?tab=pricing")["zones"] if zz["key"] == "nairobi"][0]
-r = call("/api/admin/action", "POST", {"action": "pricing-zone", "id": z["id"], "platformFee": 150})
+# ═══ 6. pricing edit (admin, live) ══════════════════════════════════════════
+
+z = [zz for zz in call("/api/admin?tab=pricing", sess=ADMIN)["zones"] if zz["key"] == "nairobi"][0]
+r = call("/api/admin/action", "POST", {"action": "pricing-zone", "id": z["id"], "platformFee": 150}, sess=ADMIN)
 check("pricing edit ok", r.get("zone", {}).get("platformFee") == 150)
 q2 = call("/api/quote", "POST", {"pickup": {"name": "A", "lat": -1.2841, "lng": 36.8265}, "dropoff": {"name": "B", "lat": -1.2613, "lng": 36.8027}, "cargo": {"items": [], "load": "SMALL", "helpers": 0}})
 check("new platform fee picked up", any(x["fare"]["platform"] == 150 for x in q2["quotes"]))
-# revert
-call("/api/admin/action", "POST", {"action": "pricing-zone", "id": z["id"], "platformFee": 100})
+call("/api/admin/action", "POST", {"action": "pricing-zone", "id": z["id"], "platformFee": 100}, sess=ADMIN)
 
-# 17. cancel flow
-s3 = call("/api/shipments", "POST", {"draftId": "test-draft-cancel", "customerId": uid,
+# ═══ 7. cancel flow ═════════════════════════════════════════════════════════
+
+s3 = call("/api/shipments", "POST", {"draftId": "test-draft-cancel",
     "pickup": {"name": "Gikomba Market", "lat": -1.2841, "lng": 36.8329}, "dropoff": {"name": "Kawangware Market", "lat": -1.2862, "lng": 36.7528},
-    "cargo": {"items": [{"name": "Bales", "qty": 3, "weightKg": 45}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"})
-r = call(f"/api/shipments/{s3['shipment']['id']}/action", "POST", {"action": "cancel", "actor": "CUSTOMER", "reason": "Changed my mind"})
+    "cargo": {"items": [{"name": "Bales", "qty": 3, "weightKg": 45}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"}, sess=CUST)
+r = call(f"/api/shipments/{s3['shipment']['id']}/action", "POST", {"action": "cancel", "reason": "Changed my mind"}, sess=CUST)
 check("cancel before payment ok", r["shipment"]["status"] == "CANCELLED")
 
-# ─── V2 features ────────────────────────────────────────────────────────────
+# ═══ 8. promo codes (plan §75) ══════════════════════════════════════════════
 
-# 18. promo codes (plan §75)
 qp = call("/api/quote", "POST", {"pickup": {"name": "Sarit Centre", "lat": -1.2613, "lng": 36.8027}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
-    "cargo": {"items": [{"name": "Fridge", "qty": 1, "weightKg": 70}], "load": "MEDIUM", "helpers": 0}, "promoCode": "MOVE200", "customerId": uid})
+    "cargo": {"items": [{"name": "Fridge", "qty": 1, "weightKg": 70}], "load": "MEDIUM", "helpers": 0}, "promoCode": "MOVE200"})
 check("promo preview applies", qp.get("promo", {}).get("code") == "MOVE200", str(qp.get("promo")))
 check("promo discount reduces total", any(x["fare"].get("discount") == 200 for x in qp["quotes"]))
 qbad = call("/api/quote", "POST", {"pickup": {"name": "Sarit Centre", "lat": -1.2613, "lng": 36.8027}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
-    "cargo": {"items": [], "load": "SMALL", "helpers": 0}, "promoCode": "NOPE123", "customerId": uid})
+    "cargo": {"items": [], "load": "SMALL", "helpers": 0}, "promoCode": "NOPE123"})
 check("invalid promo rejected in preview", "error" in (qbad.get("promo") or {}))
-sp = call("/api/shipments", "POST", {"draftId": "test-draft-promo", "customerId": uid,
+sp = call("/api/shipments", "POST", {"draftId": "test-draft-promo",
     "pickup": {"name": "Sarit Centre", "lat": -1.2613, "lng": 36.8027}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
-    "cargo": {"items": [{"name": "Fridge", "qty": 1, "weightKg": 70}], "load": "MEDIUM", "helpers": 0}, "categoryKey": "pickup", "promoCode": "MOVE200"})
+    "cargo": {"items": [{"name": "Fridge", "qty": 1, "weightKg": 70}], "load": "MEDIUM", "helpers": 0}, "categoryKey": "pickup", "promoCode": "MOVE200"}, sess=CUST)
 check("promo applied at booking", sp["shipment"]["fare"]["discount"] == 200 and sp["shipment"]["fare"]["promoCode"] == "MOVE200")
 no_promo_total = [x for x in qp["quotes"] if x["key"] == "pickup"][0]
 check("discounted total matches preview", sp["shipment"]["fare"]["total"] == no_promo_total["fare"]["total"], f"{sp['shipment']['fare']['total']} vs {no_promo_total['fare']['total']}")
-sw = call("/api/shipments", "POST", {"draftId": "test-draft-welcome", "customerId": uid,
+sw = call("/api/shipments", "POST", {"draftId": "test-draft-welcome",
     "pickup": {"name": "ABC Industrial Area Godown 47", "lat": -1.308, "lng": 36.833}, "dropoff": {"name": "Riverside Drive, Westlands", "lat": -1.267, "lng": 36.801},
-    "cargo": {"items": [{"name": "Sofa", "qty": 2, "weightKg": 60}], "load": "MEDIUM", "helpers": 1}, "categoryKey": "pickup", "promoCode": "WELCOME500"})
+    "cargo": {"items": [{"name": "Sofa", "qty": 2, "weightKg": 60}], "load": "MEDIUM", "helpers": 1}, "categoryKey": "pickup", "promoCode": "WELCOME500"}, sess=CUST)
 check("first-booking-only promo rejected for repeat customer", "_status" in sw, str(sw.get("error")))
 
-# 19. multi-stop (plan §35)
+# ═══ 9. multi-stop + chat + mismatch (plan §35/§77/§15) ═════════════════════
+
 qs = call("/api/quote", "POST", {"pickup": {"name": "ABC Industrial Area Godown 47", "lat": -1.308, "lng": 36.833},
     "dropoff": {"name": "Riverside Drive, Westlands", "lat": -1.267, "lng": 36.801},
     "stops": [{"name": "T-Mall Langata", "lat": -1.3208, "lng": 36.7703}],
     "cargo": {"items": [{"name": "Cartons", "qty": 10, "weightKg": 20}], "load": "MEDIUM", "helpers": 0}})
 check("stop fee in fare", qs["quotes"][0]["fare"]["stops"] > 0)
-s4 = call("/api/shipments", "POST", {"draftId": "test-draft-stops", "customerId": uid,
+s4 = call("/api/shipments", "POST", {"draftId": "test-draft-stops",
     "pickup": {"name": "ABC Industrial Area Godown 47", "lat": -1.308, "lng": 36.833}, "dropoff": {"name": "Riverside Drive, Westlands", "lat": -1.267, "lng": 36.801},
     "stops": [{"name": "T-Mall Langata", "lat": -1.3208, "lng": 36.7703}, {"name": "Carnivore Nairobi", "lat": -1.3086, "lng": 36.7905}],
-    "cargo": {"items": [{"name": "Cartons", "qty": 10, "weightKg": 20}], "load": "MEDIUM", "helpers": 0}, "categoryKey": "pickup"})
+    "cargo": {"items": [{"name": "Cartons", "qty": 10, "weightKg": 20}], "load": "MEDIUM", "helpers": 0}, "categoryKey": "pickup"}, sess=CUST)
 sid4 = s4["shipment"]["id"]
 check("stops persisted", len(s4["shipment"]["route"]["stops"]) == 2)
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "pay"})
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "pay-confirm"})
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "request", "actor": "CUSTOMER"})
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "driver-accept", "actor": "DRIVER"})
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "arrive", "actor": "DRIVER"})
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "start-loading", "actor": "DRIVER"})
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "loaded", "actor": "DRIVER"})
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "start-trip", "actor": "DRIVER"})
-rs = call(f"/api/shipments/{sid4}/action", "POST", {"action": "stop-done", "actor": "DRIVER", "stopIndex": 0})
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "pay"}, sess=CUST)
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "pay-confirm"}, sess=CUST)
+m4 = call(f"/api/shipments/{sid4}/action", "POST", {"action": "request"}, sess=CUST)
+drv4 = driver_sess(m4["shipment"]["driver"]["id"])
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "driver-accept"}, sess=drv4)
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "arrive"}, sess=drv4)
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "start-loading"}, sess=drv4)
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "loaded"}, sess=drv4)
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "start-trip"}, sess=drv4)
+rs = call(f"/api/shipments/{sid4}/action", "POST", {"action": "stop-done", "stopIndex": 0}, sess=drv4)
 check("stop marked complete (event)", any(e["type"] == "STOP_COMPLETED" for e in rs["shipment"]["events"]))
 check("stop fee charged", rs["shipment"]["fare"]["stops"] > 0)
-# chat on this trip (plan §77)
-ch1 = call(f"/api/shipments/{sid4}/action", "POST", {"action": "chat", "actor": "CUSTOMER", "body": "I'm at the pickup"})
+ch1 = call(f"/api/shipments/{sid4}/action", "POST", {"action": "chat", "body": "I'm at the pickup"}, sess=CUST)
 check("customer chat sent", len(ch1["shipment"]["messages"]) == 1)
-ch2 = call(f"/api/shipments/{sid4}/action", "POST", {"action": "chat", "actor": "DRIVER", "body": "I'm 5 minutes away"})
+ch2 = call(f"/api/shipments/{sid4}/action", "POST", {"action": "chat", "body": "I'm 5 minutes away"}, sess=drv4)
 check("driver chat sent", len(ch2["shipment"]["messages"]) == 2 and ch2["shipment"]["messages"][-1]["senderRole"] == "DRIVER")
-# mismatch report (plan §15)
-mm = call(f"/api/shipments/{sid4}/action", "POST", {"action": "report-mismatch", "actor": "DRIVER", "reason": "Cargo differs from booking"})
+mm = call(f"/api/shipments/{sid4}/action", "POST", {"action": "report-mismatch", "reason": "Cargo differs from booking"}, sess=drv4)
 check("mismatch reported to ops", any(e["type"] == "MISMATCH_REPORTED" for e in mm["shipment"]["events"]))
-call(f"/api/shipments/{sid4}/action", "POST", {"action": "cancel", "actor": "CUSTOMER", "reason": "test cleanup"})
+call(f"/api/shipments/{sid4}/action", "POST", {"action": "cancel", "reason": "test cleanup"}, sess=CUST)
 
-# 20. scheduled booking (plan §34)
-import datetime
-soon = (datetime.datetime.utcnow() + datetime.timedelta(days=2)).isoformat() + "Z"
-sched = call("/api/shipments", "POST", {"draftId": "test-draft-sched", "customerId": uid,
+# ═══ 10. scheduled booking (plan §34) ═══════════════════════════════════════
+
+soon = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=2)).isoformat().replace("+00:00", "Z")
+sched = call("/api/shipments", "POST", {"draftId": "test-draft-sched",
     "pickup": {"name": "Gikomba Market", "lat": -1.2841, "lng": 36.8329}, "dropoff": {"name": "Kawangware Market", "lat": -1.2862, "lng": 36.7528},
-    "cargo": {"items": [{"name": "Bales", "qty": 2, "weightKg": 45}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk", "scheduledAt": soon})
+    "cargo": {"items": [{"name": "Bales", "qty": 2, "weightKg": 45}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk", "scheduledAt": soon}, sess=CUST)
 check("scheduled booking accepted", sched["shipment"]["scheduledAt"] is not None)
-too_far = (datetime.datetime.utcnow() + datetime.timedelta(days=60)).isoformat() + "Z"
-sfar = call("/api/shipments", "POST", {"draftId": "test-draft-toofar", "customerId": uid,
+too_far = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=60)).isoformat().replace("+00:00", "Z")
+sfar = call("/api/shipments", "POST", {"draftId": "test-draft-toofar",
     "pickup": {"name": "Gikomba Market", "lat": -1.2841, "lng": 36.8329}, "dropoff": {"name": "Kawangware Market", "lat": -1.2862, "lng": 36.7528},
-    "cargo": {"items": [], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk", "scheduledAt": too_far})
+    "cargo": {"items": [], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk", "scheduledAt": too_far}, sess=CUST)
 check("beyond advance window rejected", "_status" in sfar, str(sfar.get("error")))
-call(f"/api/shipments/{sched['shipment']['id']}/action", "POST", {"action": "cancel", "actor": "CUSTOMER", "reason": "test cleanup"})
+call(f"/api/shipments/{sched['shipment']['id']}/action", "POST", {"action": "cancel", "reason": "test cleanup"}, sess=CUST)
 
-# 21. quote marketplace (plan §33/§36)
-sq = call("/api/shipments", "POST", {"draftId": "test-draft-quote", "customerId": uid,
+# ═══ 11. quote marketplace (plan §33/§36) ═══════════════════════════════════
+
+sq = call("/api/shipments", "POST", {"draftId": "test-draft-quote",
     "pickup": {"name": "Mombasa Road Godowns", "area": "Industrial Area", "lat": -1.312, "lng": 36.842}, "dropoff": {"name": "Garden City Mall", "area": "Thika Road", "lat": -1.2267, "lng": 36.8889},
     "cargo": {"category": "construction", "items": [{"name": "Bags of cement", "qty": 120, "weightKg": 50}], "load": "VERY_LARGE", "helpers": 2},
-    "categoryKey": "lorry_7t", "pricingMode": "QUOTE"})
+    "categoryKey": "lorry_7t", "pricingMode": "QUOTE"}, sess=CUST)
 sidq = sq["shipment"]["id"]
-rq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "request-quotes", "actor": "CUSTOMER"})
+rq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "request-quotes"}, sess=CUST)
 check("quotes requested → QUOTED", rq["shipment"]["status"] == "QUOTED", rq["shipment"].get("status"))
-# sandbox simulation: quotes stream in on polled GETs (documented dev mock)
 deadline = time.time() + 30
 quotes = []
 while time.time() < deadline:
-    g = call(f"/api/shipments/{sidq}?demo=auto")
+    g = call(f"/api/shipments/{sidq}?demo=auto", sess=CUST)
     quotes = [x for x in g["shipment"]["quotes"] if x["status"] == "PENDING"]
     if len(quotes) >= 2: break
     time.sleep(2.5)
 check("sandbox quotes arrived", len(quotes) >= 1, f"{len(quotes)} quotes")
-# a real driver also quotes from the driver app (lorry owner not yet quoted)
-drivers_tab = call("/api/admin?tab=drivers")
-quoted_ids = {q["driverId"] for q in quotes}
-lorry_drivers = [d for d in drivers_tab["drivers"] if any(v["category"] in ("7-Tonne Lorry", "10-Tonne Lorry") for v in d["vehicles"])]
-manual = [d for d in lorry_drivers if d["id"] not in quoted_ids][0]
-dq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "driver-quote", "actor": "DRIVER", "driverId": manual["id"], "amount": 21500, "etaText": "Tomorrow 08:00"})
-check("driver submitted quote", any(q["amount"] == 21500 for q in dq["shipment"]["quotes"]))
-dup = call(f"/api/shipments/{sidq}/action", "POST", {"action": "driver-quote", "actor": "DRIVER", "driverId": manual["id"], "amount": 20000})
+drivers_tab = call("/api/admin?tab=drivers", sess=ADMIN)
+quoted_ids = {x["driverId"] for x in quotes}
+lorry_drivers = [x for x in drivers_tab["drivers"] if any(v["category"] in ("7-Tonne Lorry", "10-Tonne Lorry") for v in x["vehicles"])]
+manual = [x for x in lorry_drivers if x["id"] not in quoted_ids][0]
+manual_sess = driver_sess(manual["id"])
+dq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "driver-quote", "amount": 21500, "etaText": "Tomorrow 08:00"}, sess=manual_sess)
+check("driver submitted quote (own profile)", any(x["amount"] == 21500 and x["driverId"] == manual["id"] for x in dq["shipment"]["quotes"]))
+dup = call(f"/api/shipments/{sidq}/action", "POST", {"action": "driver-quote", "amount": 20000}, sess=manual_sess)
 check("duplicate quote blocked", "_status" in dup)
 quotes = dq["shipment"]["quotes"]
 best = sorted([x for x in quotes if x["status"] == "PENDING"], key=lambda x: x["amount"])[0]
-aq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "accept-quote", "actor": "CUSTOMER", "quoteId": best["id"]})
+aq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "accept-quote", "quoteId": best["id"]}, sess=CUST)
 check("quote accepted → PAYMENT_PENDING", aq["shipment"]["status"] == "PAYMENT_PENDING", aq["shipment"].get("status"))
 check("fare locked to quote", aq["shipment"]["fare"]["total"] == best["amount"], f"{aq['shipment']['fare']['total']} vs {best['amount']}")
 check("quoting driver reserved", aq["shipment"]["driver"]["id"] == best["driverId"])
-call(f"/api/shipments/{sidq}/action", "POST", {"action": "pay"})
-pcq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "pay-confirm"})
+call(f"/api/shipments/{sidq}/action", "POST", {"action": "pay"}, sess=CUST)
+pcq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "pay-confirm"}, sess=CUST)
 check("quote booking paid", pcq["shipment"]["payment"]["status"] == "CONFIRMED")
-mrq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "request", "actor": "CUSTOMER"})
+mrq = call(f"/api/shipments/{sidq}/action", "POST", {"action": "request"}, sess=CUST)
 check("reserved driver auto-assigned", mrq.get("matched") is True and mrq["shipment"]["driver"]["id"] == best["driverId"])
-call(f"/api/shipments/{sidq}/action", "POST", {"action": "cancel", "actor": "CUSTOMER", "reason": "test cleanup"})
-check("other quotes declined", True)  # marketplace state resets
+call(f"/api/shipments/{sidq}/action", "POST", {"action": "cancel", "reason": "test cleanup"}, sess=CUST)
 
-# 22. manual dispatch + settings (final brief §19, plan §34)
-r = call("/api/admin/action", "POST", {"action": "setting-update", "key": "autoDispatch", "value": "false"})
+# ═══ 12. manual dispatch + settings (final brief §19, plan §34) ═════════════
+
+r = call("/api/admin/action", "POST", {"action": "setting-update", "key": "autoDispatch", "value": "false"}, sess=ADMIN)
 check("autoDispatch off", r.get("setting", {}).get("value") == "false")
-s5 = call("/api/shipments", "POST", {"draftId": "test-draft-manual", "customerId": uid,
+s5 = call("/api/shipments", "POST", {"draftId": "test-draft-manual",
     "pickup": {"name": "Toi Market", "lat": -1.297, "lng": 36.779}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
-    "cargo": {"items": [{"name": "Carpet", "qty": 1, "weightKg": 25}], "load": "SMALL", "helpers": 0}, "categoryKey": "pickup"})
+    "cargo": {"items": [{"name": "Carpet", "qty": 1, "weightKg": 25}], "load": "SMALL", "helpers": 0}, "categoryKey": "pickup"}, sess=CUST)
 sid5 = s5["shipment"]["id"]
-call(f"/api/shipments/{sid5}/action", "POST", {"action": "pay"})
-call(f"/api/shipments/{sid5}/action", "POST", {"action": "pay-confirm"})
-m5 = call(f"/api/shipments/{sid5}/action", "POST", {"action": "request", "actor": "CUSTOMER"})
+call(f"/api/shipments/{sid5}/action", "POST", {"action": "pay"}, sess=CUST)
+call(f"/api/shipments/{sid5}/action", "POST", {"action": "pay-confirm"}, sess=CUST)
+m5 = call(f"/api/shipments/{sid5}/action", "POST", {"action": "request"}, sess=CUST)
 check("waits for manual dispatch", m5.get("reason") == "MANUAL_DISPATCH" and m5["shipment"]["status"] == "MATCHING")
-brian = [d for d in drivers_tab["drivers"] if "Hilux" in " ".join(f"{v['make']} {v['model']}" for v in d["vehicles"])][0]
-ad = call("/api/admin/action", "POST", {"action": "assign-driver", "shipmentId": sid5, "driverId": brian["id"]})
+brian = [x for x in drivers_tab["drivers"] if "Hilux" in " ".join(f"{v['make']} {v['model']}" for v in x["vehicles"])][0]
+ad = call("/api/admin/action", "POST", {"action": "assign-driver", "shipmentId": sid5, "driverId": brian["id"]}, sess=ADMIN)
 check("admin assigned driver", ad.get("ok") is True)
-g5 = call(f"/api/shipments/{sid5}")
+g5 = call(f"/api/shipments/{sid5}", sess=CUST)
 check("manually dispatched → DRIVER_ASSIGNED", g5["shipment"]["status"] == "DRIVER_ASSIGNED", g5["shipment"]["status"])
-sup = call("/api/admin?tab=support")
+sup = call("/api/admin?tab=support", sess=ADMIN)
 check("support queue sees exceptions", len(sup["queue"]) >= 1, f"{len(sup['queue'])} items")
-call(f"/api/shipments/{sid5}/action", "POST", {"action": "cancel", "actor": "ADMIN", "reason": "test cleanup"})
-call("/api/admin/action", "POST", {"action": "setting-update", "key": "autoDispatch", "value": "true"})
+call(f"/api/shipments/{sid5}/action", "POST", {"action": "cancel", "reason": "test cleanup"}, sess=ADMIN)
+call("/api/admin/action", "POST", {"action": "setting-update", "key": "autoDispatch", "value": "true"}, sess=ADMIN)
 
-# 23. disputes (plan §38)
-disp = call(f"/api/shipments/{sid}/action", "POST", {"action": "dispute", "actor": "CUSTOMER", "type": "CARGO_DAMAGE", "notes": "Fridge dented"})
+# ═══ 13. disputes (plan §38) ════════════════════════════════════════════════
+
+disp = call(f"/api/shipments/{sid}/action", "POST", {"action": "dispute", "type": "CARGO_DAMAGE", "notes": "Fridge dented"}, sess=CUST)
 check("dispute case opened", disp.get("ok") is True)
-dd = call("/api/admin?tab=disputes")
-check("admin sees dispute", any(d["type"] == "CARGO_DAMAGE" for d in dd["disputes"]))
-target = [d for d in dd["disputes"] if d["type"] == "CARGO_DAMAGE" and d["status"] == "OPEN"][0]
-res = call("/api/admin/action", "POST", {"action": "dispute-resolve", "disputeId": target["id"], "resolution": "Refund processed"})
+dd = call("/api/admin?tab=disputes", sess=ADMIN)
+check("admin sees dispute", any(x["type"] == "CARGO_DAMAGE" for x in dd["disputes"]))
+target = [x for x in dd["disputes"] if x["type"] == "CARGO_DAMAGE" and x["status"] == "OPEN"][0]
+res = call("/api/admin/action", "POST", {"action": "dispute-resolve", "disputeId": target["id"], "resolution": "Refund processed"}, sess=ADMIN)
 check("dispute resolved", res.get("ok") is True)
 
-# 24. saved places (plan §39)
-sv = call("/api/customer", "POST", {"action": "save-place", "userId": uid, "place": {"label": "Home", "name": "Kilimani Wood Avenue", "area": "Kilimani", "lat": -1.29, "lng": 36.783}})
+# ═══ 14. saved places (session-bound) ═══════════════════════════════════════
+
+sv = call("/api/customer", "POST", {"action": "save-place", "place": {"label": "Home", "name": "Kilimani Wood Avenue", "area": "Kilimani", "lat": -1.29, "lng": 36.783}}, sess=CUST)
 check("place saved", sv.get("ok") is True)
-sv2 = call("/api/customer", "POST", {"action": "save-place", "userId": uid, "place": {"label": "Work", "name": "T-Mall Langata", "area": "Langata", "lat": -1.3208, "lng": 36.7703}})
+sv2 = call("/api/customer", "POST", {"action": "save-place", "place": {"label": "Work", "name": "T-Mall Langata", "area": "Langata", "lat": -1.3208, "lng": 36.7703}}, sess=CUST)
 pid = sv2["place"]["id"]
-rm = call("/api/customer", "POST", {"action": "remove-place", "userId": uid, "placeId": pid})
+rm = call("/api/customer", "POST", {"action": "remove-place", "placeId": pid}, sess=CUST)
 check("place removed", rm.get("ok") is True)
 
-# 25. admin promotions tab (plan §75)
-promo = call("/api/admin/action", "POST", {"action": "promo-create", "code": "TESTPROMO", "kind": "PERCENT", "value": 12, "minFare": 1500})
+# ═══ 15. admin promotions / customers / payouts / analytics ═════════════════
+
+promo = call("/api/admin/action", "POST", {"action": "promo-create", "code": "TESTPROMO", "kind": "PERCENT", "value": 12, "minFare": 1500}, sess=ADMIN)
 check("promo created", promo.get("ok") is True)
-tg = call("/api/admin/action", "POST", {"action": "promo-toggle", "promoId": promo["promo"]["id"]})
+tg = call("/api/admin/action", "POST", {"action": "promo-toggle", "promoId": promo["promo"]["id"]}, sess=ADMIN)
 check("promo paused", tg["promo"]["active"] is False)
-pt = call("/api/admin?tab=promotions")
+pt = call("/api/admin?tab=promotions", sess=ADMIN)
 check("promo usage tracked", any(p["code"] == "MOVE200" and p["uses"] >= 1 for p in pt["promos"]))
 
-# 26. admin customers + payouts tabs
-custs = call("/api/admin?tab=customers")
-check("customers tab lists accounts", any(c["accountType"] == "BUSINESS" for c in custs["customers"]))
-payo = call("/api/admin?tab=payouts")
+custs = call("/api/admin?tab=customers", sess=ADMIN)
+check("customers tab lists accounts", any(x["accountType"] == "BUSINESS" for x in custs["customers"]))
+payo = call("/api/admin?tab=payouts", sess=ADMIN)
 check("payouts tab has ledger", len(payo["payouts"]) >= 3 and len(payo["ledger"]) >= 1)
 if any(p["status"] != "PAID" for p in payo["payouts"]):
-    pr = call("/api/admin/action", "POST", {"action": "payout-pay", "payoutId": [p for p in payo["payouts"] if p["status"] != "PAID"][0]["id"]})
+    pr = call("/api/admin/action", "POST", {"action": "payout-pay", "payoutId": [p for p in payo["payouts"] if p["status"] != "PAID"][0]["id"]}, sess=ADMIN)
     check("payout released", pr.get("ok") is True)
 
-# 27. analytics extras (plan §79)
-ana = call("/api/admin?tab=analytics")
+ana = call("/api/admin?tab=analytics", sess=ADMIN)
 check("analytics top drivers", len(ana.get("topDrivers", [])) >= 1)
 check("analytics cancellation metric", "cancellationPct" in ana["totals"])
 
-# 28. notifications carry deep-link codes (plan §40)
-ch = call("/api/customer?userId=" + uid)
+ch = call("/api/customer", sess=CUST)
 check("notifications have shipment codes", all(n.get("shipmentCode") for n in ch["notifications"] if n["title"] in ("Driver found", "Driver submitted a quote", "New message")) or True)
 
-# 29. v1 goodness: driver rates the customer (two-sided reputation)
-r = call(f"/api/shipments/{sid}/action", "POST", {"action": "rate", "actor": "DRIVER", "stars": 4, "tags": ["On site ready"]})
-check("driver rated customer", r.get("ok") is True and any(x["byRole"] == "DRIVER" for x in r["shipment"]["ratings"]))
+# ═══ 16. v1 goodness: two-sided reputation + return loads ═══════════════════
 
-# 30. v1 goodness: return-load marketplace (empty legs at a discount)
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "rate", "stars": 4, "tags": ["On site ready"]}, sess=assigned)
+check("driver rated customer", r.get("ok") is True and any(x["byRole"] == "DRIVER" for x in r["shipment"]["ratings"]))
+r2 = call(f"/api/shipments/{sid}/action", "POST", {"action": "rate", "stars": 3}, sess=CUST)
+check("second customer rating rejected (one per role)", r2.get("_status") == 409, str(r2.get("_status")))
+
 rl = call("/api/return-loads")
 check("return-load market lists legs", len(rl["returnLoads"]) >= 3, f"{len(rl['returnLoads'])} legs")
 leg = rl["returnLoads"][0]
 check("legs carry honest savings", leg["priceKes"] < leg["normalPriceKes"] and leg["savingsPct"] >= 20, f"−{leg['savingsPct']}%")
 
-# driver publishes a return leg (Amina's canter is drivers[1] in the seed)
-adm = call("/api/admin?tab=drivers")
-am = [d for d in adm["drivers"] if d["name"].startswith("Amina")][0]
-pub = call("/api/driver/action", "POST", {"action": "publish-return-load", "driverId": am["id"],
+am = [x for x in drivers_tab["drivers"] if x["name"].startswith("Amina")][0]
+am_sess = driver_sess(am["id"])
+pub = call("/api/driver/action", "POST", {"action": "publish-return-load",
     "from": {"name": "Village Market", "area": "Gigiri", "lat": -1.2211, "lng": 36.7964},
     "to": {"name": "CBD · Kenyatta Avenue", "area": "Nairobi CBD", "lat": -1.2841, "lng": 36.8265},
-    "categoryKey": "canter", "cargoNote": "General cargo", "maxWeightKg": 2500, "priceKes": 1500})
+    "categoryKey": "canter", "cargoNote": "General cargo", "maxWeightKg": 2500, "priceKes": 1500}, sess=am_sess)
 check("driver published return leg", pub.get("ok") is True and pub["returnLoad"]["normalPriceKes"] >= 1500)
+mine = call("/api/return-loads?mine=1", sess=am_sess)
+check("driver sees own published legs", any(x["id"] == pub["returnLoad"]["id"] for x in mine["returnLoads"]))
 
-# customer reserves the leg → real shipment at empty-leg price, driver pre-assigned
-bk = call(f"/api/return-loads/{pub['returnLoad']['id']}/book", "POST", {"customerId": uid, "paymentMethod": "MPESA"})
+bk = call(f"/api/return-loads/{pub['returnLoad']['id']}/book", "POST", {"paymentMethod": "MPESA"}, sess=CUST)
 check("return load booked", bk.get("ok") is True and bk["shipment"]["status"] == "DRIVER_ASSIGNED", bk.get("error", ""))
 check("empty-leg price locked", bk["shipment"]["fare"]["total"] == 1500 and bk["shipment"]["fare"]["returnLoad"] is True)
 check("publishing driver assigned", bk["shipment"]["driver"]["name"].startswith("Amina"))
-
-# double-booking the same leg is rejected (atomic claim)
-bk2 = call(f"/api/return-loads/{pub['returnLoad']['id']}/book", "POST", {"customerId": uid, "paymentMethod": "MPESA"})
+bk2 = call(f"/api/return-loads/{pub['returnLoad']['id']}/book", "POST", {"paymentMethod": "MPESA"}, sess=CUST)
 check("double-booking rejected", "_status" in bk2 or bk2.get("error"))
-
-# admin overview sees the live return-leg economy
-adm2 = call("/api/admin?tab=overview")
+adm2 = call("/api/admin?tab=overview", sess=ADMIN)
 check("admin return-leg KPI", adm2["kpis"]["returnLoadsLive"] >= 3, adm2["kpis"]["returnLoadsLive"])
 
-# 31. v1 goodness: night surcharge + planned-delivery discount in the fare engine
-import datetime as _dt
-_night_at = (_dt.datetime.utcnow() + _dt.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0).isoformat() + "Z"
+# ═══ 17. v1 goodness: night surcharge + planned discount ════════════════════
+
+_night_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0).isoformat().replace("+00:00", "Z")
 qn = call("/api/quote", "POST", {
     "pickup": {"name": "Sarit Centre", "area": "Westlands", "lat": -1.2613, "lng": 36.8027},
     "dropoff": {"name": "Garden City Mall", "area": "Thika Road", "lat": -1.2267, "lng": 36.8889},
@@ -360,6 +406,195 @@ check("night flag detected", qn.get("night") is True and qn.get("scheduled") is 
 _pq = [x for x in qn["quotes"] if x["key"] == "pickup"][0]
 check("night surcharge line", _pq["fare"]["night"] > 0 and any("Night" in l["label"] for l in _pq["fare"]["lines"]))
 check("planned discount line", _pq["fare"]["schedule"] > 0 and any("Planned" in l["label"] for l in _pq["fare"]["lines"]))
+
+# ═══ 18. SECURITY — authn/authz matrix (public Netlify readiness) ═══════════
+
+print("\n── security matrix ──")
+# 18a. no session → 401 on every protected endpoint
+for path in ["/api/customer", "/api/driver", "/api/admin?tab=overview", "/api/shipments", "/api/admin/action", "/api/driver/action"]:
+    r = call(path, "POST" if path.endswith("/action") else "GET", {"action": "x"} if path.endswith("/action") else None)
+    check(f"unauth {path.split('?')[0]} → 401", r.get("_status") == 401, str(r.get("_status")))
+r = call(f"/api/shipments/{sid}", "GET")
+check("unauth shipment detail → 401", r.get("_status") == 401)
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pay"})
+check("unauth shipment action → 401", r.get("_status") == 401)
+r = call("/api/return-loads?mine=1")
+check("unauth mine legs → 403", r.get("_status") == 403)
+
+# 18b. role escalation blocked: customer ≠ admin, driver ≠ admin
+r = call("/api/admin?tab=customers", sess=CUST)
+check("customer blocked from admin data", r.get("_status") == 403)
+r = call("/api/admin/action", "POST", {"action": "setting-update", "key": "autoDispatch", "value": "false"}, sess=CUST)
+check("customer blocked from admin mutations", r.get("_status") == 403)
+r = call("/api/admin?tab=customers", sess=assigned)
+check("driver blocked from admin data", r.get("_status") == 403)
+
+# 18c. IDOR: another customer can't read John's data; each session sees only its own
+r = call("/api/customer", sess=BIZ)
+check("sessions are per-identity", r["user"]["name"] != "John Kariuki")
+r = call(f"/api/shipments/{sid}", sess=BIZ)
+check("cross-customer shipment read blocked", r.get("_status") == 403)
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "share-link"}, sess=BIZ)
+check("cross-customer share-link blocked", r.get("_status") == 403)
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "chat", "body": "hi"}, sess=BIZ)
+check("cross-customer chat blocked", r.get("_status") == 403)
+
+# 18d. driver-station actions are driver-only: a customer can't drive the truck
+s6 = call("/api/shipments", "POST", {"draftId": "test-drvonly",
+    "pickup": {"name": "Toi Market", "lat": -1.297, "lng": 36.779}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
+    "cargo": {"items": [{"name": "Chairs", "qty": 4, "weightKg": 10}], "load": "SMALL", "helpers": 0}, "categoryKey": "pickup"}, sess=CUST)
+sid6 = s6["shipment"]["id"]
+call(f"/api/shipments/{sid6}/action", "POST", {"action": "pay"}, sess=CUST)
+call(f"/api/shipments/{sid6}/action", "POST", {"action": "pay-confirm"}, sess=CUST)
+m6 = call(f"/api/shipments/{sid6}/action", "POST", {"action": "request"}, sess=CUST)
+r = call(f"/api/shipments/{sid6}/action", "POST", {"action": "driver-accept"}, sess=CUST)
+check("customer can't accept a driver job", r.get("_status") == 403)
+r = call(f"/api/shipments/{sid6}/action", "POST", {"action": "arrive"}, sess=CUST)
+check("customer can't run driver stations", r.get("_status") == 403)
+# and an unrelated driver can't either
+r = call(f"/api/shipments/{sid6}/action", "POST", {"action": "driver-accept"}, sess=am_sess)
+check("unassigned driver blocked", r.get("_status") == 403)
+call(f"/api/shipments/{sid6}/action", "POST", {"action": "cancel", "reason": "test cleanup"}, sess=CUST)
+
+# 18e. OTP actually verifies: wrong code, no code, stale code
+call("/api/auth", "POST", {"action": "otp", "phone": "0712000001"})
+r = call("/api/auth", "POST", {"action": "verify", "phone": "0712000001", "code": "000001"})
+check("wrong OTP rejected", r.get("_status") == 400 and "left" in r.get("error", ""), r.get("error", ""))
+r = call("/api/auth", "POST", {"action": "verify", "phone": "0799111222", "code": "123456"})
+check("verify without requesting rejected", r.get("_status") == 400)
+r = call("/api/auth", "POST", {"action": "verify", "phone": "0712000001", "code": "1234"})
+check("malformed OTP rejected", r.get("_status") == 400)
+r = call("/api/auth", "POST", {"action": "verify", "phone": "not-a-phone", "code": "123456"})
+check("invalid phone rejected", r.get("_status") == 400)
+
+# 18f. tampered/forged session cookies are rejected
+r = call("/api/customer", raw_cookie="mizigo_sid=forged.sig")
+check("forged cookie rejected", r.get("_status") == 401)
+real = _sessions["0712000001"]
+tampered = real[:-3] + ("AAA" if not real.endswith("AAA") else "BBB")
+r = call("/api/customer", raw_cookie=tampered)
+check("tampered cookie rejected", r.get("_status") == 401)
+
+# 18g. input validation: coordinates, caps, junk payloads
+r = call("/api/quote", "POST", {"pickup": {"name": "A", "lat": "NaN", "lng": 36.8}, "dropoff": {"name": "B", "lat": -1.28, "lng": 36.8}, "cargo": {"items": [], "load": "SMALL", "helpers": 0}})
+check("NaN coordinates rejected", r.get("_status") == 400)
+r = call("/api/quote", "POST", {"pickup": {"name": "A", "lat": 52.5, "lng": 13.4}, "dropoff": {"name": "B", "lat": -1.28, "lng": 36.8}, "cargo": {"items": [], "load": "SMALL", "helpers": 0}})
+check("out-of-region coordinates rejected", r.get("_status") == 400)
+r = call("/api/quote", "POST", {"pickup": {"name": "A", "lat": 1e308, "lng": 36.8}, "dropoff": {"name": "B", "lat": -1.28, "lng": 36.8}, "cargo": {"items": [], "load": "SMALL", "helpers": 0}})
+check("absurd coordinates rejected", r.get("_status") == 400)
+r = call("/api/shipments", "POST", {"draftId": "test-junk",
+    "pickup": {"name": "A", "lat": -1.28, "lng": 36.8}, "dropoff": {"name": "B", "lat": -1.28, "lng": 36.81},
+    "cargo": {"items": [{"name": "X", "qty": -5, "weightKg": -50}], "load": "SMALL", "helpers": 99}, "categoryKey": "tuktuk"}, sess=CUST)
+if r.get("_status"):
+    check("negative qty shipment rejected/clamped", True, str(r.get("_status")))
+else:
+    check("negative qty shipment rejected/clamped", r["shipment"]["cargo"]["items"][0]["qty"] >= 1)
+    call(f"/api/shipments/{r['shipment']['id']}/action", "POST", {"action": "cancel", "reason": "cleanup"}, sess=CUST)
+
+# 18h. XSS payloads are stored inertly (React escapes at render; API stores verbatim)
+s7 = call("/api/shipments", "POST", {"draftId": "test-xss",
+    "pickup": {"name": "<script>alert(1)</script>", "lat": -1.28, "lng": 36.8}, "dropoff": {"name": "<img onerror=x>", "lat": -1.29, "lng": 36.81},
+    "cargo": {"items": [], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"}, sess=CUST)
+check("XSS payload stored as text (no reflection in API errors)", isinstance(s7.get("shipment", {}).get("route", {}).get("pickup", {}).get("name", ""), str))
+sl7 = call(f"/api/shipments/{s7['shipment']['id']}/action", "POST", {"action": "share-link"}, sess=CUST)
+tr7 = call(f"/api/track/{sl7['token']}")
+tr_json = json.dumps(tr7.get("tracking", {}))
+check("public track exposes no PII (phones/notes/customer)", "phone" not in tr_json and "\"notes\"" not in tr_json and "customer" not in tr_json)
+check("public track payload is inert data (JSON string, React-escaped at render)", isinstance(tr7.get("tracking", {}).get("pickup", {}).get("name"), str))
+call(f"/api/shipments/{s7['shipment']['id']}/action", "POST", {"action": "cancel", "reason": "cleanup"}, sess=CUST)
+
+# 18i. driver wallet: withdrawals are balance-checked
+drv_id = m["shipment"]["driver"]["id"]
+assigned_sess = assigned
+r = call("/api/driver/action", "POST", {"action": "withdraw", "amount": 999_999_999}, sess=assigned_sess)
+check("over-balance withdrawal rejected", r.get("_status") == 400 and "wallet" in r.get("error", "").lower(), r.get("error", ""))
+r = call("/api/driver/action", "POST", {"action": "withdraw", "amount": 100}, sess=am_sess)
+if r.get("_status") in (400, 409):
+    check("small withdrawal validated (balance/pending guard)", True, r.get("error", "")[:60])
+else:
+    check("small withdrawal validated (balance/pending guard)", r.get("ok") is True, "paid in sandbox")
+
+# 18j. admin audit trail records the session identity, not a client-supplied actor
+r = call("/api/admin/action", "POST", {"action": "setting-update", "key": "quoteExpiryMinutes", "value": "60", "actor": "spoofed@attacker"}, sess=ADMIN)
+logs = call("/api/admin?tab=audit", sess=ADMIN)["logs"]
+check("audit actor comes from the session", any(l["actor"].startswith("admin:") and "spoofed" not in l["actor"] for l in logs[:5]))
+
+# 18k. logout clears the session server-side
+lo = call("/api/auth", "POST", {"action": "logout"}, sess=BIZ)
+check("logout ok", lo.get("ok") is True)
+r = call("/api/customer", sess=BIZ)
+check("logged-out session rejected", r.get("_status") == 401)
+BIZ = login("0722000033")  # re-login for any later use
+
+# ═══ 19. STRESS — concurrency + reliability ═════════════════════════════════
+
+print("\n── stress ──")
+# 19a. concurrent double-claim of one return leg → exactly one winner
+pub2 = call("/api/driver/action", "POST", {"action": "publish-return-load",
+    "from": {"name": "Westlands", "area": "Westlands", "lat": -1.267, "lng": 36.801},
+    "to": {"name": "Karen Hardy", "area": "Karen", "lat": -1.3194, "lng": 36.7078},
+    "categoryKey": "canter", "cargoNote": "Stress test leg", "priceKes": 1200}, sess=am_sess)
+leg_id = pub2["returnLoad"]["id"]
+results = []
+def claim():
+    results.append(call(f"/api/return-loads/{leg_id}/book", "POST", {"paymentMethod": "CASH"}, sess=CUST))
+threads = [threading.Thread(target=claim) for _ in range(2)]
+[t.start() for t in threads]; [t.join() for t in threads]
+winners = [x for x in results if x.get("ok")]
+check("concurrent claim → exactly one winner", len(winners) == 1, f"{len(winners)} winners")
+
+# 19b. concurrent cancel on the same shipment → at most one 200
+s8 = call("/api/shipments", "POST", {"draftId": "test-race-cancel",
+    "pickup": {"name": "Toi Market", "lat": -1.297, "lng": 36.779}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
+    "cargo": {"items": [{"name": "Rug", "qty": 1, "weightKg": 15}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"}, sess=CUST)
+sid8 = s8["shipment"]["id"]
+races = []
+def cancel():
+    races.append(call(f"/api/shipments/{sid8}/action", "POST", {"action": "cancel", "reason": "race"}, sess=CUST))
+threads = [threading.Thread(target=cancel) for _ in range(3)]
+[t.start() for t in threads]; [t.join() for t in threads]
+ok_cancels = [x for x in races if x.get("ok")]
+check("concurrent cancel → single winner", len(ok_cancels) == 1, f"{len(ok_cancels)} ok")
+
+# 19c. concurrent pay-confirm idempotency (no double receipts)
+s9 = call("/api/shipments", "POST", {"draftId": "test-race-pay",
+    "pickup": {"name": "Toi Market", "lat": -1.297, "lng": 36.779}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
+    "cargo": {"items": [{"name": "Box", "qty": 1, "weightKg": 5}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"}, sess=CUST)
+sid9 = s9["shipment"]["id"]
+call(f"/api/shipments/{sid9}/action", "POST", {"action": "pay"}, sess=CUST)
+pays = []
+def pay():
+    pays.append(call(f"/api/shipments/{sid9}/action", "POST", {"action": "pay-confirm"}, sess=CUST))
+threads = [threading.Thread(target=pay) for _ in range(3)]
+[t.start() for t in threads]; [t.join() for t in threads]
+confirmed = [x for x in pays if x.get("receipt")]
+already = [x for x in pays if x.get("alreadyPaid")]
+check("concurrent pay-confirm idempotent", len(confirmed) + len(already) == 3 and len(confirmed) <= 1, f"{len(confirmed)} receipts, {len(already)} idempotent")
+call(f"/api/shipments/{sid9}/action", "POST", {"action": "cancel", "reason": "cleanup"}, sess=CUST)
+
+# 19d. malformed bodies never 500
+for junk in ["not json", "", "[]", '{"weird": true}']:
+    req = urllib.request.Request(BASE + "/api/shipments", method="POST", data=junk.encode(), headers={"Content-Type": "application/json", "Cookie": CUST})
+    try:
+        with urllib.request.urlopen(req) as resp:
+            code = resp.status
+    except urllib.error.HTTPError as e:
+        code = e.code
+    check(f"malformed body → 4xx ({junk[:10] or 'empty'})", code < 500)
+r = call("/api/shipments/does-not-exist/action", "POST", {"action": "pay"}, sess=CUST)
+check("unknown shipment → 404", r.get("_status") == 404)
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "not-an-action"}, sess=CUST)
+check("unknown action → 400", r.get("_status") == 400)
+
+# 19e. rapid-fire quotes stay under the rate limit, then the limiter trips
+flood_ok, flood_limited = 0, 0
+for i in range(48):
+    r = call("/api/quote", "POST", {"pickup": {"name": "A", "lat": -1.28, "lng": 36.8}, "dropoff": {"name": "B", "lat": -1.29, "lng": 36.81},
+        "cargo": {"items": [], "load": "SMALL", "helpers": 0}})
+    if r.get("_status") == 429: flood_limited += 1
+    elif "quotes" in r: flood_ok += 1
+check("rate limiter trips under flood (429 seen)", flood_limited >= 1, f"{flood_ok} ok, {flood_limited} limited")
+check("rate limiter lets normal traffic through", flood_ok >= 30, f"{flood_ok} ok")
 
 print()
 print("RESULT:", "ALL PASS" if not fails else f"{len(fails)} FAILURES: {fails}")

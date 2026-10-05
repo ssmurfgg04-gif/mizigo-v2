@@ -5,14 +5,18 @@ import { ensureDB } from "@/lib/db-ready";
 import { ACTIVE_STATES } from "@/lib/state-machine";
 import { DEMAND_ZONES } from "@/lib/matching";
 import { shipmentDTO } from "@/lib/shipments";
+import { requireSession, isResponse } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   await ensureDB();
+  // the session's driver profile — a query param can never read another driver
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
   const { searchParams } = new URL(req.url);
-  const driverId = searchParams.get("driverId");
-  if (!driverId) return NextResponse.json({ error: "driverId required" }, { status: 400 });
+  const driverId = session.role === "ADMIN" && searchParams.get("driverId") ? searchParams.get("driverId")! : session.did;
+  if (!driverId) return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
 
   const driver = await db.driver.findUnique({
     where: { id: driverId },

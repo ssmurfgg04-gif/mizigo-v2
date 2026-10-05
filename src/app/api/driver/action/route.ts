@@ -5,16 +5,26 @@ import { mpesaRef } from "@/lib/format";
 import { priceFor } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
 import { ensureDB } from "@/lib/db-ready";
+import { requireSession, isResponse, rateLimit, clampInt, capStr, validCoord } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   await ensureDB();
+  // every driver action is bound to the session's own driver profile
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const limited = rateLimit(req, "driver:action", 40, 60_000);
+  if (limited) return limited;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");
+  const driverId = session.did;
+  if (!driverId && session.role !== "ADMIN") {
+    return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
+  }
 
   if (action === "status") {
-    const { driverId, status } = body;
+    const status = body.status;
     if (!driverId || !["ONLINE", "OFFLINE", "BREAK"].includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
@@ -31,11 +41,22 @@ export async function POST(req: Request) {
   }
 
   if (action === "withdraw") {
-    const { driverId, amount } = body;
-    const amt = Math.floor(Number(amount) || 0);
-    if (!driverId || amt < 100) return NextResponse.json({ error: "Minimum withdrawal is KES 100." }, { status: 400 });
+    if (!driverId) return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
+    const amt = clampInt(body.amount, 0, 200_000, 0);
+    if (amt < 100) return NextResponse.json({ error: "Minimum withdrawal is KES 100." }, { status: 400 });
     const payouts = await db.payout.findMany({ where: { driverId, status: { in: ["PENDING", "PROCESSING"] } } });
     if (payouts.length) return NextResponse.json({ error: "A withdrawal is already processing." }, { status: 409 });
+    // wallet = completed earnings this month − already-paid withdrawals (same as /api/driver)
+    const DAY = 86400_000;
+    const monthStart = new Date(Date.now() - 30 * DAY);
+    const [completed, paid] = await Promise.all([
+      db.shipment.findMany({ where: { driverId, status: "COMPLETED" }, select: { driverEarnings: true, stateEnteredAt: true } }),
+      db.payout.findMany({ where: { driverId, status: "PAID" }, select: { amount: true } }),
+    ]);
+    const wallet = Math.max(0, completed.filter((c) => new Date(c.stateEnteredAt) >= monthStart).reduce((a, c) => a + c.driverEarnings, 0) - paid.reduce((a, p) => a + p.amount, 0));
+    if (amt > wallet) {
+      return NextResponse.json({ error: `That's more than your KES ${wallet.toLocaleString()} wallet balance.` }, { status: 400 });
+    }
     const p = await db.payout.create({ data: { driverId, amount: amt, method: "MPESA", status: "PROCESSING", ref: mpesaRef() } });
     // mock B2C disbursement: completes immediately in sandbox
     await db.payout.update({ where: { id: p.id }, data: { status: "PAID" } });
@@ -44,8 +65,11 @@ export async function POST(req: Request) {
 
   // ── v1 goodness: publish an empty leg on the return-load marketplace ──
   if (action === "publish-return-load") {
-    const { driverId, from, to, categoryKey, cargoNote, maxWeightKg, priceKes, availableUntil } = body;
-    if (!driverId || !from?.name || !to?.name) {
+    if (!driverId) return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
+    const { from, to, categoryKey, cargoNote, maxWeightKg, priceKes, availableUntil } = body;
+    const fromC = validCoord(from?.lat, from?.lng);
+    const toC = validCoord(to?.lat, to?.lng);
+    if (!from?.name || !to?.name || !fromC || !toC) {
       return NextResponse.json({ error: "Pickup and destination for the return leg are required." }, { status: 400 });
     }
     const [driver, zone] = await Promise.all([
@@ -58,15 +82,12 @@ export async function POST(req: Request) {
     const category = vehicle?.category ?? null;
     if (!category || !zone) return NextResponse.json({ error: "Add a vehicle before publishing capacity." }, { status: 400 });
 
-    const weight = Math.max(1, Math.floor(Number(maxWeightKg) || category.capacityKg));
-    const price = Math.floor(Number(priceKes) || 0);
+    const weight = clampInt(maxWeightKg, 1, category?.capacityKg ?? 20000, category?.capacityKg ?? 1000);
+    const price = clampInt(priceKes, 0, 500_000, 0);
     if (price < 500) return NextResponse.json({ error: "Return price must be at least KES 500." }, { status: 400 });
 
     // honest comparison fare: what a normal booking of this leg would cost
-    const distanceKm = Math.round(routeDistanceKm(
-      { lat: Number(from.lat), lng: Number(from.lng) },
-      { lat: Number(to.lat), lng: Number(to.lng) }
-    ) * 10) / 10;
+    const distanceKm = Math.round(routeDistanceKm(fromC, toC) * 10) / 10;
     const normal = priceFor(category, zone, {
       distanceKm, durationMin: routeDurationMin(distanceKm), helpers: 0, extraStops: 0,
     });
@@ -74,9 +95,9 @@ export async function POST(req: Request) {
     const row = await db.returnLoad.create({
       data: {
         driverId,
-        fromName: String(from.name), fromArea: String(from.area ?? ""), fromLat: Number(from.lat), fromLng: Number(from.lng),
-        toName: String(to.name), toArea: String(to.area ?? ""), toLat: Number(to.lat), toLng: Number(to.lng),
-        categoryKey: category.key, cargoNote: String(cargoNote ?? "General cargo").slice(0, 60),
+        fromName: capStr(from.name, 80), fromArea: capStr(from.area ?? "", 60), fromLat: fromC.lat, fromLng: fromC.lng,
+        toName: capStr(to.name, 80), toArea: capStr(to.area ?? "", 60), toLat: toC.lat, toLng: toC.lng,
+        categoryKey: category.key, cargoNote: capStr(cargoNote ?? "General cargo", 60),
         maxWeightKg: weight, priceKes: price, normalPriceKes: Math.max(price, normal.total),
         availableUntil: isNaN(until.getTime()) ? null : until,
       },
@@ -85,8 +106,9 @@ export async function POST(req: Request) {
   }
 
   if (action === "return-load-cancel") {
-    const { id, driverId } = body;
-    if (!id || !driverId) return NextResponse.json({ error: "Missing load reference." }, { status: 400 });
+    if (!driverId) return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
+    const { id } = body;
+    if (!id) return NextResponse.json({ error: "Missing load reference." }, { status: 400 });
     const cancelled = await db.returnLoad.updateMany({
       where: { id, driverId, status: "AVAILABLE" },
       data: { status: "CANCELLED" },

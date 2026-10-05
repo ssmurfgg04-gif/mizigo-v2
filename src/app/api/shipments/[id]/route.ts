@@ -1,4 +1,5 @@
 // GET /api/shipments/[id] — full detail + live position (polled by live screens)
+// Ownership: the customer, the assigned driver or an admin — nobody else.
 // ?demo=auto (customer active-trip poll): sandbox driver auto-advance so the
 // journey completes while watching. When the customer screen unmounts (e.g.
 // the user switches to the driver surface) polling stops, so a human driver
@@ -7,6 +8,7 @@ import { NextResponse } from "next/server";
 import { getShipmentFull, shipmentDTO, applyTransition, simulateLive } from "@/lib/shipments";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
+import { requireSession, isResponse } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +16,20 @@ const SEC = 1000;
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   await ensureDB();
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
   const { id } = await params;
   const demoAuto = new URL(req.url).searchParams.get("demo") === "auto";
   let s = await getShipmentFull({ id });
   if (!s) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // ownership gate — the customer, the assigned driver, or an admin
+  const isCustomer = session.uid === s.customerId;
+  const isDriver = !!session.did && session.did === s.driverId;
+  const isAdmin = session.role === "ADMIN";
+  if (!isCustomer && !isDriver && !isAdmin) {
+    return NextResponse.json({ error: "You don't have access to this delivery." }, { status: 403 });
+  }
 
   // DEV-MODE MOCK: the assigned driver auto-accepts after ~5s
   if (s.status === "DRIVER_ASSIGNED" && Date.now() - new Date(s.stateEnteredAt).getTime() > 5000) {
@@ -67,7 +79,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       DELIVERED: () =>
         dwell > 8 * SEC
           ? applyTransition(id, "pod", "DRIVER", { label: `Proof of delivery · ${s!.dropoffContact || "Recipient"} · OTP verified` })
-              .then(() => fetch(`http://localhost:3000/api/shipments/${id}`, { method: "GET" }).catch(() => null))
           : null,
     };
     const step = next[s.status];

@@ -15,6 +15,8 @@ import DriverApp from "@/components/mizigo/driver/DriverApp";
 import AdminApp from "@/components/mizigo/admin/AdminApp";
 import TrackView from "@/components/mizigo/customer/TrackView";
 import { Logo } from "@/components/mizigo/shared/ui";
+import { api } from "@/lib/api-client";
+import { toast } from "@/hooks/use-toast";
 
 export default function Page() {
   // useSearchParams needs a Suspense boundary for static prerender
@@ -70,6 +72,33 @@ function PageContent() {
       window.clearTimeout(initial);
     };
   }, []);
+
+  // session expiry mid-use → clean logout back to the welcome screen
+  useEffect(() => {
+    const onExpired = () => {
+      const st = useSession.getState();
+      if (st.surface !== "welcome" && st.surface !== "track") {
+        st.logout();
+        toast({ title: "Session expired", description: "Please sign in again." });
+      }
+    };
+    window.addEventListener("mizigo:session-expired", onExpired);
+    return () => window.removeEventListener("mizigo:session-expired", onExpired);
+  }, []);
+
+  // session restore: remembered client state must match a live server session
+  useEffect(() => {
+    if (surface !== "customer" && surface !== "driver" && surface !== "admin") return;
+    let cancelled = false;
+    api<{ user: unknown }>("/api/auth?action=me")
+      .then((r) => {
+        if (cancelled) return;
+        const st = useSession.getState();
+        if (!r.user && st.user) st.logout(); // remembered but signed out server-side
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [surface]);
 
   const body = useMemo(() => {
     if (surface === "track") return <TrackView />;

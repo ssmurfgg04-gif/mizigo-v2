@@ -8,15 +8,19 @@ import { mpesaRef } from "@/lib/format";
 import { newShipmentCode, newShareToken, getShipmentFull, shipmentDTO } from "@/lib/shipments";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
 import { ensureDB } from "@/lib/db-ready";
+import { requireSession, isResponse, rateLimit, capStr } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   await ensureDB();
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const limited = rateLimit(req, "returnload:book", 15, 60_000);
+  if (limited) return limited;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const customerId = String(body.customerId ?? "");
-  if (!customerId) return NextResponse.json({ error: "Sign in as a customer first." }, { status: 400 });
+  const customerId = session.uid; // the booking belongs to the signed-in customer
 
   const load = await db.returnLoad.findUnique({ where: { id } });
   if (!load || load.status !== "AVAILABLE" || (load.availableUntil && load.availableUntil < new Date())) {
@@ -64,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       dropoffName: load.toName, dropoffArea: load.toArea, dropoffLat: load.toLat, dropoffLng: load.toLng,
       stops: "[]", distanceKm, durationMin,
       cargoCategory: "other", cargoLoad: "MEDIUM", helpers: 0, specialHandling: "[]",
-      notes: `Return load · ${load.cargoNote}`,
+      notes: capStr(`Return load · ${load.cargoNote}`, 400),
       categoryId: category.id, vehicleId: vehicle?.id ?? null, driverId: driver.id,
       pricingMode: "INSTANT", returnLoadId: load.id,
       fareBase: total, fareDistance: 0, fareDuration: 0, fareLoading: 0, fareStops: 0, fareNight: 0, fareSchedule: 0,

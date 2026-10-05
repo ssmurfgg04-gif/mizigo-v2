@@ -4,17 +4,20 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { ACTIVE_STATES } from "@/lib/state-machine";
+import { requireSession, isResponse, rateLimit, capStr, validCoord } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   await ensureDB();
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+  // the session decides whose data this is — never a query param
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const userId = session.uid;
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) return NextResponse.json({ error: "Account not found." }, { status: 404 });
 
-  const [user, active, trips, saved, notifications] = await Promise.all([
-    db.user.findUnique({ where: { id: userId } }),
+  const [active, trips, saved, notifications] = await Promise.all([
     db.shipment.findFirst({
       where: { customerId: userId, status: { in: [...ACTIVE_STATES, "QUOTED"] } },
       include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } }, messages: { orderBy: { createdAt: "asc" } } },
@@ -58,26 +61,32 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   await ensureDB();
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const limited = rateLimit(req, "customer:post", 30, 60_000);
+  if (limited) return limited;
   const body = (await req.json().catch(() => ({}))) as {
-    action?: string; userId?: string; place?: { label: string; name: string; area: string; lat: number; lng: number }; placeId?: string;
+    action?: string; place?: { label: string; name: string; area: string; lat: number; lng: number }; placeId?: string;
   };
-  if (!body.userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+  const userId = session.uid; // places belong to the signed-in account
 
   if (body.action === "save-place") {
     const p = body.place;
-    if (!p?.name || p.lat == null) return NextResponse.json({ error: "Place details required" }, { status: 400 });
-    const existing = await db.savedPlace.findFirst({ where: { userId: body.userId, name: p.name } });
+    const c = p ? validCoord(p.lat, p.lng) : null;
+    if (!p?.name || !c) return NextResponse.json({ error: "Place details required" }, { status: 400 });
+    const name = capStr(p.name, 80);
+    const existing = await db.savedPlace.findFirst({ where: { userId, name } });
     if (existing) {
-      const updated = await db.savedPlace.update({ where: { id: existing.id }, data: { label: p.label || "Saved", name: p.name, area: p.area ?? "", lat: p.lat, lng: p.lng } });
+      const updated = await db.savedPlace.update({ where: { id: existing.id }, data: { label: capStr(p.label || "Saved", 24), name, area: capStr(p.area ?? "", 60), lat: c.lat, lng: c.lng } });
       return NextResponse.json({ ok: true, place: updated });
     }
-    const created = await db.savedPlace.create({ data: { userId: body.userId!, label: p.label || "Saved", name: p.name, area: p.area ?? "", lat: p.lat, lng: p.lng } });
+    const created = await db.savedPlace.create({ data: { userId, label: capStr(p.label || "Saved", 24), name, area: capStr(p.area ?? "", 60), lat: c.lat, lng: c.lng } });
     return NextResponse.json({ ok: true, place: created });
   }
 
   if (body.action === "remove-place") {
     if (!body.placeId) return NextResponse.json({ error: "placeId required" }, { status: 400 });
-    await db.savedPlace.deleteMany({ where: { id: body.placeId, userId: body.userId } });
+    await db.savedPlace.deleteMany({ where: { id: body.placeId, userId } });
     return NextResponse.json({ ok: true });
   }
 

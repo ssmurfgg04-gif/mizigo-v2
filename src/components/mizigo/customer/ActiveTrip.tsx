@@ -16,6 +16,7 @@ import { CUSTOMER_TIMELINE, STATUS_LABEL } from "@/lib/state-machine";
 import { etaText, fmtDateTimeEAT, fmtPhone, kes, minutesAgoEAT } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 import { CARGO_CATEGORIES } from "@/lib/pricing";
+import { shareTrackLink } from "@/components/mizigo/shared/share";
 
 export default function ActiveTrip() {
   const { focusShipmentId, setBookingStep, setCustomerTab, setTrackToken } = useSession();
@@ -128,19 +129,7 @@ export default function ActiveTrip() {
           <Button
             variant="outline"
             className="h-12 px-0 text-[13px]"
-            onClick={async () => {
-              // v1 lesson: mint a fresh recipient link on demand — raw tokens are never stored
-              try {
-                const r = await post<{ token: string; url: string }>(`/api/shipments/${s.id}/action`, { action: "share-link", actor: "CUSTOMER" });
-                setTrackToken(r.token);
-                const url = `${location.origin}/?view=track&token=${r.token}`;
-                if (navigator.share) await navigator.share({ title: "Mizigo delivery tracking", text: "Follow this delivery on Mizigo", url }).catch(() => {});
-                else await navigator.clipboard?.writeText(url).catch(() => {});
-                toast({ title: "Tracking link ready", description: "Anyone with the link can follow this delivery. No account needed." });
-              } catch {
-                toast({ title: "Could not create link", variant: "destructive" });
-              }
-            }}
+            onClick={() => { void shareTrackLink(s.id); }}
           >
             <Share2 size={15} /> Share
           </Button>

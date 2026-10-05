@@ -1,24 +1,37 @@
 // POST /api/shipments — create a PRICED shipment (idempotent by draftId).
 // Supports promo codes, scheduled bookings and QUOTE pricing mode.
-// GET /api/shipments?userId= — customer trip history.
+// GET /api/shipments — the caller's own trip history (session-scoped).
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { newShipmentCode, newShareToken, getShipmentFull, shipmentDTO } from "@/lib/shipments";
 import { priceFor, estimateWeight, recommendCategory, isNightHour } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
+import { requireSession, isResponse, rateLimit, capStr, clampInt, validCoord, sanitizeItems, sanitizeStops } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   await ensureDB();
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const limited = rateLimit(req, "shipments:create", 15, 60_000);
+  if (limited) return limited;
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-  const { draftId, customerId, pickup, dropoff, stops, cargo, categoryKey, paymentMethod, scheduledAt, promoCode, pricingMode } = body;
-  if (!draftId || !customerId || !pickup?.lat || !dropoff?.lat || !categoryKey) {
-    return NextResponse.json({ error: "Missing booking details." }, { status: 400 });
+  const { draftId, pickup, dropoff, cargo = {}, categoryKey, paymentMethod, scheduledAt, promoCode, pricingMode } = body;
+  // the booking belongs to the signed-in customer (admins may book on behalf)
+  const customerId = session.role === "ADMIN" && body.customerId ? String(body.customerId) : session.uid;
+
+  // coordinate sanity: pickup/dropoff/stops must be finite + inside the service region
+  const pickupC = validCoord(pickup?.lat, pickup?.lng);
+  const dropoffC = validCoord(dropoff?.lat, dropoff?.lng);
+  if (!draftId || !pickupC || !dropoffC || !categoryKey) {
+    return NextResponse.json({ error: "Missing or invalid booking details." }, { status: 400 });
   }
+  const stops = sanitizeStops(body.stops);
+  const items = sanitizeItems(cargo.items);
 
   // scheduled bookings: admin controls how far ahead is allowed (plan §34)
   if (scheduledAt) {
@@ -45,17 +58,18 @@ export async function POST(req: Request) {
   ]);
   if (!zone || !category) return NextResponse.json({ error: "Vehicle category unavailable" }, { status: 400 });
 
-  const waypoints = [pickup, ...(stops ?? []), dropoff].map((p: { lat: number; lng: number }) => ({ lat: p.lat, lng: p.lng }));
+  const waypoints = [pickupC, ...stops, dropoffC];
   let distanceKm = 0;
   for (let i = 0; i < waypoints.length - 1; i++) distanceKm += routeDistanceKm(waypoints[i], waypoints[i + 1]);
   distanceKm = Math.round(distanceKm * 10) / 10;
   const durationMin = routeDurationMin(distanceKm);
-  const weightKg = estimateWeight(cargo.items ?? [], cargo.load ?? "MEDIUM");
+  const weightKg = estimateWeight(items, cargo.load ?? "MEDIUM");
+  const helpers = clampInt(cargo.helpers, 0, 6, 0);
   const extraStops = Math.max(0, waypoints.length - 2);
   // v1 pricing factors: night surcharge + planned-delivery discount
   const scheduledDate = scheduledAt ? new Date(scheduledAt) : null;
   const night = isNightHour(scheduledDate ?? new Date());
-  let fare = priceFor(category, zone, { distanceKm, durationMin, helpers: cargo.helpers ?? 0, extraStops, night, scheduled: !!scheduledDate });
+  let fare = priceFor(category, zone, { distanceKm, durationMin, helpers, extraStops, night, scheduled: !!scheduledDate });
 
   // ── promo validation + server-side discount (plan §75) ──
   let discount = 0;
@@ -90,14 +104,14 @@ export async function POST(req: Request) {
     data: {
       code, shareToken: token.hash, customerId, status: "PRICED", stateEnteredAt: new Date(),
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-      pickupName: pickup.name, pickupArea: pickup.area ?? "", pickupLat: pickup.lat, pickupLng: pickup.lng,
-      pickupNote: pickup.note ?? null, pickupContact: pickup.contact ?? null, pickupPhone: pickup.phone ?? null,
-      dropoffName: dropoff.name, dropoffArea: dropoff.area ?? "", dropoffLat: dropoff.lat, dropoffLng: dropoff.lng,
-      dropoffNote: dropoff.note ?? null, dropoffContact: dropoff.contact ?? null, dropoffPhone: dropoff.phone ?? null,
-      stops: JSON.stringify(stops ?? []),
+      pickupName: capStr(pickup.name, 90), pickupArea: capStr(pickup.area ?? "", 60), pickupLat: pickupC.lat, pickupLng: pickupC.lng,
+      pickupNote: capStr(pickup.note, 200) || null, pickupContact: capStr(pickup.contact, 60) || null, pickupPhone: capStr(pickup.phone, 20) || null,
+      dropoffName: capStr(dropoff.name, 90), dropoffArea: capStr(dropoff.area ?? "", 60), dropoffLat: dropoffC.lat, dropoffLng: dropoffC.lng,
+      dropoffNote: capStr(dropoff.note, 200) || null, dropoffContact: capStr(dropoff.contact, 60) || null, dropoffPhone: capStr(dropoff.phone, 20) || null,
+      stops: JSON.stringify(stops),
       distanceKm, durationMin,
       cargoCategory: cargo.category ?? "other", cargoLoad: cargo.load ?? "MEDIUM",
-      helpers: cargo.helpers ?? 0, specialHandling: JSON.stringify(cargo.special ?? []), notes: cargo.notes ?? null,
+      helpers, specialHandling: JSON.stringify(Array.isArray(cargo.special) ? cargo.special.slice(0, 8).map((s: unknown) => capStr(s, 24)) : []), notes: capStr(cargo.notes, 400) || null,
       categoryId: category.id,
       pricingMode: pricingMode === "QUOTE" ? "QUOTE" : "INSTANT",
       promoCode: appliedPromo, fareDiscount: discount,
@@ -106,8 +120,8 @@ export async function POST(req: Request) {
       fareTotal: fare.total, driverEarnings: fare.driverEarnings, commission: fare.commission,
       paymentMethod: paymentMethod ?? "MPESA", paymentStatus: "PENDING",
       paymentRef: `DRAFT:${draftId}`, // reserved until payment; replaced by MPESA receipt
-      items: { create: (cargo.items ?? []).map((i: { name: string; qty: number; weightKg?: number }) => ({ name: i.name, qty: i.qty, weightKg: i.weightKg ?? 0 })) },
-      events: { create: [{ type: "BOOKING_CREATED", label: "Booking created · fare locked", actor: "CUSTOMER", lat: pickup.lat, lng: pickup.lng }] },
+      items: { create: items.map((i) => ({ name: i.name, qty: i.qty, weightKg: i.weightKg })) },
+      events: { create: [{ type: "BOOKING_CREATED", label: "Booking created · fare locked", actor: "CUSTOMER", lat: pickupC.lat, lng: pickupC.lng }] },
     },
   });
 
@@ -117,13 +131,18 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   await ensureDB();
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  // customers see their own trips; drivers see assigned ones; admins see all
+  const where =
+    session.role === "ADMIN" ? undefined :
+    session.role === "DRIVER" ? { driverId: session.did! } :
+    { customerId: session.uid };
   const rows = await db.shipment.findMany({
-    where: { customerId: userId },
+    where,
     include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } }, messages: { orderBy: { createdAt: "asc" } } },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
   return NextResponse.json({ shipments: rows.map(shipmentDTO) });
 }

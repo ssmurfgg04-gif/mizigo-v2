@@ -165,3 +165,38 @@ Stage Summary:
 - 74/74 e2e green on dev AND Netlify production sim; 4 VLM rounds pass; lint/tsc/build green
 - Netlify-ready: cold-start self-bootstrap includes the new ReturnLoad table
 - Next: commit + push to ssmurfgg04-gif/mizigo-v2
+---
+Task ID: R1
+Agent: product-critic
+Task: Read-only product/UX teardown of MIZIGO v2 vs Uber/Uber Freight, Bolt, Sendy, Lori/Kobo360 ahead of Netlify launch; deliver prioritized findings. No source files modified, no git actions.
+Work Log:
+- Read worklog.md, README, DESIGN_SYSTEM.md; mapped all 3 surfaces + public tracking from src/app/page.tsx + components/mizigo/*
+- Deep-read all 18 customer/driver/shared components + AdminApp (15 tabs), session store, i18n, format, pricing, state-machine, shipments lib, and 6 API routes (shipments, action, track, bootstrap, admin)
+- Verified dev server :200 + bootstrap API; empirically tested share-link flow: GET /api/track/{dto.shareToken} returns 404 — Trips-detail and Receipt "Share tracking" buttons produce dead links (hash exposed as token)
+- Audited vs competitor table stakes: booking ergonomics, price transparency, cancellation UX, driver earnings transparency, trust/safety (SOS, insurance messaging, vetting), empty/loading/error states, dead ends, i18n quality, mobile ergonomics, demo-first-impression
+- Findings: 2 P0 (dead share links; fake Message button on driver-found card), 9 P1 (bell→Wallet IA bug, driver offer "customer ★ name" render bug, active trip unreachable from Trips, duplicate/broken home shortcuts, schedule datetime UTC bug, decorative POD code w/ no customer-side code, hardcoded support hotline vs admin setting, toast-only Safety centre, zero insurance messaging), 9 P2 (partial Kiswahili, unimplemented KES 200 cancel fee copy, hardcoded stop-fee + quote-expiry copy, localhost:3000 in server demo path, false offline-sync claim, admin support rows not clickable, cargo search dead-end, STK no-exit), plus P3 polish list
+- Delivered full prioritized teardown report with file:line evidence and concrete fixes to the orchestrator
+Stage Summary: Read-only critique complete. Product is demo-strong (cargo-first flow, locked pricing, chain-of-custody, honest sandbox) but ships 2 launch-blocking bugs (dead tracking links verified 404; dead Message CTA) and a P1 trust/safety gap vs Sendy (no insurance messaging, no real safety centre, no SOS). All fixes are scoped to specific files and implementable pre-Netlify.
+---
+Task ID: R3
+Agent: quality-auditor
+Task: Read-only final QA sweep — code quality, accessibility, i18n, performance, TS hygiene, SEO/meta, formatting consistency across all MIZIGO v2 surfaces (customer, driver, admin, public track, welcome).
+Work Log:
+- Read every source file under src/app, src/components/mizigo, src/lib, src/store (≈7,500 LOC) + package.json, next.config.ts, netlify.toml, tsconfig, public assets
+- Probed live dev server (/, /og.png, /manifest, /robots, hero webps, /api/track, /api/customer, /api/bootstrap — all 200, consistent JSON error shape)
+- Computed WCAG contrast for all token pairings (script): --ink-3 2.88–3.31 FAIL, white-on-brand 3.58 FAIL, brand-on-paper 3.31 FAIL, StatusBadge active 3.13 FAIL; brand-deep button 5.18 PASS
+- Ran tsc --noEmit: src/ clean; failures only in examples/ + skills/ (tsconfig include **/*.ts)
+- Audited i18n dictionary (30 keys) + grepped all surfaces for hardcoded strings; found sw typos ("Safuri", leading space) and ~95% untranslated surfaces
+- Verified fonts (next/font swap — good), hero webp weights (46/64KB — good), manifest/icons/robots present, netlify.toml TOML-valid (headers block OK despite odd cat rendering)
+- Traced polling intervals (2.5s/4s/8s/12s/15s/20s) — no document.hidden pause anywhere; TrackView polls after COMPLETED
+- Found functional bugs: datetime-local UTC value (3h off for EAT users), stale ["driver"] invalidation keys, Wallet/Admin empty-state flash during load, persisted surface=track dead-end
+Stage Summary: 35 findings (5 P0, 12 P1, 18 P2) — headline: schedule picker time skew, AA contrast failures on ink-3/brand/white-on-brand tokens, i18n coverage ~5%, no tab-hidden polling pause, admin loading/keyboard gaps, 20+ unused heavy deps + 48 dead shadcn files. Top-10 quick-win list delivered. No source files modified; worklog append-only.
+---
+Task ID: R2
+Agent: security-auditor
+Task: Read-only security audit of MIZIGO v2 (API routes, libs, Prisma schema, client session model) + live black-box testing (curl vs localhost:3000) ahead of public Netlify deploy.
+Work Log:
+- Mapped all 16 API routes + src/lib (auth, tokens, state-machine, shipments, pricing, matching, db, db-ready, ddl) + session store (zustand/localStorage — no token, client-supplied identity)
+- Live tests (~35 curls): OTP verify bypass (wrong/missing code accepted, incl. seeded ADMIN phone), unauth /api/admin PII dump (customers/drivers/audit), unauth admin mutations (promo create/toggle, dispute-resolve) with spoofed audit actor, IDOR on /api/customer /api/driver /api/shipments (victim wallet/history/phones with no auth), unauth driver withdraw (wallet 1435→1335, no balance check), forged driver-quote in another driver's name, state-machine abuse suite (invalid transitions 409, double-pay idempotent, double-quote 409, cancel-after-delivery 409, revive blocked), return-load concurrent double-book (atomic claim: 200/409), XSS payload storage (name/items/notes/chat — React-escaped, no dangerous sinks), NaN/string/huge coords (NaN fares, 500 on booking), share-token hash lookup (invalid + hash-as-token → 404, no PII on track), error hygiene (no stack leaks), rate-limit probes (none), git history .env check (never committed), secrets grep (clean)
+- Cleanup: audit promo disabled, audit dispute resolved, own test shipment cancelled+refunded; disclosed residual footprint (test user 0799000001, KES 100 mock payout, one auto-advance of a seeded DRIVER_ASSIGNED shipment via dev-mode poll mock, one 5★ rating probe)
+Stage Summary: 18 findings (5 P0 / 6 P1 / 7 P2). P0: no authentication/authorization anywhere (client-supplied userId/driverId/actor), unauth admin console + mutations, OTP never validated (phone-only takeover), unauth driver wallet withdrawal, mass PII exposure. Core state machine, share-token hashing, public track minimization, payment idempotency, return-load atomicity, Prisma parametrization and React escaping are sound. Recommended before public deploy: server-side session (signed cookie) + role checks on /api/admin, /api/driver/*, shipment ownership binding, OTP code check + devCode gating, balance check on withdraw, input validation (coords/types/lengths), security headers, basic rate limiting. No source files modified.

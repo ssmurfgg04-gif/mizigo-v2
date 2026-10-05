@@ -196,7 +196,7 @@ export async function newShareToken(): Promise<{ raw: string; hash: string }> {
 export function shipmentDTO(s: ShipmentWithRelations) {
   const live = simulateLive(s);
   return {
-    id: s.id, code: s.code, shareToken: s.shareToken, status: s.status,
+    id: s.id, code: s.code, status: s.status,
     createdAt: s.createdAt.toISOString(), stateEnteredAt: s.stateEnteredAt.toISOString(),
     scheduledAt: s.scheduledAt?.toISOString() ?? null,
     route: {
