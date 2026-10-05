@@ -40,6 +40,19 @@ MIZIGO_BASE=http://localhost:3100 python3 scripts/e2e_test.py
 RESULT=$?
 if [ $RESULT -eq 0 ]; then
   echo "── done: shutting the sim down ──"
-  lsof -ti:3100 | xargs -r kill -9 2>/dev/null || true
+  for pid in $(ps -eo pid,cmd | rg "next start|next-server" | rg -v "rg next|next dev" | awk '{print $1}'); do
+    kill -9 "$pid" 2>/dev/null || true
+  done
 fi
+
+# NOTE: the build above wiped .next — restart the dev server (its turbopack
+# cache can't survive that) and let it reseed a fresh dev DB.
+echo "── restarting the dev server on :3000 (fresh cache) ──"
+for pid in $(ps -eo pid,cmd | rg "next dev|next-server" | rg -v rg | awk '{print $1}'); do
+  kill -9 "$pid" 2>/dev/null || true
+done
+sleep 1
+rm -f db/custom.db
+nohup node node_modules/next/dist/bin/next dev -p 3000 > dev.log 2>&1 &
+echo "dev server restarting (first compile takes a few seconds)"
 exit $RESULT

@@ -80,6 +80,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         dwell > 8 * SEC
           ? applyTransition(id, "pod", "DRIVER", { label: `Proof of delivery · ${s!.dropoffContact || "Recipient"} · OTP verified` })
           : null,
+      // sandbox self-healing: a POD_CONFIRMED delivery always completes (frees the driver)
+      POD_CONFIRMED: () => (dwell > 6 * SEC ? applyTransition(id, "complete", "SYSTEM") : null),
     };
     const step = next[s.status];
     if (step) {

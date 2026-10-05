@@ -345,8 +345,8 @@ check("place removed", rm.get("ok") is True)
 
 # ═══ 15. admin promotions / customers / payouts / analytics ═════════════════
 
-promo = call("/api/admin/action", "POST", {"action": "promo-create", "code": "TESTPROMO", "kind": "PERCENT", "value": 12, "minFare": 1500}, sess=ADMIN)
-check("promo created", promo.get("ok") is True)
+promo = call("/api/admin/action", "POST", {"action": "promo-create", "code": f"TESTPROMO{int(time.time()) % 100000}", "kind": "PERCENT", "value": 12, "minFare": 1500}, sess=ADMIN)
+check("promo created", promo.get("ok") is True, promo.get("error", ""))
 tg = call("/api/admin/action", "POST", {"action": "promo-toggle", "promoId": promo["promo"]["id"]}, sess=ADMIN)
 check("promo paused", tg["promo"]["active"] is False)
 pt = call("/api/admin?tab=promotions", sess=ADMIN)

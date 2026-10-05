@@ -81,7 +81,7 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-16">
       {/* search */}
       <div className="flex h-14 items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-4 focus-within:border-[var(--brand)]">
         <Search size={18} className="shrink-0 text-[var(--ink-3)]" />
@@ -272,11 +272,21 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
         </section>
       )}
 
-      <div className="sticky bottom-4">
-        <Button variant="brand" className="w-full" onClick={addingStop ? () => setAddingStop(false) : next}>
-          {addingStop ? "Done adding stops" : isPickup ? "Set pickup" : "Confirm destination"}
-        </Button>
-      </div>
+      {/* sticky CTA — only once a place is chosen, so it never blocks the list */}
+      {selected && !addingStop && (
+        <div className="sticky bottom-4 pt-2">
+          <Button variant="brand" className="w-full" onClick={next}>
+            {isPickup ? "Set pickup" : "Confirm destination"}
+          </Button>
+        </div>
+      )}
+      {addingStop && (
+        <div className="sticky bottom-4 pt-2">
+          <Button variant="brand" className="w-full" onClick={() => setAddingStop(false)}>
+            Done adding stops
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
