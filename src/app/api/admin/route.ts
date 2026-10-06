@@ -1,16 +1,69 @@
 // GET /api/admin — operations data for the admin console.
 // tabs: overview | shipments | drivers | vehicles | customers | payments | payouts |
-// pricing | disputes | support | promotions | settings | analytics | audit
+// pricing | disputes | support | promotions | settings | analytics | audit | telemetry
+//
+// Perf (task 10-E): per-tab TTL cache (invalidated by every mutation path),
+// SQL-side aggregation for analytics (no full-graph loads), scoped selects,
+// payload-size debug flag, request telemetry. Response shapes are unchanged.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { activeShipments, shipmentDTO } from "@/lib/shipments";
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { requireRole, isResponse } from "@/lib/security";
+import { cacheGet, cacheSet } from "@/lib/query-cache";
+import { record, logEvent, snapshot, recentEvents, businessMetrics } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
+// per-tab cache TTL (ms), prefix "admin". overview must stay near-live (the
+// console polls it every 4s for the live map); reporting tabs hold 45s and are
+// invalidated by every mutation path anyway. telemetry is never cached.
+const ADMIN_CACHE_TTL: Record<string, number> = {
+  overview: 5_000,
+  support: 10_000,
+  shipments: 45_000,
+  drivers: 45_000,
+  vehicles: 45_000,
+  customers: 45_000,
+  payments: 45_000,
+  payouts: 45_000,
+  pricing: 45_000,
+  disputes: 45_000,
+  promotions: 45_000,
+  settings: 45_000,
+  analytics: 45_000,
+  audit: 15_000,
+};
+
+// ops/debug: MIZIGO_DEBUG_PAYLOAD=1 logs the serialized payload size per tab
+const DEBUG_PAYLOAD = process.env.MIZIGO_DEBUG_PAYLOAD === "1";
+
+function respond(tab: string, cacheKey: string, payload: unknown): NextResponse {
+  const ttl = ADMIN_CACHE_TTL[tab] ?? 0;
+  if (ttl > 0) cacheSet(cacheKey, payload, ttl);
+  if (DEBUG_PAYLOAD) {
+    console.log(`[mizigo:admin-payload] tab=${tab} bytes=${Buffer.byteLength(JSON.stringify(payload))}`);
+  }
+  return NextResponse.json(payload);
+}
+
 export async function GET(req: Request) {
+  const t0 = Date.now();
+  const tab = new URL(req.url).searchParams.get("tab") ?? "overview";
+  try {
+    const res = await handle(req);
+    record("api:admin", Date.now() - t0, res.ok);
+    logEvent({ route: "api:admin", action: tab, latencyMs: Date.now() - t0, ok: res.ok, status: res.status });
+    return res;
+  } catch (err) {
+    record("api:admin", Date.now() - t0, false);
+    logEvent({ level: "error", route: "api:admin", action: tab, ok: false, extra: { message: (err as Error)?.message } });
+    throw err;
+  }
+}
+
+async function handle(req: Request): Promise<NextResponse> {
   await ensureDB();
   // operations data is admin-only (PII, pricing, payouts)
   const session = requireRole(req, "ADMIN");
@@ -18,36 +71,50 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const tab = searchParams.get("tab") ?? "overview";
 
+  // cached read-through (successful GET payloads only; mutations invalidate)
+  const cacheable = (ADMIN_CACHE_TTL[tab] ?? 0) > 0;
+  const statusParam = searchParams.get("status");
+  const qParam = (searchParams.get("q") ?? "").toLowerCase();
+  const cacheKey = `admin:${tab}${tab === "shipments" ? `:${statusParam ?? "ALL"}:${qParam}` : ""}`;
+  if (cacheable) {
+    const cached = cacheGet<unknown>(cacheKey);
+    if (cached !== undefined) return NextResponse.json(cached);
+  }
+
   if (tab === "overview") {
-    const DAY = 86400_000;
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
-    const [active, todayBookings, drivers, vehicles, payments, disputes, completed, returnLoads] = await Promise.all([
+    const [active, todayBookings, drivers, vehicleCount, payments, openDisputes, completed, returnLoads] = await Promise.all([
       activeShipments(),
-      db.shipment.findMany({ where: { createdAt: { gte: todayStart } }, include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true } }),
-      db.driver.findMany({ include: { user: true, vehicles: true } }),
-      db.vehicle.findMany({ include: { driver: { include: { user: true } }, category: true } }),
-      db.paymentEvent.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
-      db.dispute.findMany({ where: { status: { in: ["OPEN", "RESOLVING"] } } }),
+      db.shipment.findMany({
+        where: { createdAt: { gte: todayStart } },
+        select: { status: true, paymentStatus: true, fareTotal: true, commission: true, farePlatform: true },
+      }),
+      db.driver.findMany({
+        include: { user: { select: { name: true } }, vehicles: { select: { make: true, model: true, registration: true, category: { select: { key: true } } } } },
+      }),
+      db.vehicle.count(),
+      db.paymentEvent.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
+      db.dispute.count({ where: { status: { in: ["OPEN", "RESOLVING"] } } }),
       db.shipment.findMany({ where: { status: "COMPLETED" }, select: { fareTotal: true, farePlatform: true, commission: true, distanceKm: true, driverEarnings: true, createdAt: true, durationMin: true } }),
-      db.returnLoad.findMany({ where: { status: "AVAILABLE" } }),
+      db.returnLoad.findMany({ where: { status: "AVAILABLE" }, select: { priceKes: true, normalPriceKes: true } }),
     ]);
-    const todayCompleted = todayBookings.filter((b) => b.status === "COMPLETED");
+    const paid = todayBookings.filter((b) => b.paymentStatus === "CONFIRMED");
     const onlineDrivers = drivers.filter((d) => d.status === "ONLINE");
     const busyDrivers = drivers.filter((d) => d.status === "BUSY");
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       kpis: {
         activeDeliveries: active.length,
         todayBookings: todayBookings.length,
-        revenueToday: todayBookings.filter((b) => b.paymentStatus === "CONFIRMED").reduce((a, b) => a + b.fareTotal, 0),
-        platformEarningsToday: todayBookings.filter((b) => b.paymentStatus === "CONFIRMED").reduce((a, b) => a + b.commission + b.farePlatform, 0),
+        revenueToday: paid.reduce((a, b) => a + b.fareTotal, 0),
+        platformEarningsToday: paid.reduce((a, b) => a + b.commission + b.farePlatform, 0),
         onlineDrivers: onlineDrivers.length,
         busyDrivers: busyDrivers.length,
         totalDrivers: drivers.length,
-        totalVehicles: vehicles.length,
+        totalVehicles: vehicleCount,
         cancellationRate: todayBookings.length ? Math.round((todayBookings.filter((b) => b.status === "CANCELLED").length / todayBookings.length) * 100) : 0,
         avgDeliveryTime: completed.length ? Math.round(completed.reduce((a, c) => a + c.durationMin, 0) / completed.length) : 0,
         completedTotal: completed.length,
-        pendingDisputes: disputes.length,
+        pendingDisputes: openDisputes,
         returnLoadsLive: returnLoads.length,
         returnLoadsAvgDiscount: returnLoads.length ? Math.round(returnLoads.reduce((a, l) => a + (1 - l.priceKes / Math.max(1, l.normalPriceKes)), 0) / returnLoads.length * 100) : 0,
       },
@@ -57,25 +124,23 @@ export async function GET(req: Request) {
         verification: d.verification, lat: d.lat, lng: d.lng, vehicle: d.vehicles[0] ? `${d.vehicles[0].make} ${d.vehicles[0].model}` : null,
         registration: d.vehicles[0]?.registration ?? null, category: d.vehicles[0] ? (d.vehicles[0] as { category?: { key: string } }).category?.key ?? null : null,
       })),
-      payments: payments.slice(0, 30),
+      payments,
     });
   }
 
   if (tab === "shipments") {
-    const status = searchParams.get("status");
-    const q = (searchParams.get("q") ?? "").toLowerCase();
     const rows = await db.shipment.findMany({
-      where: status && status !== "ALL" ? { status } : undefined,
+      where: statusParam && statusParam !== "ALL" ? { status: statusParam } : undefined,
       include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } } },
       orderBy: { createdAt: "desc" }, take: 100,
     });
     let shipments = rows.map(shipmentDTO);
-    if (q) {
+    if (qParam) {
       shipments = shipments.filter((s) =>
-        s.code.toLowerCase().includes(q) || s.route.pickup.name.toLowerCase().includes(q) ||
-        s.route.dropoff.name.toLowerCase().includes(q) || (s.driver?.name ?? "").toLowerCase().includes(q) ||
-        (s.vehicle?.registration ?? "").toLowerCase().includes(q) || s.customer.name.toLowerCase().includes(q) ||
-        s.customer.phone.includes(q)
+        s.code.toLowerCase().includes(qParam) || s.route.pickup.name.toLowerCase().includes(qParam) ||
+        s.route.dropoff.name.toLowerCase().includes(qParam) || (s.driver?.name ?? "").toLowerCase().includes(qParam) ||
+        (s.vehicle?.registration ?? "").toLowerCase().includes(qParam) || s.customer.name.toLowerCase().includes(qParam) ||
+        s.customer.phone.includes(qParam)
       );
     }
     // drivers available for manual dispatch (plan final-brief §19 human dispatch)
@@ -83,7 +148,7 @@ export async function GET(req: Request) {
       where: { verification: "VERIFIED", status: "ONLINE" },
       include: { user: true, vehicles: { include: { category: true } } },
     });
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       shipments,
       statuses: Object.entries(STATUS_LABEL).map(([key, label]) => ({ key, label })),
       dispatchDrivers: dispatchDrivers.map((d) => ({
@@ -96,7 +161,7 @@ export async function GET(req: Request) {
 
   if (tab === "drivers") {
     const drivers = await db.driver.findMany({ include: { user: true, vehicles: { include: { category: true } } }, orderBy: { rating: "desc" } });
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       drivers: drivers.map((d) => ({
         id: d.id, name: d.user?.name ?? "Driver", phone: d.user?.phone ?? "", status: d.status, rating: d.rating,
         trips: d.tripsCompleted, acceptanceRate: d.acceptanceRate, onTimePickup: d.onTimePickup, onTimeDelivery: d.onTimeDelivery,
@@ -112,7 +177,7 @@ export async function GET(req: Request) {
       db.vehicle.findMany({ include: { driver: { include: { user: true } }, category: true }, orderBy: { registration: "asc" } }),
       db.vehicleCategory.findMany({ orderBy: { sortOrder: "asc" } }),
     ]);
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       vehicles: vehicles.map((v) => ({ id: v.id, make: v.make, model: v.model, registration: v.registration, capacityKg: v.capacityKg, bodyType: v.bodyType, driver: v.driver?.user?.name ?? "", category: v.category.name, docs: { registration: v.docRegistration, insurance: v.docInsurance, inspection: v.docInspection }, active: v.active })),
       categories,
     });
@@ -125,7 +190,7 @@ export async function GET(req: Request) {
       include: { customerShipments: { select: { id: true, status: true, fareTotal: true, createdAt: true } } },
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       customers: users.map((u) => {
         const completed = u.customerShipments.filter((s) => s.status === "COMPLETED");
         return {
@@ -145,7 +210,7 @@ export async function GET(req: Request) {
     const byId = Object.fromEntries(shipments.map((s) => [s.id, s]));
     const customers = await db.user.findMany({ select: { id: true, name: true } });
     const byCustomer = Object.fromEntries(customers.map((c) => [c.id, c.name]));
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       payments: payments.map((p) => ({ ...p, code: byId[p.shipmentId]?.code ?? "-", customer: byCustomer[byId[p.shipmentId]?.customerId ?? ""] ?? "-" })),
     });
   }
@@ -158,7 +223,7 @@ export async function GET(req: Request) {
     const shipments = await db.shipment.findMany({ select: { id: true, code: true, customerId: true, driverId: true, fareTotal: true, driverEarnings: true, commission: true, status: true }, orderBy: { createdAt: "desc" } });
     const customers = await db.user.findMany({ select: { id: true, name: true } });
     const byCustomer = Object.fromEntries(customers.map((c) => [c.id, c.name]));
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       payouts: payouts.map((p) => ({ ...p, driver: byDriver[p.driverId] ?? "-" })),
       ledger: shipments
         .filter((s) => s.driverId && ["COMPLETED"].includes(s.status))
@@ -172,7 +237,7 @@ export async function GET(req: Request) {
       db.pricingZone.findMany(),
       db.vehicleCategory.findMany({ orderBy: { sortOrder: "asc" } }),
     ]);
-    return NextResponse.json({ zones, categories });
+    return respond(tab, cacheKey, { zones, categories });
   }
 
   if (tab === "disputes") {
@@ -180,7 +245,7 @@ export async function GET(req: Request) {
       include: { shipment: { include: { customer: true, driver: { include: { user: true } }, category: true } } },
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       disputes: disputes.map((d) => ({
         id: d.id, type: d.type, notes: d.notes, status: d.status, createdAt: d.createdAt, resolution: d.resolution,
         code: d.shipment.code, customer: d.shipment.customer.name, driver: d.shipment.driver?.user?.name ?? "Unassigned",
@@ -197,7 +262,7 @@ export async function GET(req: Request) {
       db.shipment.findMany({ where: { status: "MATCHING" }, include: { customer: true, driver: { include: { user: true } } }, orderBy: { createdAt: "desc" }, take: 30 }),
       db.dispute.findMany({ where: { status: { in: ["OPEN", "RESOLVING"] } }, include: { shipment: { include: { customer: true } } }, orderBy: { createdAt: "desc" }, take: 30 }),
     ]);
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       queue: [
         ...mismatches.map((e) => ({ id: e.id, kind: "CARGO_MISMATCH", shipmentId: e.shipmentId, code: e.shipment.code, customer: e.shipment.customer.name, detail: e.label, at: e.createdAt })),
         ...noDrivers.map((s) => ({ id: s.id, kind: "NO_DRIVERS", shipmentId: s.id, code: s.code, customer: s.customer.name, detail: "No suitable vehicle found — manual dispatch needed", at: s.createdAt })),
@@ -213,27 +278,61 @@ export async function GET(req: Request) {
     const promos = await db.promoCode.findMany({ orderBy: { createdAt: "desc" } });
     const uses = await db.shipment.groupBy({ by: ["promoCode"], _count: { _all: true }, where: { promoCode: { not: null } } }).catch(() => []);
     const useMap = new Map(uses.map((u) => [u.promoCode as string, u._count._all] as [string, number]));
-    return NextResponse.json({
+    return respond(tab, cacheKey, {
       promos: promos.map((p) => ({ ...p, uses: useMap.get(p.code) ?? 0 })),
     });
   }
 
   if (tab === "settings") {
     const settings = await db.platformSetting.findMany();
-    return NextResponse.json({ settings });
+    return respond(tab, cacheKey, { settings });
   }
 
   if (tab === "analytics") {
+    // SQL-side aggregation (task 10-E): no full-graph loads — counts/sums come
+    // from groupBy, only the 14-day series fetches rows (bounded, minimal cols).
     const DAY = 86400_000;
-    const completed = await db.shipment.findMany({
-      where: { status: { in: ["COMPLETED", "CANCELLED"] } },
-      select: { status: true, fareTotal: true, commission: true, farePlatform: true, distanceKm: true, durationMin: true, createdAt: true, pickupArea: true, dropoffArea: true, category: { select: { name: true } }, driverEarnings: true, driverId: true, driver: { select: { user: { select: { name: true } } } } },
-    });
+    const dayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    const windowStart = new Date(dayStart.getTime() - 13 * DAY);
+    const [statusAgg, dayRows, routeAgg, catAgg, driverAgg] = await Promise.all([
+      db.shipment.groupBy({
+        by: ["status"],
+        where: { status: { in: ["COMPLETED", "CANCELLED"] } },
+        _count: { _all: true },
+        _sum: { fareTotal: true, commission: true, farePlatform: true, distanceKm: true },
+      }),
+      db.shipment.findMany({
+        where: { status: { in: ["COMPLETED", "CANCELLED"] }, createdAt: { gte: windowStart } },
+        select: { status: true, fareTotal: true, createdAt: true },
+      }),
+      db.shipment.groupBy({
+        by: ["pickupArea", "dropoffArea"],
+        where: { status: "COMPLETED" },
+        _count: { _all: true },
+        orderBy: { _count: { pickupArea: "desc" } },
+        take: 6,
+      }),
+      db.shipment.groupBy({
+        by: ["categoryId"],
+        where: { status: { in: ["COMPLETED", "CANCELLED"] } },
+        _count: { _all: true },
+      }),
+      db.shipment.groupBy({
+        by: ["driverId"],
+        where: { status: "COMPLETED" },
+        _count: { _all: true },
+        _sum: { fareTotal: true },
+        orderBy: { _count: { driverId: "desc" } },
+        take: 5,
+      }),
+    ]);
+
+    // 14-day series (same buckets/semantics as the previous JS loop)
     const days: { day: string; bookings: number; revenue: number; completed: number; cancelled: number }[] = [];
     for (let i = 13; i >= 0; i--) {
-      const start = new Date(new Date(new Date().setHours(0, 0, 0, 0)).getTime() - i * DAY);
+      const start = new Date(dayStart.getTime() - i * DAY);
       const end = new Date(start.getTime() + DAY);
-      const inDay = completed.filter((c) => new Date(c.createdAt) >= start && new Date(c.createdAt) < end);
+      const inDay = dayRows.filter((c) => c.createdAt >= start && c.createdAt < end);
       days.push({
         day: `${start.getDate()}/${start.getMonth() + 1}`,
         bookings: inDay.length,
@@ -242,42 +341,70 @@ export async function GET(req: Request) {
         cancelled: inDay.filter((c) => c.status === "CANCELLED").length,
       });
     }
-    const routeCount: Record<string, number> = {};
-    completed.filter((c) => c.status === "COMPLETED").forEach((c) => {
-      const k = `${c.pickupArea} → ${c.dropoffArea}`;
-      routeCount[k] = (routeCount[k] ?? 0) + 1;
-    });
-    const topRoutes = Object.entries(routeCount).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([route, count]) => ({ route, count }));
+
+    // category names for the categoryId counts (one small lookup)
+    const categories = await db.vehicleCategory.findMany({ select: { id: true, name: true } });
+    const catName = new Map(categories.map((c) => [c.id, c.name] as const));
     const catCount: Record<string, number> = {};
-    completed.forEach((c) => { catCount[c.category.name] = (catCount[c.category.name] ?? 0) + 1; });
-    const done = completed.filter((c) => c.status === "COMPLETED");
-    const driverAgg: Record<string, { name: string; trips: number; revenue: number }> = {};
-    done.forEach((c) => {
-      const name = c.driver?.user?.name ?? "Unassigned";
-      driverAgg[name] = driverAgg[name] ?? { name, trips: 0, revenue: 0 };
-      driverAgg[name].trips += 1;
-      driverAgg[name].revenue += c.fareTotal;
-    });
-    const topDrivers = Object.values(driverAgg).sort((a, b) => b.trips - a.trips).slice(0, 5);
-    return NextResponse.json({
+    for (const g of catAgg) {
+      const name = catName.get(g.categoryId) ?? "Other";
+      catCount[name] = (catCount[name] ?? 0) + g._count._all;
+    }
+
+    // driver names for the top-driver leaderboard (one bounded lookup)
+    const driverIds = driverAgg.map((g) => g.driverId).filter((id): id is string => !!id);
+    const driverRows = driverIds.length
+      ? await db.driver.findMany({ where: { id: { in: driverIds } }, select: { id: true, user: { select: { name: true } } } })
+      : [];
+    const driverName = new Map(driverRows.map((d) => [d.id, d.user?.name ?? "Driver"] as const));
+    const topDrivers = driverAgg.map((g) => ({
+      name: g.driverId ? driverName.get(g.driverId) ?? "Driver" : "Unassigned",
+      trips: g._count._all,
+      revenue: g._sum.fareTotal ?? 0,
+    }));
+
+    // totals from the two status rows (same semantics as before: both statuses)
+    let total = 0, cancelledCount = 0, completedCount = 0;
+    let gmv = 0, platform = 0, distance = 0;
+    for (const g of statusAgg) {
+      total += g._count._all;
+      gmv += g._sum.fareTotal ?? 0;
+      platform += (g._sum.commission ?? 0) + (g._sum.farePlatform ?? 0);
+      distance += g._sum.distanceKm ?? 0;
+      if (g.status === "CANCELLED") cancelledCount = g._count._all;
+      if (g.status === "COMPLETED") completedCount = g._count._all;
+    }
+    return respond(tab, cacheKey, {
       days,
-      topRoutes,
+      topRoutes: routeAgg.map((g) => ({ route: `${g.pickupArea} → ${g.dropoffArea}`, count: g._count._all })),
       categories: Object.entries(catCount).map(([name, count]) => ({ name, count })),
       topDrivers,
       totals: {
-        gmv: completed.reduce((a, c) => a + c.fareTotal, 0),
-        platform: completed.reduce((a, c) => a + c.commission + c.farePlatform, 0),
-        avgFare: completed.length ? Math.round(completed.reduce((a, c) => a + c.fareTotal, 0) / completed.length) : 0,
-        avgDistance: completed.length ? Math.round(completed.reduce((a, c) => a + c.distanceKm, 0) / completed.length) : 0,
-        cancellationPct: completed.length ? Math.round((completed.filter((c) => c.status === "CANCELLED").length / completed.length) * 100) : 0,
-        onTimePct: done.length ? 96 : 0, // sandbox: seeded reliability; production computes from events
+        gmv,
+        platform,
+        avgFare: total ? Math.round(gmv / total) : 0,
+        avgDistance: total ? Math.round(distance / total) : 0,
+        cancellationPct: total ? Math.round((cancelledCount / total) * 100) : 0,
+        onTimePct: completedCount ? 96 : 0, // sandbox: seeded reliability; production computes from events
       },
     });
   }
 
   if (tab === "audit") {
     const logs = await db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 50 });
-    return NextResponse.json({ logs });
+    return respond(tab, cacheKey, { logs });
+  }
+
+  // live ops telemetry (task 10-E) — never cached, per-instance
+  if (tab === "telemetry") {
+    const [business] = await Promise.all([businessMetrics()]);
+    return NextResponse.json({
+      telemetry: {
+        metrics: snapshot(),
+        business,
+        recent: recentEvents(),
+      },
+    });
   }
 
   return NextResponse.json({ error: "Unknown tab" }, { status: 400 });

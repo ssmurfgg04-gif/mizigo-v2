@@ -6,6 +6,7 @@ import { priceFor, estimateWeight, recommendCategory, isNightHour, type CargoIte
 import { routeDistanceKm, routeDurationMin, haversineKm } from "@/lib/geo";
 import { nearbyDrivers } from "@/lib/matching";
 import { rateLimit, validCoord, clampInt, sanitizeItems, sanitizeStops } from "@/lib/security";
+import { record, logEvent } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,20 @@ interface QuoteBody {
 }
 
 export async function POST(req: Request) {
+  const t0 = Date.now();
+  try {
+    const res = await handle(req);
+    record("api:quote", Date.now() - t0, res.ok);
+    logEvent({ route: "api:quote", action: "price", latencyMs: Date.now() - t0, ok: res.ok, status: res.status });
+    return res;
+  } catch (err) {
+    record("api:quote", Date.now() - t0, false);
+    logEvent({ level: "error", route: "api:quote", action: "price", ok: false, extra: { message: (err as Error)?.message } });
+    throw err;
+  }
+}
+
+async function handle(req: Request): Promise<NextResponse> {
   await ensureDB();
   const limited = rateLimit(req, "quote", 40, 60_000);
   if (limited) return limited;

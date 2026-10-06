@@ -202,7 +202,9 @@ export function verifyOtp(phone: string, code: string): { ok: true } | { ok: fal
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Rate limiting — in-memory sliding window, per instance (demo-grade)
+// Rate limiting — in-memory sliding window, per instance (sandbox fast path)
+// + optional DB-backed fixed window when the database is shared (Postgres
+// production mode), so limits hold across serverless instances.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const buckets = new Map<string, number[]>();
@@ -213,15 +215,58 @@ export function clientIp(req: Request): string {
   return req.headers.get("x-nf-client-connection-ip") ?? "local";
 }
 
+// DB-backed view (PG mode only): key → epoch ms the bucket is blocked until.
+// Mirrors the shared counter so the sync fast path can act on it next call.
+const dbBlockedUntil = new Map<string, number>();
+
+function isPgRuntime(): boolean {
+  return /^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "");
+}
+
+let dbOps = 0; // throttles expired-row cleanup
+
+/**
+ * Distributed fixed-window counter — ONE round trip (upsert … RETURNING count),
+ * always fire-and-forget (never awaited by the request), fail-open on any DB
+ * error: the in-memory window keeps protecting the instance regardless.
+ */
+function dbRateLimitTick(key: string, limit: number, windowStart: number, windowMs: number): void {
+  void (async () => {
+    try {
+      const { db } = await import("./db");
+      const id = `${key}:${windowStart}`; // composite "bucket:window" PK
+      const expiresAt = new Date(windowStart + windowMs + 60_000); // + sweep grace
+      const rows = await db.$queryRaw<Array<{ count: number }>>`
+        INSERT INTO "RateLimit" ("id", "count", "expiresAt")
+        VALUES (${id}, 1, ${expiresAt})
+        ON CONFLICT ("id") DO UPDATE SET "count" = "RateLimit"."count" + 1
+        RETURNING "count"`;
+      const count = Number(rows[0]?.count ?? 0);
+      if (count >= limit) dbBlockedUntil.set(key, windowStart + windowMs);
+      else dbBlockedUntil.delete(key);
+      // opportunistic expired-row sweep (every 256th op)
+      if (++dbOps % 256 === 0) {
+        await db.rateLimit.deleteMany({ where: { expiresAt: { lt: new Date() } } }).catch(() => null);
+      }
+    } catch {
+      // fail-open: memory window still enforces the per-instance limit
+    }
+  })();
+}
+
 /**
  * Sliding-window rate limit. Returns a 429 NextResponse when exceeded, else null.
+ * Sandbox: pure in-memory (zero latency). Postgres mode: memory check first,
+ * then a fire-and-forget shared-counter upsert merges the cross-instance view.
  * @example if (rateLimit(req, "auth:otp", 8, 60_000)) return it;
  */
 export function rateLimit(req: Request, name: string, limit: number, windowMs: number): NextResponse | null {
   const key = `${name}:${clientIp(req)}`;
   const now = Date.now();
   const hits = (buckets.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (hits.length >= limit) {
+  const blockedUntil = dbBlockedUntil.get(key) ?? 0;
+  const sharedBlocked = blockedUntil > now;
+  if (hits.length >= limit || sharedBlocked) {
     buckets.set(key, hits);
     return NextResponse.json(
       { error: "Too many requests — give it a moment and try again." },
@@ -230,9 +275,17 @@ export function rateLimit(req: Request, name: string, limit: number, windowMs: n
   }
   hits.push(now);
   buckets.set(key, hits);
+  // shared-database mode: merge the cross-instance counter (never blocks this call)
+  if (isPgRuntime()) {
+    const windowStart = Math.floor(now / windowMs) * windowMs;
+    dbRateLimitTick(key, limit, windowStart, windowMs);
+  }
   // opportunistic cleanup of cold keys
   if (buckets.size > 5000) {
     for (const [k, v] of buckets) if (!v.some((t) => now - t < windowMs)) buckets.delete(k);
+  }
+  if (dbBlockedUntil.size > 5000) {
+    for (const [k, until] of dbBlockedUntil) if (until <= now) dbBlockedUntil.delete(k);
   }
   return null;
 }

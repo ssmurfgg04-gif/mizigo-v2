@@ -112,6 +112,9 @@ model Driver {
   vehicles       Vehicle[]
   shipments      Shipment[] @relation("DriverShipments")
   quotes         Quote[]
+
+  @@index([lat, lng])
+  @@index([status, verification])
 }
 
 model Vehicle {
@@ -236,6 +239,7 @@ model Shipment {
   @@index([status])
   @@index([customerId])
   @@index([driverId])
+  @@index([status, createdAt])
 }
 
 model ShipmentItem {
@@ -260,6 +264,8 @@ model ShipmentEvent {
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId])
+  @@index([shipmentId, createdAt])
+  @@index([type])
 }
 
 model Quote {
@@ -275,6 +281,9 @@ model Quote {
   createdAt  DateTime @default(now())
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   driver     Driver?  @relation(fields: [driverId], references: [id])
+
+  @@index([shipmentId])
+  @@index([driverId])
 }
 
 model PaymentEvent {
@@ -287,6 +296,8 @@ model PaymentEvent {
   mpesaReceipt   String?
   createdAt      DateTime @default(now())
   shipment       Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
 }
 
 model Payout {
@@ -308,6 +319,8 @@ model Rating {
   comment    String?
   createdAt  DateTime @default(now())
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
 }
 
 model Dispute {
@@ -330,6 +343,8 @@ model Notification {
   shipmentCode String?
   read    Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // customer ↔ driver quick-message chat (numbers stay masked)
@@ -342,6 +357,7 @@ model ChatMessage {
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId])
+  @@index([shipmentId, createdAt])
 }
 
 // admin-configurable promotions (plan §75)
@@ -372,6 +388,14 @@ model AuditLog {
   target    String
   detail    String?
   createdAt DateTime @default(now())
+}
+
+// distributed fixed-window rate limiting (production Postgres mode only —
+// the sandbox keeps the zero-latency in-memory window in src/lib/security.ts)
+model RateLimit {
+  id        String   @id // "bucket:window-start" composite key
+  count     Int      @default(0)
+  expiresAt DateTime
 }
 
 model SavedPlace {

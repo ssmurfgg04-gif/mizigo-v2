@@ -1,6 +1,9 @@
 // POST /api/shipments — create a PRICED shipment (idempotent by draftId).
 // Supports promo codes, scheduled bookings and QUOTE pricing mode.
-// GET /api/shipments — the caller's own trip history (session-scoped).
+// GET /api/shipments — the caller's own trip history (session-scoped),
+// paginated: ?limit=1..100 (default 50) + ?offset (default 0) + ?status filter.
+// Response: { shipments, hasMore, limit, offset } — additive over the original
+// { shipments } shape, so existing consumers keep working untouched.
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
@@ -8,10 +11,87 @@ import { newShipmentCode, newShareToken, getShipmentFull, shipmentDTO } from "@/
 import { priceFor, estimateWeight, recommendCategory, isNightHour } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
 import { requireSession, isResponse, rateLimit, capStr, clampInt, validCoord, sanitizeItems, sanitizeStops } from "@/lib/security";
+import { cacheGet, cacheSet, invalidatePrefix } from "@/lib/query-cache";
+import { record, logEvent } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
+// ── GET: session-scoped trip history, cached 15s per scope, invalidated by
+// every mutation path (POST here, shipment actions, admin actions).
+export async function GET(req: Request) {
+  const t0 = Date.now();
+  try {
+    const res = await handleGet(req);
+    record("api:shipments:list", Date.now() - t0, res.ok);
+    logEvent({ route: "api:shipments:list", latencyMs: Date.now() - t0, ok: res.ok, status: res.status });
+    return res;
+  } catch (err) {
+    record("api:shipments:list", Date.now() - t0, false);
+    logEvent({ level: "error", route: "api:shipments:list", ok: false, extra: { message: (err as Error)?.message } });
+    throw err;
+  }
+}
+
+async function handleGet(req: Request): Promise<NextResponse> {
+  await ensureDB();
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const { searchParams } = new URL(req.url);
+  // pagination: limit 1..100 (default 50), offset ≥ 0, optional status filter
+  const limit = clampInt(searchParams.get("limit"), 1, 100, 50);
+  const offset = clampInt(searchParams.get("offset"), 0, 1_000_000, 0);
+  const status = searchParams.get("status");
+  const statusFilter = status && status !== "ALL" ? { status } : {};
+  // customers see their own trips; drivers see assigned ones; admins see all
+  const where =
+    session.role === "ADMIN" ? (Object.keys(statusFilter).length ? { ...statusFilter } : undefined) :
+    session.role === "DRIVER" ? { driverId: session.did!, ...statusFilter } :
+    { customerId: session.uid, ...statusFilter };
+
+  // per-scope cache (successful GET payloads only; 15s, prefix "shipments")
+  const cacheKey = `shipments:${session.uid}:${session.role}:${status ?? "ALL"}:${limit}:${offset}`;
+  const cached = cacheGet<unknown>(cacheKey);
+  if (cached !== undefined) return NextResponse.json(cached);
+
+  const rows = await db.shipment.findMany({
+    where,
+    include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } }, messages: { orderBy: { createdAt: "asc" } } },
+    orderBy: { createdAt: "desc" },
+    take: limit + 1, // +1 probe row → hasMore without a second count query
+    skip: offset,
+  });
+  const hasMore = rows.length > limit;
+  const payload = {
+    shipments: rows.slice(0, limit).map(shipmentDTO),
+    hasMore,
+    limit,
+    offset,
+  };
+  cacheSet(cacheKey, payload, 15_000);
+  return NextResponse.json(payload);
+}
+
+// ── POST: create a priced shipment (idempotent by draftId)
 export async function POST(req: Request) {
+  const t0 = Date.now();
+  try {
+    const res = await handlePost(req);
+    // a new (or replayed) booking changes every cached list/summary that shows it
+    if (res.ok) {
+      invalidatePrefix("shipments");
+      invalidatePrefix("admin");
+    }
+    record("api:shipments:create", Date.now() - t0, res.ok);
+    logEvent({ route: "api:shipments:create", action: "create", latencyMs: Date.now() - t0, ok: res.ok, status: res.status });
+    return res;
+  } catch (err) {
+    record("api:shipments:create", Date.now() - t0, false);
+    logEvent({ level: "error", route: "api:shipments:create", action: "create", ok: false, extra: { message: (err as Error)?.message } });
+    throw err;
+  }
+}
+
+async function handlePost(req: Request): Promise<NextResponse> {
   await ensureDB();
   const session = requireSession(req);
   if (isResponse(session)) return session;
@@ -129,22 +209,4 @@ export async function POST(req: Request) {
 
   const full = await getShipmentFull({ id: s.id });
   return NextResponse.json({ ok: true, shipment: shipmentDTO(full!) });
-}
-
-export async function GET(req: Request) {
-  await ensureDB();
-  const session = requireSession(req);
-  if (isResponse(session)) return session;
-  // customers see their own trips; drivers see assigned ones; admins see all
-  const where =
-    session.role === "ADMIN" ? undefined :
-    session.role === "DRIVER" ? { driverId: session.did! } :
-    { customerId: session.uid };
-  const rows = await db.shipment.findMany({
-    where,
-    include: { category: true, vehicle: true, driver: { include: { user: true } }, customer: true, items: true, events: true, ratings: true, quotes: { include: { driver: { include: { user: true, vehicles: true } } } }, messages: { orderBy: { createdAt: "asc" } } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
-  return NextResponse.json({ shipments: rows.map(shipmentDTO) });
 }

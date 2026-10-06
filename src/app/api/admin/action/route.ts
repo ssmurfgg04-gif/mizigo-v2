@@ -6,6 +6,8 @@ import { applyTransition } from "@/lib/shipments";
 import { mpesaRef } from "@/lib/format";
 import { ensureDB } from "@/lib/db-ready";
 import { requireRole, isResponse, rateLimit } from "@/lib/security";
+import { invalidatePrefix } from "@/lib/query-cache";
+import { record, logEvent } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,32 @@ async function audit(actor: string, action: string, target: string, detail?: str
 }
 
 export async function POST(req: Request) {
+  const t0 = Date.now();
+  let action = "";
+  try {
+    const bodyPeek = await req.clone().json().catch(() => ({}));
+    action = String(bodyPeek.action ?? "");
+  } catch {
+    action = "";
+  }
+  try {
+    const res = await handle(req);
+    // any successful admin mutation makes cached admin/shipment reads stale
+    if (res.ok) {
+      invalidatePrefix("admin");
+      invalidatePrefix("shipments");
+    }
+    record("api:admin:action", Date.now() - t0, res.ok);
+    logEvent({ route: "api:admin:action", action, actor: "ADMIN", latencyMs: Date.now() - t0, ok: res.ok, status: res.status });
+    return res;
+  } catch (err) {
+    record("api:admin:action", Date.now() - t0, false);
+    logEvent({ level: "error", route: "api:admin:action", action, actor: "ADMIN", ok: false, extra: { message: (err as Error)?.message } });
+    throw err;
+  }
+}
+
+async function handle(req: Request) {
   await ensureDB();
   // audited mutations are admin-only; the audit actor is the session identity
   const session = requireRole(req, "ADMIN");

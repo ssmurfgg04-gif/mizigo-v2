@@ -12,16 +12,44 @@ import { matchDriver } from "@/lib/matching";
 import { mpesaRef } from "@/lib/format";
 import { ensureDB } from "@/lib/db-ready";
 import { requireSession, isResponse, rateLimit, clampInt, capStr } from "@/lib/security";
+import { invalidatePrefix } from "@/lib/query-cache";
+import { record, logEvent } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const t0 = Date.now();
+  const { id } = await params;
+  let action = "";
+  try {
+    const bodyPeek = await req.clone().json().catch(() => ({}));
+    action = String(bodyPeek.action ?? "");
+  } catch {
+    action = "";
+  }
+  try {
+    const res = await handle(req, id);
+    // any successful action changes what cached lists/summaries show
+    if (res.ok) {
+      invalidatePrefix("shipments");
+      invalidatePrefix("admin");
+    }
+    record("api:shipment:action", Date.now() - t0, res.ok);
+    logEvent({ route: "api:shipment:action", shipmentId: id, action, latencyMs: Date.now() - t0, ok: res.ok, status: res.status });
+    return res;
+  } catch (err) {
+    record("api:shipment:action", Date.now() - t0, false);
+    logEvent({ level: "error", route: "api:shipment:action", shipmentId: id, action, ok: false, extra: { message: (err as Error)?.message } });
+    throw err;
+  }
+}
+
+async function handle(req: Request, id: string): Promise<NextResponse> {
   await ensureDB();
   const session = requireSession(req);
   if (isResponse(session)) return session;
   const limited = rateLimit(req, "shipment:action", 120, 60_000);
   if (limited) return limited;
-  const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");
 

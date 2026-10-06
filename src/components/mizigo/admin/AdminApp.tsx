@@ -16,6 +16,7 @@ import { kes, fmtDateTimeEAT, fmtPhone, relTimeEAT, etaText } from "@/lib/format
 import { STATUS_LABEL } from "@/lib/state-machine";
 import { toast } from "@/hooks/use-toast";
 import type { SessionUser } from "@/store/session";
+import OpsTab from "@/components/mizigo/admin/OpsTab";
 
 /** Sandbox operations sign-in — the same mock-OTP handshake as every surface. */
 function AdminLogin() {
@@ -67,6 +68,7 @@ const NAV = [
   { key: "support", label: "Support", icon: LifeBuoy },
   { key: "promotions", label: "Promotions", icon: Tag },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
+  { key: "ops", label: "Ops Telemetry", icon: Activity },
   { key: "settings", label: "Settings", icon: Settings },
   { key: "audit", label: "Audit Log", icon: ShieldCheck },
 ] as const;
@@ -127,6 +129,7 @@ export default function AdminApp() {
         {adminTab === "analytics" && <AnalyticsTab />}
         {adminTab === "settings" && <SettingsTab />}
         {adminTab === "audit" && <AuditTab />}
+        {adminTab === "ops" && <OpsTab />}
       </main>
     </div>
   );

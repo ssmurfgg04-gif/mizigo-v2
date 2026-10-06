@@ -4,22 +4,45 @@
 // journey completes while watching. When the customer screen unmounts (e.g.
 // the user switches to the driver surface) polling stops, so a human driver
 // can take over at any time — the state machine guards both paths.
+// Perf (task 10-E): the three DEV-MODE progression mocks are gated behind the
+// DEMO_AUTO_PROGRESS feature flag (true in the SQLite sandbox — live demo
+// behaviour unchanged; false in Postgres production mode). Any state change
+// this poll applies invalidates the list/summary caches.
 import { NextResponse } from "next/server";
 import { getShipmentFull, shipmentDTO, applyTransition, simulateLive } from "@/lib/shipments";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { requireSession, isResponse } from "@/lib/security";
+import { isDemoAutoProgress } from "@/lib/feature-flags";
+import { invalidatePrefix } from "@/lib/query-cache";
+import { record, logEvent } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
 
 const SEC = 1000;
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const t0 = Date.now();
+  const { id } = await params;
+  try {
+    const res = await handle(req, id);
+    record("api:shipment:detail", Date.now() - t0, res.ok);
+    logEvent({ route: "api:shipment:detail", shipmentId: id, latencyMs: Date.now() - t0, ok: res.ok, status: res.status });
+    return res;
+  } catch (err) {
+    record("api:shipment:detail", Date.now() - t0, false);
+    logEvent({ level: "error", route: "api:shipment:detail", shipmentId: id, ok: false, extra: { message: (err as Error)?.message } });
+    throw err;
+  }
+}
+
+async function handle(req: Request, id: string): Promise<NextResponse> {
   await ensureDB();
   const session = requireSession(req);
   if (isResponse(session)) return session;
-  const { id } = await params;
-  const demoAuto = new URL(req.url).searchParams.get("demo") === "auto";
+  const demoProgress = isDemoAutoProgress(); // feature flag (sandbox on, production off)
+  const demoAuto = demoProgress && new URL(req.url).searchParams.get("demo") === "auto";
+  let mutated = false; // did this poll advance state? → invalidate list caches
   let s = await getShipmentFull({ id });
   if (!s) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -32,15 +55,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   // DEV-MODE MOCK: the assigned driver auto-accepts after ~5s
-  if (s.status === "DRIVER_ASSIGNED" && Date.now() - new Date(s.stateEnteredAt).getTime() > 5000) {
+  if (demoProgress && s.status === "DRIVER_ASSIGNED" && Date.now() - new Date(s.stateEnteredAt).getTime() > 5000) {
     await applyTransition(id, "driver-accept", "DRIVER", { label: "Driver accepted · on the way to pickup" }).catch(() => null);
     s = (await getShipmentFull({ id })) ?? s;
+    mutated = true;
   }
 
   // DEV-MODE MOCK: while a QUOTED request is open, seeded drivers submit
   // quotes over ~15s so the marketplace comes alive in the sandbox. Real
   // drivers can still quote through the driver app at any time.
-  if (s.status === "QUOTED") {
+  if (demoProgress && s.status === "QUOTED") {
     const quotes = await db.quote.findMany({ where: { shipmentId: id } });
     const secondsIn = (Date.now() - new Date(s.stateEnteredAt).getTime()) / 1000;
     const wanted = secondsIn > 14 ? 3 : secondsIn > 7 ? 2 : secondsIn > 3 ? 1 : 0;
@@ -61,6 +85,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         await db.shipmentEvent.create({ data: { shipmentId: id, type: "QUOTE_RECEIVED", label: `Quote received · ${pick.user?.name ?? "Driver"} · KES ${amount.toLocaleString()}`, actor: "DRIVER" } });
         await db.notification.create({ data: { userId: sc.customerId, role: "CUSTOMER", title: "Driver submitted a quote", body: `KES ${amount.toLocaleString()} for ${sc.code}`, shipmentCode: sc.code } });
         s = (await getShipmentFull({ id })) ?? s;
+        mutated = true;
       }
     }
   }
@@ -87,6 +112,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (step) {
       await step();
       s = (await getShipmentFull({ id })) ?? s;
+      mutated = true;
       if (s.status === "POD_CONFIRMED") {
         // record POD fields like the driver app would
         const { db } = await import("@/lib/db");
@@ -97,6 +123,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         s = (await getShipmentFull({ id })) ?? s;
       }
     }
+  }
+
+  // this poll changed state → every cached list/summary that shows it is stale
+  if (mutated) {
+    invalidatePrefix("shipments");
+    invalidatePrefix("admin");
   }
 
   return NextResponse.json({ shipment: shipmentDTO(s) });
