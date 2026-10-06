@@ -22,7 +22,17 @@ export async function GET(req: Request) {
     where: { id: driverId },
     include: { user: true, vehicles: { include: { category: true } } },
   });
-  if (!driver) return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+  // Stale own-session (sandbox instance churn) → 401 so the client logs out
+  // cleanly; an admin querying a nonexistent driver by param is a real 404.
+  const ownProfile = driverId === session.did;
+  if (!driver) {
+    return NextResponse.json(
+      ownProfile
+        ? { error: "Session expired. Please sign in again." }
+        : { error: "Driver not found" },
+      { status: ownProfile ? 401 : 404 },
+    );
+  }
 
   const [active, history, payouts, quoteJobs] = await Promise.all([
     db.shipment.findFirst({

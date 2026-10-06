@@ -15,7 +15,10 @@ export async function GET(req: Request) {
   if (isResponse(session)) return session;
   const userId = session.uid;
   const user = await db.user.findUnique({ where: { id: userId } });
-  if (!user) return NextResponse.json({ error: "Account not found." }, { status: 404 });
+  // 401 (not 404): a session whose account no longer exists — e.g. a sandbox
+  // instance whose /tmp DB recycled — must expire the session client-side,
+  // not brick the surface with a retryable "not found".
+  if (!user) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
 
   const [active, trips, saved, notifications] = await Promise.all([
     db.shipment.findFirst({

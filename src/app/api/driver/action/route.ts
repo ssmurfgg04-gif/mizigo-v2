@@ -29,7 +29,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
     const d = await db.driver.findUnique({ where: { id: driverId } });
-    if (!d) return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+    // 401: session-bound driver missing = stale session (sandbox instance churn)
+    if (!d) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
     if (d.verification !== "VERIFIED") {
       return NextResponse.json({ error: "Your account is awaiting verification." }, { status: 403 });
     }
@@ -76,7 +77,8 @@ export async function POST(req: Request) {
       db.driver.findUnique({ where: { id: driverId }, include: { vehicles: { include: { category: true } } } }),
       db.pricingZone.findFirst({ where: { key: "nairobi" } }),
     ]);
-    if (!driver) return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+    // 401: session-bound driver missing = stale session (sandbox instance churn)
+    if (!driver) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
     // the leg must match a vehicle the driver actually owns (accept key or name)
     const vehicle = driver.vehicles.find((v) => v.category?.key === categoryKey || v.category?.name === categoryKey) ?? driver.vehicles.find((v) => v.active) ?? null;
     const category = vehicle?.category ?? null;
