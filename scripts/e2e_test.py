@@ -13,7 +13,13 @@ import json, urllib.request, urllib.error, sys, time, threading
 import datetime
 
 import os
-BASE = os.environ.get("MIZIGO_BASE", "http://localhost:3000")
+# Target instance. MIZIGO_BASE is the original knob (local dev + prod_sim);
+# BASE_URL is an alias (CI) — MIZIGO_BASE wins when both are set.
+BASE = (
+    os.environ.get("MIZIGO_BASE")
+    or os.environ.get("BASE_URL")
+    or "http://localhost:3000"
+)
 
 # ─── plumbing: cookie-aware calls ────────────────────────────────────────────
 

@@ -44,7 +44,23 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", ".netlify/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "scripts/noop-cache-handler.cjs"]
+  ignores: [
+    "node_modules/**",
+    ".next/**",
+    ".netlify/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "examples/**",
+    "skills",
+    // vendored maplibre runtime assets (served verbatim from /public, never linted)
+    "public/maplibre-gl-*.mjs",
+    "scripts/noop-cache-handler.cjs",
+    // reference material kept for review archaeology, not lintable product code
+    // (perf-branch/ contains the known file-content shuffle from commit a2e1394)
+    "scripts/pr-review/**",
+    "scripts/research/**",
+  ]
 }];
 
 export default eslintConfig;

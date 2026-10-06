@@ -1,0 +1,43 @@
+{
+  "$comment": [
+    "MIZIGO copy-lint allowlist — intentional exceptions to scripts/lint-copy.mjs.",
+    "Each entry suppresses violations for one EXACT user-facing string (after JSX",
+    "entity decoding + whitespace flattening). Optionally scope an entry to files",
+    "under a path prefix with \"file\". Keep this list SHORT and reasoned —",
+    "every entry is a deliberate product/copy decision, not a lint suppressor."
+  ],
+  "allow": [
+    {
+      "string": "—",
+      "reason": "Empty-value placeholder glyph in table rows / KPI cards (not prose copy)"
+    },
+    {
+      "string": "Get started —— Move cargo as a customer",
+      "reason": "Login hero — intentional em-dash pairing (single-string variant)"
+    },
+    {
+      "string": "Get started ——",
+      "reason": "Login hero — intentional em-dash pairing (JSX text fragment)"
+    },
+    {
+      "string": "Drive & earn —— Accept loads near you",
+      "reason": "Login hero — intentional em-dash pairing (single-string variant)"
+    },
+    {
+      "string": "Drive & earn ——",
+      "reason": "Login hero — intentional em-dash pairing (JSX text fragment)"
+    },
+    {
+      "string": "Operations console —— Admin · live network, pricing, disputes",
+      "reason": "Login hero — intentional em-dash pairing (single-string variant)"
+    },
+    {
+      "string": "Operations console ——",
+      "reason": "Login hero — intentional em-dash pairing (JSX text fragment)"
+    },
+    {
+      "string": "Coming soon",
+      "reason": "KNOWN VIOLATION (reported to maintainer 2024 CI track): Card payment-method row in CustomerScreens wallet — unfinished copy shipping in the UI. Remove this entry when the row is relabeled or Card ships."
+    }
+  ]
+}

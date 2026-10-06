@@ -1,73 +1,100 @@
 # MIZIGO v2
 
-**Move anything. Anywhere.** A cargo transportation marketplace for Nairobi, Kenya — tuk-tuks, vans, pickups, canters and lorries, one network.
+<!-- CI badge placeholder — goes live as soon as .github/workflows/ci.yml lands on main -->
+[![CI](https://github.com/ssmurfgg04-gif/mizigo-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/ssmurfgg04-gif/mizigo-v2/actions/workflows/ci.yml)
 
-This is the sandbox MVP (v2): customer booking, driver operations and an admin console, built around a server-authoritative shipment state machine, a database-driven pricing engine and a matching engine — the way the product brief describes it (Uber's simplicity, cargo-specific intelligence, M-Pesa-first, deeply Kenyan behavior).
+**Move anything. Anywhere.** A cargo transportation marketplace for Nairobi, Kenya — tuk-tuks, vans, pickups, canters and lorries, one network. Live sandbox: **[mizigo.netlify.app](https://mizigo.netlify.app)**.
 
-## Deploy to Netlify
-
-The repo is Netlify-ready — no configuration needed beyond connecting it:
-
-1. Push to GitHub (done).
-2. [app.netlify.com](https://app.netlify.com) → **Add new site → Import an existing project** → pick the `mizigo-v2` repo.
-3. Build settings are read from `netlify.toml` (command `npm run build:netlify`, `@netlify/plugin-nextjs`). Click **Deploy**.
-
-On the first request after a deploy, the API bootstraps itself: SQLite is created in the function's writable `/tmp` (schema DDL + demo seed — see `src/lib/db-ready.ts`), so **no database service is required**. Notes for the demo: each warm function instance keeps its own data; a cold start reseeds fresh demo data (fine for a sandbox — it's labeled honestly in-app). For durable data, swap the Prisma datasource to Postgres/Turso and keep everything else.
-
-Prisma query engines for the Netlify function runtime are prebuilt via `binaryTargets` in `prisma/schema.prisma`.
-
-Local production-parity check: `bash scripts/prod_sim.sh` — builds with `NETLIFY=1`, boots a fresh `/tmp` SQLite and runs the full 147-check e2e against the production server (then restarts dev).
-
-## Security model (public-deploy ready)
-
-The sandbox keeps honest mocks, but the trust boundaries are real:
-
-- **Sessions** — login issues an HMAC-SHA256–signed, HttpOnly cookie (`src/lib/security.ts`); every protected route derives identity from the session, never from the client. Logout revokes server-side.
-- **OTP** — the mock SMS provider *does* verify: codes are server-generated, expire in 5 minutes, allow 5 attempts, and are consumed on use (the sandbox displays the code in-app — that's the labeled mock).
-- **Authorization** — role checks on admin/driver surfaces; the unified action endpoint enforces a per-action matrix (customer / assigned driver / admin; QUOTED marketplace jobs accept any driver's quote). IDOR tested and closed (cross-customer reads, share-link minting, chat, driver-station actions all 403).
-- **Rate limiting** — sliding-window limits per IP on every mutating route (auth, bookings, quotes, actions, return-load claims).
-- **Validation** — coordinates bounded to the service region, quantities/weights clamped, string/array caps everywhere (fuzz-tested: NaN/1e308/out-of-region → 400).
-- **Atomicity** — state transitions use a conditional-update claim (exactly one winner under concurrency; races return 409); pay-confirm is idempotent under concurrent calls; return-load claims are atomic.
-- **Headers** — CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy (Next config + netlify.toml).
-- **Public tracking** — hashed capabilities only; no phones, notes or customer names leave the public surface (verified by tests).
-
-The e2e suite includes a 46-check security matrix + stress section (concurrency, malformed bodies, rate-limit floods) — `python3 scripts/e2e_test.py`.
+This is v2: customer booking, driver operations and an admin console, built around a server-authoritative shipment state machine, a database-driven pricing engine and a matching engine — Uber's simplicity, cargo-specific intelligence, M-Pesa-first, deeply Kenyan behavior. Zero API keys required to run or deploy.
 
 ## What's inside
 
 | Surface | Entry | Highlights |
 |---|---|---|
-| **Customer app** | `/?role=customer` (demo login: John K.) | Cargo-first booking flow, vehicle recommendation with locked upfront price, **multi-stop deliveries**, **scheduled bookings**, **promo codes**, **quote marketplace for large loads**, M-PESA STK simulation, live tracking, **delivery-code POD handshake**, **safety centre + goods-in-transit cover copy**, **notification centre**, in-app chat with quick messages, help centre, rating, receipt (+ **VAT invoices for business accounts**), trip history, **Book again**, **saved places**, **English/Kiswahili switcher**, business account demo (ABC Traders) |
-| **Driver app** | `/?role=driver` (demo: Peter Kamau) | Online/offline, earnings today + 7-day chart, demand map, job offers with full earnings disclosure + **customer ratings**, step-by-step trip flow with cargo verification, **delivery-code verification at POD**, quote submission for marketplace jobs, stop sequence with mark-done, chat with the customer, cargo issue reporting, documents screen, wallet + balance-checked M-PESA withdrawals |
-| **Admin console** | `/?role=admin` | KPI dashboard, live network map, bookings table + chain-of-custody drawers, **manual dispatch (assign driver)**, driver management with document verification, **customer/business accounts**, **live pricing editor** (zone + per-vehicle-category, no redeploy), payments, **payout ledger (B2C)**, disputes, **support exception queue**, **promotions manager**, analytics (+ **top drivers**), **platform settings** (advance-booking window, auto-dispatch toggle, quote expiry, hotline), audit log |
+| **Customer app** | `/?role=customer` (demo login: John K.) | Cargo-first booking flow, vehicle recommendation with locked upfront price, **multi-stop deliveries**, **scheduled bookings**, **promo codes**, **quote marketplace for large loads**, M-PESA STK simulation, **live tracking on real street maps**, **delivery-code POD handshake**, **safety centre + goods-in-transit cover copy**, **notification centre**, in-app chat with quick messages, help centre, rating, receipt (+ **VAT invoices for business accounts**), trip history, **Book again**, **saved places**, **18-language switcher**, business account demo (ABC Traders) |
+| **Driver app** | `/?role=driver` (demo: Peter Kamau) | Online/offline, earnings today + 7-day chart, demand map, job offers with full earnings disclosure + **customer ratings**, step-by-step trip flow with cargo verification, **delivery-code verification at POD**, **turn-by-turn navigation with typical-traffic ETAs**, quote submission for marketplace jobs, stop sequence with mark-done, chat with the customer, cargo issue reporting, documents screen, wallet + balance-checked M-PESA withdrawals, **return-leg marketplace** |
+| **Admin console** | `/?role=admin` | KPI dashboard + **ops/telemetry tab with SLIs**, live network map, bookings table + chain-of-custody drawers, **manual dispatch (assign driver)**, driver management with document verification, **customer/business accounts**, **live pricing editor** (zone + per-vehicle-category, no redeploy), payments, **payout ledger (B2C)**, disputes, **support exception queue**, **promotions manager**, analytics (+ **top drivers**), **platform settings** (advance-booking window, auto-dispatch toggle, quote expiry, hotline), audit log |
 | **Public tracking** | `/?view=track&token=…` | No-login recipient page: driver first name, vehicle, ETA, status, journey timeline. No phones or private data. |
 
-**Design layer** — route-M logomark with waypoint dot (favicons + PWA manifest + OG card in `public/`), premium side-view vehicle illustrations for all six classes (`VehicleAvatar`), cinematic login: night freight-yard photography (two webp assets, ~110KB total) under a Terminal-style telemetry HUD (live coordinates, animated route with a moving vehicle, scanline sweep, Ken Burns drift), fully responsive — edge-to-edge on phones (safe-area aware, adapts down to iPhone SE) and a device frame on desktop.
+**Design layer** — route-M logomark with waypoint dot (favicons + PWA manifest + OG card in `public/`), premium side-view vehicle illustrations for all six classes (`VehicleAvatar`), cinematic login: night freight-yard photography (two webp assets, ~110KB total) under a Terminal-style telemetry HUD, fully responsive from iPhone SE to desktop.
 
-## Architecture (docs/)
+## Architecture at a glance
 
-- `docs/ARCHITECTURE.md` — surfaces, stack, state machine, pricing/matching engines, payments (Daraja-shaped mock), failure handling, security model
-- `docs/DESIGN_SYSTEM.md` — tokens, typography (Manrope), spacing/radius locks, status language, motion rules
-- `docs/ENGINEERING_RULES.md` — non-negotiables, file layout, API contract, verification protocol
-- `docs/MINING.md` — what was merged from the mizigo-v1 repo and the lessons adopted
+- **Dual-mode database** — the same codebase runs as a zero-config sandbox (SQLite, per-instance `/tmp`, schema DDL + demo seed self-bootstrap on cold start) or a real multi-user deployment (any hosted Postgres) purely by setting `DATABASE_URL`. `scripts/db-prepare.mjs` generates the right Prisma client and pushes the schema at build time; `src/lib/db-ready.ts` verifies + seeds at runtime. Full details: [docs/NETLIFY_PRODUCTION.md](docs/NETLIFY_PRODUCTION.md).
+- **Server-authoritative state machine** — 15 primary states (incl. `QUOTED` for the marketplace) plus exception paths; every transition is validated server-side and appends an immutable chain-of-custody event. Concurrent transitions use conditional-update claims — exactly one winner, races get 409s.
+- **Security model** — HMAC-SHA256-signed HttpOnly session cookies (`src/lib/security.ts`); identity is never trusted from the client; a per-action authorization matrix (customer / assigned driver / admin, QUOTED marketplace allowance) on the unified action endpoint; OTP that actually verifies (expiry, attempt limits, consume-on-use); sliding-window rate limiting (in-memory in sandbox, DB-backed in Postgres mode); coordinate/quantity/string validation on every input; IDOR closed and fuzz-tested; hashed public-tracking capabilities; CSP and security headers.
+- **Pricing & matching** — fares are DB-driven (base + per-km + per-min + loading + stops + platform fee, night surcharge, planned-delivery discount) and locked at booking; promos validated server-side. The matching engine filters (online, category, capacity, documents, service area) then ranks (distance, ETA confidence, rating, acceptance, experience, v1 reliability score).
 
-## Core engineering
+## The map stack (keyless)
 
-- **State machine** (`src/lib/state-machine.ts`) — 15 primary states (incl. `QUOTED` for the marketplace) + exceptions; transitions validated server-side; every transition appends an immutable event (chain of custody)
-- **Pricing engine** (`src/lib/pricing.ts`) — base + per-km + per-min + loading + stops + platform fee from the DB; fare breakdown shown line-by-line; price locked at booking; **promo discounts validated and applied server-side**; **night surcharge (×1.12) and planned-delivery discount (−5%) factors, both admin-editable** (v1 goodness)
-- **Return-load marketplace** (`/api/return-loads`) — drivers publish empty return legs at a discount; customers reserve them from a deals rail on home (atomic claim → real shipment at the locked empty-leg price with the publishing driver pre-assigned); honest savings computed against the live tariff (v1's "use the empty leg" flagship)
-- **Two-sided reputation** — customers rate drivers *and drivers rate customers*; the driver's Network reliability score (v1 formula: 0.45·completion + 0.35·rating + 0.20·on-time − incident penalty) carries 18% of the dispatch ranking
-- **Quote marketplace** — customers with large/commercial loads request driver quotes instead of instant pricing; verified transporters quote from their app (the sandbox also simulates a few quotes); the accepted quote locks the fare and reserves the quoting driver (plan §33/§36)
-- **Matching engine** (`src/lib/matching.ts`) — filters (online, category, capacity, docs, service area) then ranks (distance, ETA, rating, acceptance, experience); **admin can disable auto-dispatch and assign drivers manually** (final brief §19 human-ops path)
-- **Payments** (`src/app/api/shipments/[id]/action`) — mock M-PESA STK lifecycle with idempotency keys; server-authoritative status; refund on cancel; **B2C payout ledger**
-- **Hashed share tokens** (`src/lib/tokens.ts`) — public tracking links are 24-byte capabilities stored only as sha256; links are minted on demand via the `share-link` action and the Share button uses the Web Share API (v1 security lesson)
-- **Platform settings** (`PlatformSetting`) — advance-booking window (enforced server-side), auto-dispatch toggle, quote expiry, support hotline — editable in admin, audited
-- **i18n** (`src/lib/i18n.ts`) — English-first with a live Kiswahili switcher for the core booking journey (plan §62 pattern)
-- **Movement simulation** (`src/lib/shipments.ts`) — driver GPS derived from state + route + elapsed time (12× time compression in sandbox) so customer, driver and admin views converge on the same truth
+MapLibre GL + CARTO basemaps + OSRM routing — no API keys, no accounts, no billing. Driver movement is tracked live on real streets; ETAs use OSRM's typical-traffic model and are labelled as such (honest, not "live traffic"). Navigation for drivers is turn-by-turn from OSRM. The whole stack is client-side; there is no map server to operate.
+
+## Languages
+
+18 languages with offline dictionaries — Google-Translate-style coverage for the core journey without runtime dependencies or translation API calls. English and Kiswahili are hand-tuned; the dictionary ships in the bundle and works offline.
+
+## The Rust core
+
+Fare + dispatch math (the money path) runs through a Rust core compiled to WASM with a TypeScript fallback that is bit-identical in behavior — unit + parity tests (`bun run test`) prove both implementations agree, so the pure-TS sandbox and the WASM build can never drift on price.
+
+## Integrations & environment variables
+
+Everything below is **inert by default** — unset keys mean the sandbox mock/labels stay in place. Nothing is required to run or deploy the demo.
+
+| Variable | Purpose | Default (unset) |
+|---|---|---|
+| `DATABASE_URL` | `file:…` → SQLite sandbox · `postgresql://…` → hosted Postgres (schema auto-pushed at build) | `/tmp` SQLite, self-bootstraps |
+| `MIZIGO_SESSION_SECRET` | HMAC secret for session cookies | sandbox default (rotate for production) |
+| `DEMO_AUTO_PROGRESS` | `true` → demo shipments auto-advance without a human driver | off — humans drive the demo |
+| `DARAJA_CONSUMER_KEY` / `DARAJA_CONSUMER_SECRET` / `DARAJA_PASSKEY` / `DARAJA_ENVIRONMENT` | Safaricom Daraja M-PESA (STK push, B2C payouts) | labeled M-PESA sandbox simulation |
+| `AT_API_KEY` / `AT_USERNAME` / `AT_SENDER_ID` | Africa's Talking SMS + USSD | OTP codes shown in-app (labeled mock) |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry error tracking (server / client) | disabled |
+| `CRON_SECRET` | Shared secret for scheduled endpoints | scheduled jobs refuse to run |
+
+## Testing & verification
+
+- **150+ automated e2e checks** across the booking lifecycle, the authn/authz security matrix, input-validation fuzzing and stress suites (concurrency, malformed bodies, rate-limit floods) — `python3 scripts/e2e_test.py` (python3 + stdlib only; point it at another instance with `BASE_URL=…` or `MIZIGO_BASE=…`). The live demo walkthrough (`scripts/demo_walkthrough.py`) exercises the same flows a human would.
+- **Unit + parity suites** — money paths, fare math and the Rust/TS parity checks run via `bun run test` (vitest; suites live under `tests/`).
+- **Copy lint** — `bun run lint:copy` enforces user-facing text consistency (em-dash house style, ellipsis, apostrophes, no "coming soon" placeholders) with a reasoned allowlist at `scripts/lint-copy-allowlist.json`.
+- **CI** (`.github/workflows/ci.yml`) — every push/PR to `main` runs: typecheck → eslint → copy lint → vitest → a production `next build` → the full e2e suite against the standalone server on a fresh SQLite → the same against a real Postgres 16 (allow-failure until stable).
+- Reseed anytime: `bun run scripts/reseed.ts`. Full production simulation: `bash scripts/prod_sim.sh`.
+
+## Local development
+
+```bash
+bun install       # postinstall generates the Prisma client
+bun run dev       # schema + demo data bootstrap on first request
+```
+
+Optional: `bun run db:push` for a pristine local schema, `bash scripts/prod_sim.sh` for a cold-start production-parity run (builds, boots a fresh `/tmp` SQLite, runs the whole e2e suite against it).
+
+Asset regeneration: `node scripts/make_icons.mjs` (logo → favicon/PWA/OG set) · `node scripts/make_hero.mjs` (hero webp) · `python3 scripts/make_ddl.py` (schema → `src/lib/ddl.ts` after model changes).
+
+## Deploying
+
+The repo is Netlify-ready — connect it at [app.netlify.com](https://app.netlify.com) and `netlify.toml` does the rest (build command, Prisma engines in the function bundle, security headers). The API self-bootstraps on the first request; for durable multi-user data set `DATABASE_URL` to a hosted Postgres — the five-minute upgrade is documented in [docs/NETLIFY_PRODUCTION.md](docs/NETLIFY_PRODUCTION.md).
+
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Surfaces, stack, state machine, engines, payments, failure handling, security model |
+| [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) | Tokens, typography, spacing/radius locks, status language, motion rules |
+| [docs/ENGINEERING_RULES.md](docs/ENGINEERING_RULES.md) | Non-negotiables, file layout, API contract, verification protocol |
+| [docs/NETLIFY_PRODUCTION.md](docs/NETLIFY_PRODUCTION.md) | Sandbox vs production modes, the one-env-var Postgres upgrade, ops notes |
+| [docs/REVIEW_RESPONSE.md](docs/REVIEW_RESPONSE.md) | What we adopted, adapted and deferred from the reviews — with reasons |
+| [docs/PERFORMANCE_REVIEW.md](docs/PERFORMANCE_REVIEW.md) | The performance review (§-numbered risks + remediation plan) |
+| [docs/30DAY_ROADMAP.md](docs/30DAY_ROADMAP.md) | 30-day performance & observability roadmap |
+| [docs/ROADMAP_DISPATCH_INTEL.md](docs/ROADMAP_DISPATCH_INTEL.md) | 30-day dispatch-intelligence roadmap variant |
+| [docs/performance-checklist.md](docs/performance-checklist.md) | P0/P1/P2 performance + operations checklist |
+| [docs/MINING.md](docs/MINING.md) | What was merged from the mizigo-v1 repo and the lessons adopted |
+| [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) | Guided walkthrough of the demo |
+
+Roadmap pointer: the current plan of record is [docs/30DAY_ROADMAP.md](docs/30DAY_ROADMAP.md), with the review-by-review decision log in [docs/REVIEW_RESPONSE.md](docs/REVIEW_RESPONSE.md).
 
 ## Honest sandbox labels
 
-Mock OTP (code shown in-app), mock M-PESA (labeled SANDBOX, no real money), simulated GPS, sandbox quote simulation (real drivers can quote at any time), demo auto-accept/auto-advance (only while the customer tracking screen is open — a human driver can always take over from the driver app).
+Mock OTP (code shown in-app), mock M-PESA (labeled SANDBOX, no real money), simulated GPS movement, sandbox quote simulation (real drivers can quote at any time), demo auto-accept/auto-advance only while the customer tracking screen is open (a human driver can always take over; full auto-progression needs `DEMO_AUTO_PROGRESS=true`). ETAs are typical-traffic estimates, labelled as such.
 
 ## Demo accounts
 
@@ -77,15 +104,3 @@ Mock OTP (code shown in-app), mock M-PESA (labeled SANDBOX, no real money), simu
 - Admin: `admin@mizigo.demo`
 
 Demo promo codes: `MOVE200` (KES 200 off, min KES 1,000) · `WELCOME500` (first booking only, min KES 1,500) · `BIZ10` (10% business accounts, min KES 3,000).
-
-## Run
-
-```bash
-bun install
-bun run db:push     # SQLite schema
-bun run dev         # seeds demo data on first request
-```
-
-Tests: `python3 scripts/e2e_test.py` (80 checks across the booking lifecycle, payments, matching, POD, pricing edits, promos, multi-stop, scheduling, the quote marketplace, manual dispatch, disputes, saved places, admin tabs and public-tracking privacy). Point it at another instance with `MIZIGO_BASE=http://localhost:3100`. Reseed anytime with `bun run scripts/reseed.ts`.
-
-Icon/asset regeneration: `node scripts/make_icons.mjs` (logo → favicon/PWA/OG set) · `node scripts/make_hero.mjs` (hero webp) · `python3 scripts/make_ddl.py` (schema → `src/lib/ddl.ts` after model changes).

@@ -1,0 +1,291 @@
+# MIZIGO CI — bun-based quality, unit, build and e2e gates.
+#
+# Jobs:
+#   quality      tsc --noEmit → eslint → copy lint (text consistency)
+#   unit         vitest (unit + Rust-parity suites under tests/)
+#   build        plain `next build` (standalone output — validates the production
+#                compile; nothing is started here) → artifact
+#   e2e-sqlite   boots the standalone server on a fresh /tmp SQLite and runs the
+#                full e2e suite (lifecycle + security + stress) against it
+#   e2e-postgres same flow against a real Postgres 16 service (dual-mode data
+#                layer). continue-on-error until stable — it must never block.
+#
+# Runtime budget (approx): quality ~3m, unit ~1m, build ~5m, e2e-sqlite ~6m
+# (parallel to e2e-postgres ~8m). Total wall time ~12m, well under the
+# default 6h job limit.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# cancel superseded runs on the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Static quality gates
+  # ───────────────────────────────────────────────────────────────────────────
+  quality:
+    name: quality (tsc + eslint + copy lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: bun-${{ runner.os }}-v1
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Copy lint (user-facing text consistency)
+        run: bun run lint:copy
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Unit + parity tests (vitest; suites live under tests/)
+  # ───────────────────────────────────────────────────────────────────────────
+  unit:
+    name: unit (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: bun-${{ runner.os }}-v1
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Unit + Rust-parity suites are added under tests/ — this gate picks
+      # them up automatically. --passWithNoTests keeps CI green until the
+      # first suite lands (remove the flag once tests/ has a suite).
+      - name: Run vitest
+        run: bunx vitest run --passWithNoTests
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Production build (standalone output — the same artifact `bun run start`
+  # and the deploy pipeline rely on). No server is started in this job.
+  # ───────────────────────────────────────────────────────────────────────────
+  build:
+    name: build (next build, standalone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: bun-${{ runner.os }}-v1
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      # Safety net: Next's output file tracing occasionally misses the Prisma
+      # query engines. Copy them in if absent so the standalone server is
+      # always runnable (idempotent — a no-op when tracing did its job).
+      - name: Ensure Prisma engines inside the standalone bundle
+        run: |
+          if [ ! -d .next/standalone/node_modules/.prisma ]; then
+            echo "tracer missed node_modules/.prisma — copying engines in"
+            cp -r node_modules/.prisma .next/standalone/node_modules/
+          fi
+          if [ ! -d .next/standalone/node_modules/@prisma/client ]; then
+            echo "tracer missed node_modules/@prisma/client — copying in"
+            cp -r node_modules/@prisma/client .next/standalone/node_modules/@prisma/
+          fi
+
+      - name: Upload standalone bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-app
+          path: .next/standalone
+          retention-days: 1
+          if-no-files-found: error
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # e2e against the standalone production server, sandbox mode (SQLite in /tmp,
+  # cold-start DDL + demo seed — the same self-bootstrap Netlify performs).
+  # scripts/e2e_test.py is python3 + stdlib only (urllib).
+  # ───────────────────────────────────────────────────────────────────────────
+  e2e-sqlite:
+    name: e2e (standalone server, SQLite sandbox)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download standalone bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: standalone-app
+          path: standalone
+
+      - name: Boot the standalone server (fresh /tmp SQLite)
+        run: |
+          rm -f /tmp/ci.db
+          cd standalone
+          PORT=3999 HOSTNAME=127.0.0.1 \
+            DATABASE_URL=file:/tmp/ci.db \
+            MIZIGO_SESSION_SECRET=ci-session-secret \
+            nohup node server.js > server.log 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/server.pid"
+
+      - name: Wait for cold-start bootstrap (DDL + demo seed)
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3999/api/bootstrap || true)
+            if [ "$code" = "200" ]; then
+              echo "server up (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::standalone server never became healthy"
+          cat standalone/server.log || true
+          exit 1
+
+      - name: Run the e2e suite (lifecycle + security matrix + stress)
+        run: BASE_URL=http://127.0.0.1:3999 python3 scripts/e2e_test.py
+
+      - name: Server log (on failure)
+        if: failure()
+        run: tail -100 standalone/server.log || true
+
+      - name: Stop the server
+        if: always()
+        run: |
+          [ -f server.pid ] && kill "$(cat server.pid)" 2>/dev/null || true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # e2e against the standalone production server, Postgres mode — verifies the
+  # dual-mode data layer end to end (db-prepare pushes the schema at install
+  # time, db-ready verifies + seeds at cold start).
+  #
+  # continue-on-error: true — this job is ALLOWED TO FAIL until it has proven
+  # stable; it must never block a PR. Flip to a hard gate once green for a
+  # couple of weeks.
+  # ───────────────────────────────────────────────────────────────────────────
+  e2e-postgres:
+    name: e2e (standalone server, Postgres — allow-failure)
+    needs: build
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mizigo_test
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mizigo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: bun-${{ runner.os }}-v1
+
+      # DATABASE_URL is set at the job level, so the postinstall step
+      # (scripts/db-prepare.mjs) generates the Postgres client AND pushes the
+      # schema to the service — this is the real production-mode flow.
+      - name: Install dependencies (Postgres client + schema push)
+        run: bun install --frozen-lockfile
+
+      - name: Build (standalone, Postgres client)
+        run: bun run build
+
+      - name: Ensure Prisma engines inside the standalone bundle
+        run: |
+          if [ ! -d .next/standalone/node_modules/.prisma ]; then
+            echo "tracer missed node_modules/.prisma — copying engines in"
+            cp -r node_modules/.prisma .next/standalone/node_modules/
+          fi
+          if [ ! -d .next/standalone/node_modules/@prisma/client ]; then
+            echo "tracer missed node_modules/@prisma/client — copying in"
+            cp -r node_modules/@prisma/client .next/standalone/node_modules/@prisma/
+          fi
+
+      - name: Boot the standalone server (Postgres mode)
+        run: |
+          cd .next/standalone
+          PORT=3999 HOSTNAME=127.0.0.1 \
+            MIZIGO_SESSION_SECRET=ci-session-secret \
+            nohup node server.js > server.log 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/server.pid"
+
+      - name: Wait for bootstrap (schema check + demo seed)
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3999/api/bootstrap || true)
+            if [ "$code" = "200" ]; then
+              echo "server up (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::standalone server never became healthy"
+          cat .next/standalone/server.log || true
+          exit 1
+
+      - name: Run the e2e suite (lifecycle + security matrix + stress)
+        run: BASE_URL=http://127.0.0.1:3999 python3 scripts/e2e_test.py
+
+      - name: Server log (on failure)
+        if: failure()
+        run: tail -100 .next/standalone/server.log || true
+
+      - name: Stop the server
+        if: always()
+        run: |
+          [ -f server.pid ] && kill "$(cat server.pid)" 2>/dev/null || true

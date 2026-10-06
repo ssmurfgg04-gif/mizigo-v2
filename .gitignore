@@ -72,3 +72,14 @@ server.log
 
 # netlify local build output (function bundles)
 .netlify/
+
+# logs (any dir) + python bytecode + rust/wasm build byproducts
+logs/
+__pycache__/
+tests/__pycache__/
+rust/target/
+
+
+# agent working material (local reference only)
+scripts/pr-review/
+scripts/research/

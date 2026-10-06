@@ -31,6 +31,9 @@ interface SessionState {
   adminTab: string;
   bookingStep: BookingStep;
   focusShipmentId: string | null;
+  // rating + chat sheets (deep-link targets — session-scoped, never persisted)
+  ratingShipmentId: string | null;
+  chatShipmentId: string | null;
   // booking draft (cargo-first)
   draft: {
     draftId: string;
@@ -67,6 +70,8 @@ interface SessionState {
   setAdminTab: (t: string) => void;
   setBookingStep: (s: BookingStep) => void;
   setFocusShipment: (id: string | null) => void;
+  setRatingShipment: (id: string | null) => void;
+  setChatShipment: (id: string | null) => void;
   patchDraft: (p: Partial<SessionState["draft"]>) => void;
   resetDraft: (keep?: boolean) => void;
   logout: () => void;
@@ -112,6 +117,8 @@ export const useSession = create<SessionState>()(
       adminTab: "overview",
       bookingStep: "idle",
       focusShipmentId: null,
+      ratingShipmentId: null,
+      chatShipmentId: null,
       lang: "en" as Lang,
       setLang: (lang) => set({ lang }),
       draft: emptyDraft(),
@@ -123,9 +130,11 @@ export const useSession = create<SessionState>()(
       setAdminTab: (adminTab) => set({ adminTab }),
       setBookingStep: (bookingStep) => set({ bookingStep }),
       setFocusShipment: (focusShipmentId) => set({ focusShipmentId }),
+      setRatingShipment: (ratingShipmentId) => set({ ratingShipmentId }),
+      setChatShipment: (chatShipmentId) => set({ chatShipmentId }),
       patchDraft: (p) => set({ draft: { ...get().draft, ...p } }),
       resetDraft: (keep) => set({ draft: { ...emptyDraft(), ...(keep ? { pickup: get().draft.pickup, dropoff: get().draft.dropoff, category: get().draft.category, items: get().draft.items, load: get().draft.load } : {}) } }),
-      logout: () => set({ user: null, driverId: null, surface: "welcome", bookingStep: "idle", draft: emptyDraft() }),
+      logout: () => set({ user: null, driverId: null, surface: "welcome", bookingStep: "idle", focusShipmentId: null, ratingShipmentId: null, chatShipmentId: null, draft: emptyDraft() }),
     }),
     {
       name: "mizigo-session",
