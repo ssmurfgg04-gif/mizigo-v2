@@ -263,3 +263,23 @@ Stage Summary:
 - mizigo.netlify.app outage fully resolved (Blobs cache handler no-op'd; DATABASE_URL runtime shim platform-independent)
 - Production multi-user is one env var away (DATABASE_URL=postgresql://…), fully implemented and verified against real Postgres
 - Sandbox mode remains the zero-config single-user demo; both modes pass the same 150+ check e2e suite against the real deployable bundle
+
+---
+Task ID: 9
+Agent: Super Z (main agent)
+Task: Live browser-verification loop: fix quick-login logout loop, deterministic seed ids, final live proof.
+
+Work Log:
+- Browser-verified the live deploy end to end with agent-browser: login page copy intact, onboarding + quick-login buttons render
+- Found live bug #1: stale session cookie (uid from a recycled instance DB) → /api/customer + /api/driver returned 404 "Account not found" → client bricked behind a "Try again" that can never succeed. Fixed: session-bound account lookups now return 401 ("Session expired. Please sign in again.") which the client's existing 401→clean-logout flow turns into a one-tap re-login; admin-param resource lookups stay 404
+- Found live bug #2 (the real quick-login killer): after login the next request could land on a different warm instance whose seed had re-created users with NEW random cuids → session uid matched nothing → logout loop. Fixed: deterministic seed ids (seed-user-john, seed-driver-d1, seed-cat-tuktuk, seed-ship-h0, …) — every instance's seed is identical, so any instance recognizes any demo-account session. Verified: login on instance A → fresh instance B → /api/customer 200 with seed-user-john
+- Discovered local-test fidelity gap: the Netlify plugin copies the repo .env into the function bundle and the runtime loads it — local harness runs had silently used the writable repo DB instead of /tmp. Fixed: harness/server now force file:/tmp/mizigo.db unless a postgres URL is exported. (Live deploys unaffected: .env is not in git.)
+- Verification matrix, all on the real deployable bundle: sandbox /tmp e2e ALL PASS (deterministic seed); cross-instance session affinity PASS; fresh-Postgres first-deploy scenario (schema push → seed → full e2e) ALL PASS; persistent Postgres back-to-back suites ALL PASS
+- Live proofs after final deploy (dd1293e): bootstrap 200 with seed-cat-* ids; demo walkthrough 23/23 PASS on https://mizigo.netlify.app (customer book→pay→match, driver all stations + POD code handshake, admin KPIs, public share-link tracking); browser quick-login renders the full customer home (greeting, FROM/TO/SOON panel, shortcut chips, return-load deals rail) — VLM-verified clean layout, no defects
+- Screenshots: download/live/01–06 (login, onboarding, home, final states)
+
+Stage Summary:
+- mizigo.netlify.app is fully working: login, complete customer/driver/admin journeys, public tracking, share links
+- Sandbox demo is instance-proof for demo accounts (deterministic ids) and self-healing for stale sessions (401 → clean logout → one-tap re-login)
+- Production multi-user remains one env var away (DATABASE_URL=postgresql://…), now verified including the fresh-database first-deploy path
+- Total outage causes fixed this session: Blobs cache handler (local/cold env), missing DATABASE_URL shim dependency on NETLIFY env, 404-instead-of-401 stale sessions, non-deterministic seed ids
