@@ -5,13 +5,20 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { Bookmark, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { PlaceHit } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button } from "@/components/mizigo/shared/ui";
-import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import { toast } from "@/hooks/use-toast";
+
+// real-tile mini preview (MapLibre) — lazy so maplibre stays out of the main
+// customer bundle until a place is actually chosen
+const LiveMap = dynamic(() => import("@/components/mizigo/shared/LiveMap"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full animate-pulse bg-[var(--surface-2)]" />,
+});
 
 export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
   const { user, draft, patchDraft, setBookingStep } = useSession();
@@ -104,12 +111,21 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
       {selected && !addingStop && (
         <div className="animate-mz-slide-up overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">
           <div className="relative h-40">
-            <MapCanvas
-              focus={{ lat: selected.lat, lng: selected.lng }}
-              markers={[{ kind: isPickup ? "pickup" : "dropoff", lat: selected.lat, lng: selected.lng, label: selected.area }]}
-              showLabels={false}
+            <LiveMap
+              center={{ lat: selected.lat, lng: selected.lng }}
+              zoom={14.2}
+              markers={[
+                {
+                  id: isPickup ? "pickup" : "dropoff",
+                  kind: isPickup ? "pickup" : "dropoff",
+                  lat: selected.lat,
+                  lng: selected.lng,
+                  label: selected.area,
+                },
+              ]}
+              compact
+              interactive={false}
               className="absolute inset-0"
-              fitPad={90}
             />
           </div>
           <div className="flex items-center gap-3 p-4">

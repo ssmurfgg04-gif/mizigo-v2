@@ -3,10 +3,11 @@
 // Includes quote-marketplace jobs (plan §33), chat (plan §77), stops (plan §35),
 // cargo issue reporting (plan §15) and the documents screen (plan §29).
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import {
-  ArrowLeft, Banknote, BriefcaseBusiness, CheckCircle2, ChevronRight, Clock3,
+  ArrowLeft, ArrowUpRight, Banknote, BriefcaseBusiness, CheckCircle2, ChevronRight, Clock3,
   FileCheck2, LogOut, MapPin, MessageCircle, Navigation, PackageOpen, Phone, Power, Star,
   TriangleAlert, Truck, User, Wallet, X,
 } from "lucide-react";
@@ -15,6 +16,7 @@ import type { DriverHome, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, EmptyState, ErrorState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus, AvatarInitials } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
+import type { LiveMapMarker } from "@/components/mizigo/shared/LiveMap";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import ReturnLoadPublisher from "./ReturnLoadPublisher";
@@ -25,6 +27,12 @@ import { toast } from "@/hooks/use-toast";
 import { post as apiPost, loginWithOtp } from "@/lib/api-client";
 import type { SessionUser } from "@/store/session";
 import { useSettings } from "@/components/mizigo/shared/useSettings";
+
+// live map (MapLibre) — lazy so maplibre stays out of the driver bundle until a trip opens
+const LiveMap = dynamic(() => import("@/components/mizigo/shared/LiveMap"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full animate-pulse bg-[var(--surface-2)]" />,
+});
 
 // ─── Home ───
 function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: () => void }) {
@@ -159,6 +167,9 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
   const [reportKind, setReportKind] = useState<string | null>(null);
   const [reportNote, setReportNote] = useState("");
   const [doneStops, setDoneStops] = useState<number[]>([]);
+  // driver-side navigation: real OSRM road geometry + turn-by-turn + traffic
+  // (hook must run before the early return; it accepts a null shipment)
+  const nav = useDriverNav(s, doneStops);
   if (!s) {
     return <EmptyState icon={<PackageOpen size={22} />} title="No active job" body="When you accept a delivery it will guide you step by step." action={<Button variant="outline" onClick={onDone}>Back home</Button>} />;
   }
@@ -240,14 +251,28 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
   return (
     <div className="flex h-full flex-col">
       <div className="relative min-h-0 flex-[1.6]">
-        <MapCanvas
-          route={s.route.polyline}
-          markers={[
-            ...(s.live ? [{ kind: "vehicle" as const, lat: s.live.lat, lng: s.live.lng, heading: s.live.heading }] : []),
-            { kind: "pickup", lat: s.route.pickup.lat, lng: s.route.pickup.lng },
-            { kind: "dropoff", lat: s.route.dropoff.lat, lng: s.route.dropoff.lng },
+        {/* real-tile map with the live route; the SVG schematic stays as the
+            automatic fallback (WebGL-less environments) */}
+        <LiveMap
+          markers={nav?.markers ?? [
+            ...(s.live ? [{ id: "driver" as const, kind: "driver" as const, lat: s.live.lat, lng: s.live.lng, heading: s.live.heading, categoryKey: s.category.key }] : []),
+            { id: "pickup", kind: "pickup" as const, lat: s.route.pickup.lat, lng: s.route.pickup.lng, label: s.route.pickup.area },
+            { id: "dropoff", kind: "dropoff" as const, lat: s.route.dropoff.lat, lng: s.route.dropoff.lng, label: s.route.dropoff.area },
           ]}
-          showLabels={false} className="absolute inset-0"
+          route={nav?.route ?? s.route.polyline}
+          follow
+          className="absolute inset-0"
+          fallback={
+            <MapCanvas
+              route={s.route.polyline}
+              markers={[
+                ...(s.live ? [{ kind: "vehicle" as const, lat: s.live.lat, lng: s.live.lng, heading: s.live.heading }] : []),
+                { kind: "pickup", lat: s.route.pickup.lat, lng: s.route.pickup.lng },
+                { kind: "dropoff", lat: s.route.dropoff.lat, lng: s.route.dropoff.lng },
+              ]}
+              showLabels={false} className="absolute inset-0"
+            />
+          }
         />
         <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
           <span className="rounded-full bg-[var(--ink)]/85 px-3.5 py-1.5 text-[12px] font-extrabold text-white backdrop-blur">{heading[stage]}</span>
@@ -302,11 +327,15 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
           </button>
         )}
 
+        {/* turn-by-turn card (road geometry, remaining distance/time incl.
+            typical traffic, Google Maps handoff) */}
+        {nav && nav.steps.length > 0 && <NavigationSection nav={nav} />}
+
         {/* stage actions */}
         <div className="mt-4 space-y-2.5">
           {stage === "TO_PICKUP" && (
             <>
-              <Button variant="outline" className="w-full" onClick={() => toast({ title: "Navigation", description: "Handing off to your maps app in production." })}>
+              <Button variant="outline" className="w-full" onClick={() => window.open(nav?.gmapsUrl ?? `https://www.google.com/maps/dir/?api=1&destination=${s.route.pickup.lat},${s.route.pickup.lng}&travelmode=driving`, "_blank", "noopener")}>
                 <Navigation size={16} /> Navigate to pickup
               </Button>
               <Button variant="brand" className="w-full" onClick={() => act("arrive")} loading={busy}>I've arrived</Button>
@@ -372,7 +401,7 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
 
           {stage === "TO_DROPOFF" && (
             <>
-              <Button variant="outline" className="w-full" onClick={() => toast({ title: "Navigation", description: "Handing off to your maps app in production." })}>
+              <Button variant="outline" className="w-full" onClick={() => window.open(nav?.gmapsUrl ?? `https://www.google.com/maps/dir/?api=1&destination=${s.route.dropoff.lat},${s.route.dropoff.lng}&travelmode=driving`, "_blank", "noopener")}>
                 <Navigation size={16} /> Navigate to drop-off
               </Button>
               {s.status === "ARRIVING" && (
@@ -492,6 +521,183 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
   );
 
   function cargoCheckPhotos(_i: number) { return []; }
+}
+
+// ─── Navigation (driver-side directions + traffic) ──────────────────────────
+
+interface NavRouteResponse {
+  distanceKm: number;
+  durationMin: number;
+  trafficMin: number;
+  source: "osrm" | "internal";
+  polyline: [number, number][];
+  steps?: { instruction: string; name: string; distanceM: number }[];
+}
+
+interface DriverNav {
+  stage: string;
+  route: [number, number][] | undefined; // [lat, lng] OSRM/internal road geometry
+  markers: LiveMapMarker[];
+  steps: { instruction: string; name: string; distanceM: number }[];
+  currentStepIdx: number;
+  targetName: string;
+  remainingKm: number | null;
+  remainingMin: number | null; // incl. typical traffic
+  gmapsUrl: string;
+}
+
+/**
+ * Route + turn-by-turn for the current leg: driver → pickup first, then
+ * pickup → stops → drop-off after loading. Real OSRM road geometry through
+ * /api/routing (internal-model fallback); remaining distance/duration are
+ * scaled from the live leg progress.
+ */
+function useDriverNav(s: ShipmentDTO | null, doneStops: number[]): DriverNav | null {
+  // static leg plan (coords rounded for stable query keys)
+  const plan = useMemo(() => {
+    if (!s) return null;
+    const stage =
+      s.status === "DRIVER_EN_ROUTE" ? "TO_PICKUP" :
+      s.status === "DRIVER_ARRIVED" ? "AT_PICKUP" :
+      ["LOADING", "LOADED"].includes(s.status) ? "VERIFY" :
+      ["IN_TRANSIT", "ARRIVING"].includes(s.status) ? "TO_DROPOFF" :
+      s.status === "DELIVERED" ? "AT_DROPOFF" : "POD";
+    const pickup = { lat: s.route.pickup.lat, lng: s.route.pickup.lng };
+    const dropoff = { lat: s.route.dropoff.lat, lng: s.route.dropoff.lng };
+    const stops = (s.route.stops ?? []).map((st) => ({ lat: st.lat, lng: st.lng }));
+    // next stop not yet marked done (server events or local taps)
+    const stopDone = (i: number) =>
+      s.events.some((e) => e.type === "STOP_COMPLETED" && e.label.includes(s.route.stops?.[i]?.name ?? "---")) ||
+      doneStops.includes(i);
+    const nextStopIdx = stops.findIndex((_, i) => !stopDone(i));
+    if (stage === "TO_PICKUP") {
+      const from = s.route.polyline[0] ?? pickup; // DRIVER_ASSIGNED event origin
+      return {
+        stage, from, via: [] as { lat: number; lng: number }[], to: pickup,
+        target: { name: s.route.pickup.area || s.route.pickup.name, ...pickup },
+      };
+    }
+    return {
+      stage, from: pickup, via: stops, to: dropoff,
+      target: nextStopIdx >= 0
+        ? { name: s.route.stops?.[nextStopIdx]?.name ?? "next stop", ...stops[nextStopIdx] }
+        : { name: s.route.dropoff.area || s.route.dropoff.name, ...dropoff },
+    };
+  }, [s, doneStops]);
+
+  const fromKey = plan ? `${plan.from.lat.toFixed(4)},${plan.from.lng.toFixed(4)}` : "";
+  const toKey = plan ? `${plan.to.lat.toFixed(4)},${plan.to.lng.toFixed(4)}` : "";
+  const viaKey = plan ? plan.via.map((v) => `${v.lat.toFixed(4)},${v.lng.toFixed(4)}`).join(";") : "";
+
+  const { data: navRoute } = useQuery({
+    queryKey: ["nav-route", s?.id, fromKey, toKey, viaKey],
+    queryFn: () =>
+      api<NavRouteResponse>(
+        `/api/routing?from=${fromKey}&to=${toKey}${viaKey ? `&via=${viaKey}` : ""}&steps=1`
+      ),
+    enabled: !!plan,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  return useMemo(() => {
+    if (!s || !plan) return null;
+    const steps = navRoute?.steps ?? [];
+    const progress = s.live?.progress ?? 0;
+    const routeKm = navRoute?.distanceKm ?? s.route.distanceKm;
+    const remainingKm = Math.max(0, routeKm * (1 - progress));
+    const remainingMin = navRoute ? Math.max(1, Math.round(navRoute.trafficMin * (1 - progress))) : null;
+    // current step = first step whose end lies ahead of the driven distance
+    let drivenM = routeKm * 1000 * progress;
+    let currentStepIdx = 0;
+    for (let i = 0; i < steps.length; i++) {
+      if (drivenM <= steps[i].distanceM) { currentStepIdx = i; break; }
+      drivenM -= steps[i].distanceM;
+      currentStepIdx = Math.min(i + 1, steps.length - 1);
+    }
+    const markers: LiveMapMarker[] = [
+      ...(s.live
+        ? [{
+            id: "driver", kind: "driver" as const, lat: s.live.lat, lng: s.live.lng,
+            heading: s.live.heading, categoryKey: s.category.key,
+          }]
+        : []),
+      { id: "pickup", kind: "pickup" as const, lat: s.route.pickup.lat, lng: s.route.pickup.lng, label: s.route.pickup.area },
+      ...(plan.stage !== "TO_PICKUP"
+        ? [
+            ...(s.route.stops ?? []).map((st, i) => ({
+              id: `stop-${i}`, kind: "stop" as const, lat: st.lat, lng: st.lng, sub: String(i + 1),
+            })),
+            { id: "dropoff", kind: "dropoff" as const, lat: s.route.dropoff.lat, lng: s.route.dropoff.lng, label: s.route.dropoff.area },
+          ]
+        : []),
+    ];
+    return {
+      stage: plan.stage,
+      route: navRoute?.polyline,
+      markers,
+      steps,
+      currentStepIdx,
+      targetName: plan.target.name,
+      remainingKm,
+      remainingMin,
+      gmapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${plan.target.lat},${plan.target.lng}&travelmode=driving`,
+    };
+  }, [s, plan, navRoute]);
+}
+
+function fmtStepDistance(m: number): string {
+  return m < 950 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(1)} km`;
+}
+
+/** Turn-by-turn card: steps with the current maneuver highlighted + Google Maps handoff. */
+function NavigationSection({ nav }: { nav: DriverNav }) {
+  return (
+    <section className="mt-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4" aria-label="Navigation">
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-[14.5px] font-extrabold tracking-tight">Navigation · {nav.targetName}</p>
+        <span className="tnum shrink-0 text-[13px] font-extrabold">{nav.remainingKm != null ? `${nav.remainingKm.toFixed(1)} km` : "…"}</span>
+      </div>
+      <p className="mt-0.5 text-[12.5px] font-semibold text-[var(--ink-2)]">
+        {nav.remainingMin != null ? (
+          <>~{etaText(nav.remainingMin)} <span className="font-medium text-[var(--ink-3)]">incl. typical traffic</span></>
+        ) : (
+          "Directions from Google Maps cover the same roads."
+        )}
+      </p>
+      <a
+        href={nav.gmapsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2.5 flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] text-[14px] font-extrabold text-[var(--brand-deep)] transition hover:border-[var(--brand)] active:translate-y-px"
+      >
+        <Navigation size={16} /> Open in Google Maps <ArrowUpRight size={13} className="text-[var(--ink-3)]" />
+      </a>
+      {nav.steps.length > 0 && (
+        <div className="mt-3 max-h-56 overflow-y-auto thin-scrollbar" role="list" aria-label="Turn-by-turn directions">
+          {nav.steps.map((st, i) => {
+            const current = i === nav.currentStepIdx;
+            const past = i < nav.currentStepIdx;
+            return (
+              <div
+                key={i}
+                role="listitem"
+                aria-current={current ? "step" : undefined}
+                className={`flex items-start gap-2.5 rounded-[10px] px-2.5 py-2 ${current ? "bg-[var(--brand-soft)]" : ""}`}
+              >
+                <span className={`tnum w-11 shrink-0 pt-0.5 text-right text-[11.5px] font-bold ${current ? "text-[var(--brand-deep)]" : "text-[var(--ink-3)]"}`}>
+                  {i === nav.steps.length - 1 ? "•" : fmtStepDistance(st.distanceM)}
+                </span>
+                <span className={`flex-1 text-[12.5px] leading-snug ${current ? "font-extrabold" : past ? "font-medium text-[var(--ink-3)]" : "font-semibold text-[var(--ink-2)]"}`}>
+                  {st.instruction}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 }
 
 // ─── Trips ───

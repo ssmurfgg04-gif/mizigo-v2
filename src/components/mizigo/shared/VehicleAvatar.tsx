@@ -322,3 +322,191 @@ export default function VehicleAvatar({
     </svg>
   );
 }
+
+// ── premium top-view plate icons (Uber-style) ───────────────────────────────
+// VehicleTopIcon: dark rounded-square plate + white top-down silhouette, for
+// live-map driver markers (the silhouette points "up"/north; the marker host
+// rotates it by heading). Readable at 28–40 px, one visual family, ink tints
+// for glass/rails — no gradients, no ids (safe to instance many times).
+
+const PLATE = { x: 2, y: 2, w: 44, h: 44, rx: 10 };
+
+function Plate() {
+  return (
+    <>
+      <rect x={PLATE.x} y={PLATE.y} width={PLATE.w} height={PLATE.h} rx={PLATE.rx} fill={C.ink} />
+      {/* top edge sheen + bottom inner shade keep the plate from reading flat */}
+      <path
+        d={`M${PLATE.x + PLATE.rx} ${PLATE.y + 0.75} H${PLATE.x + PLATE.w - PLATE.rx}`}
+        stroke={C.surface} strokeOpacity={0.14} strokeWidth={1.4} strokeLinecap="round"
+      />
+      <path
+        d={`M${PLATE.x + PLATE.rx} ${PLATE.y + PLATE.h - 0.75} H${PLATE.x + PLATE.w - PLATE.rx}`}
+        stroke="#000000" strokeOpacity={0.28} strokeWidth={1.4} strokeLinecap="round"
+      />
+    </>
+  );
+}
+
+const glass = { stroke: C.ink, strokeOpacity: 0.2, strokeWidth: 1.3, fill: "none", strokeLinecap: "round" as const };
+const WheelStub = ({ x, y, w = 3, h = 5.5 }: { x: number; y: number; w?: number; h?: number }) => (
+  <rect x={x} y={y} width={w} height={h} rx={w / 2} fill={C.surface} />
+);
+
+function TuktukTopPlate() {
+  return (
+    <g>
+      {/* nose wheel */}
+      <WheelStub x={22.5} y={7.5} w={3} h={4.5} />
+      {/* teardrop canopy */}
+      <path
+        d="M24 9.5 C20.4 9.5 18.9 12 17.9 15.2 L16.3 21.5 C15.8 24.2 16.9 26.5 18.6 26.5 H29.4 C31.1 26.5 32.2 24.2 31.7 21.5 L30.1 15.2 C29.1 12 27.6 9.5 24 9.5 Z"
+        fill={C.surface}
+      />
+      <path d="M20.6 13.6 C21.4 12 22.6 11.2 24 11.2 C25.4 11.2 26.6 12 27.4 13.6" {...glass} />
+      <path d="M18.9 20 H29.1" {...glass} />
+      {/* rear cargo box */}
+      <rect x={17.6} y={30} width={12.8} height={9.4} rx={2.2} fill={C.surface} />
+      <path d="M24 30.8 V38.6" {...glass} />
+      <WheelStub x={14.6} y={31.4} w={2.6} h={5} />
+      <WheelStub x={30.8} y={31.4} w={2.6} h={5} />
+    </g>
+  );
+}
+
+function PickupTopPlate() {
+  return (
+    <g>
+      {/* cab */}
+      <rect x={15.2} y={8.8} width={17.6} height={13} rx={4} fill={C.surface} />
+      <path d="M18.6 13 H29.4" {...glass} />
+      <WheelStub x={12.2} y={13.2} />
+      <WheelStub x={32.8} y={13.2} />
+      {/* mirrors */}
+      <WheelStub x={11.4} y={12} w={2.2} h={2.2} />
+      <WheelStub x={34.4} y={12} w={2.2} h={2.2} />
+      {/* open bed with rails + strapped boxes */}
+      <rect x={12.6} y={23.2} width={22.8} height={15} rx={2.4} fill={C.surface} />
+      <path d="M15 25.6 H33" {...glass} />
+      <rect x={16.2} y={27.6} width={8.2} height={8.2} rx={1.4} fill={C.ink} fillOpacity={0.12} />
+      <rect x={26.2} y={29.2} width={6.6} height={6.2} rx={1.2} fill={C.ink} fillOpacity={0.09} />
+      <path d="M20.3 27.6 V35.8" stroke={C.brand} strokeOpacity={0.75} strokeWidth={1.1} strokeLinecap="round" />
+      <WheelStub x={12.2} y={27.8} />
+      <WheelStub x={32.8} y={27.8} />
+    </g>
+  );
+}
+
+function VanTopPlate() {
+  return (
+    <g>
+      <rect x={13.6} y={8} width={20.8} height={32} rx={5.4} fill={C.surface} />
+      <path d="M17.2 12.6 C17.2 10.9 18.4 9.9 19.9 9.9 H28.1 C29.6 9.9 30.8 10.9 30.8 12.6" {...glass} />
+      {/* roof rack (matatu energy) */}
+      <path d="M15.8 21.6 H32.2 M15.8 25 H32.2" {...glass} />
+      <path d="M18.4 18.6 V28 M29.6 18.6 V28" {...glass} />
+      <WheelStub x={10.4} y={13.6} />
+      <WheelStub x={34.4} y={13.6} />
+      <WheelStub x={10.4} y={28.6} />
+      <WheelStub x={34.4} y={28.6} />
+    </g>
+  );
+}
+
+function CanterTopPlate() {
+  return (
+    <g>
+      {/* cab + exhaust stack */}
+      <rect x={16.2} y={8.4} width={16.6} height={12} rx={3.4} fill={C.surface} />
+      <path d="M19.6 12.8 H29.4" {...glass} />
+      <WheelStub x={35.6} y={13.6} w={2.4} h={4} />
+      {/* stake-bed flatbed */}
+      <rect x={10.4} y={22} width={27.2} height={16.6} rx={2.2} fill={C.surface} />
+      <rect x={12.6} y={24.2} width={22.8} height={12.2} rx={1.4} fill="none" stroke={C.ink} strokeOpacity={0.22} strokeWidth={1.1} strokeDasharray="3 2.2" />
+      <rect x={15.4} y={26.6} width={8.6} height={7.4} rx={1.2} fill={C.ink} fillOpacity={0.12} />
+      <rect x={25.8} y={28.2} width={6.8} height={5.4} rx={1} fill={C.ink} fillOpacity={0.09} />
+      <WheelStub x={7.4} y={12.6} />
+      <WheelStub x={35.6} y={12.6} />
+      <WheelStub x={7.4} y={28.4} />
+      <WheelStub x={37.6} y={28.4} />
+    </g>
+  );
+}
+
+function Lorry7tTopPlate() {
+  return (
+    <g>
+      {/* cab with deflector */}
+      <rect x={17.2} y={7.4} width={15.4} height={11} rx={3} fill={C.surface} />
+      <path d="M20.4 11.6 H29.4" {...glass} />
+      {/* canvas tilt body — lengthwise ribs */}
+      <rect x={10.2} y={20} width={27.6} height={20.4} rx={2.4} fill={C.surface} />
+      <path d="M13 24.2 H35 M13 28.6 H35 M13 33 H35 M13 37.2 H35" stroke={C.ink} strokeOpacity={0.15} strokeWidth={1.1} strokeLinecap="round" />
+      <path d="M10.2 26.4 V34" {...glass} />
+      <WheelStub x={13.8} y={10.6} w={2.8} h={5} />
+      <WheelStub x={33.4} y={10.6} w={2.8} h={5} />
+      <WheelStub x={7} y={27.2} w={2.8} h={6} />
+      <WheelStub x={7} y={34} w={2.8} h={6} />
+      <WheelStub x={38.2} y={27.2} w={2.8} h={6} />
+      <WheelStub x={38.2} y={34} w={2.8} h={6} />
+    </g>
+  );
+}
+
+function Lorry10tTopPlate() {
+  return (
+    <g>
+      {/* big cab-over */}
+      <rect x={18.2} y={7} width={14.6} height={10.6} rx={3} fill={C.surface} />
+      <path d="M21.2 11.2 H29.8" {...glass} />
+      {/* container body — cross-corrugation */}
+      <rect x={9} y={19.6} width={30} height={21.4} rx={2} fill={C.surface} />
+      <path d="M14 22.4 V38.2 M18.6 22.4 V38.2 M23.2 22.4 V38.2 M27.8 22.4 V38.2 M32.4 22.4 V38.2" stroke={C.ink} strokeOpacity={0.13} strokeWidth={1.1} strokeLinecap="round" />
+      <path d="M9 26.6 H39" {...glass} />
+      <WheelStub x={14.8} y={10.4} w={2.8} h={5} />
+      <WheelStub x={33.4} y={10.4} w={2.8} h={5} />
+      <WheelStub x={5.8} y={28.6} w={2.8} h={6} />
+      <WheelStub x={5.8} y={35.4} w={2.8} h={6} />
+      <WheelStub x={39.4} y={28.6} w={2.8} h={6} />
+      <WheelStub x={39.4} y={35.4} w={2.8} h={6} />
+    </g>
+  );
+}
+
+const PLATE_ART: Record<string, () => React.ReactElement> = {
+  tuktuk: TuktukTopPlate,
+  van: VanTopPlate,
+  pickup: PickupTopPlate,
+  canter: CanterTopPlate,
+  lorry_7t: Lorry7tTopPlate,
+  lorry_10t: Lorry10tTopPlate,
+};
+
+/**
+ * Uber-style top-view vehicle icon: dark rounded plate + white silhouette.
+ * Points north; the caller rotates by heading. Used by LiveMap driver markers.
+ */
+export function VehicleTopIcon({
+  categoryKey,
+  size = 32,
+  className = "",
+}: {
+  categoryKey: string;
+  size?: number;
+  className?: string;
+}) {
+  const Art = PLATE_ART[categoryKey] ?? PLATE_ART.pickup;
+  return (
+    <span
+      className={`inline-block ${className}`}
+      style={{ width: size, height: size, filter: "drop-shadow(0 2px 3px rgba(23,24,28,0.35))" }}
+      role="img"
+      aria-label={`${categoryKey} vehicle`}
+    >
+      <svg viewBox="0 0 48 48" width={size} height={size} className="block">
+        <Plate />
+        <Art />
+      </svg>
+    </span>
+  );
+}

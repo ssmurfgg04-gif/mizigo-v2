@@ -5,6 +5,11 @@ import type { NextConfig } from "next";
 // want standalone output, so it is disabled when building on Netlify.
 const nextConfig: NextConfig = {
   ...(process.env.NETLIFY ? {} : { output: "standalone" }),
+  // baked at build time so /api/bootstrap can report which commit is live
+  // (Netlify provides COMMIT_REF; local builds report "dev")
+  env: {
+    BUILD_SHA: process.env.COMMIT_REF || process.env.BUILD_SHA || "dev",
+  },
   // the build must never swallow type errors (tsc --noEmit is part of QA)
   typescript: {
     ignoreBuildErrors: false,
@@ -24,9 +29,11 @@ const nextConfig: NextConfig = {
           "default-src 'self'",
           "script-src 'self' 'unsafe-inline'" + (process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"),
           "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: blob:",
+          "img-src 'self' data: blob: https://basemaps.cartocdn.com https://*.tile.openstreetmap.org",
           "font-src 'self' data:",
-          "connect-src 'self'",
+          "connect-src 'self' https://basemaps.cartocdn.com",
+          "worker-src 'self' blob:",
+          "child-src 'self' blob:",
           "form-action 'self'",
           "base-uri 'self'",
           "frame-ancestors 'none'",
