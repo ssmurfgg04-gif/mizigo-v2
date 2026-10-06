@@ -40,7 +40,8 @@ export async function GET() {
     if (existsSync(dir)) {
       tryRun("prismaClientDir@" + base, () =>
         readdirSync(dir).filter((f) => f.includes("engine") || f.endsWith(".node")),
-      , out);
+        out,
+      );
       break;
     }
   }
@@ -77,7 +78,8 @@ export async function GET() {
     if (engine) {
       tryRun("ldd", () =>
         execSync(`ldd ${dir}/${engine} 2>&1 | head -12`, { encoding: "utf8" }),
-      , out);
+        out,
+      );
     }
   } catch {
     out.ldd = "unavailable";
