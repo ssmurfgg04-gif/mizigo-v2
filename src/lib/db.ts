@@ -5,8 +5,14 @@ import { PrismaClient } from '@prisma/client'
 // the only writable directory. Each warm function instance keeps its own DB and
 // ensureDB() (src/lib/db-ready.ts) bootstraps schema + demo seed on cold start.
 // Local dev is untouched: the repo DB (prisma db push) is used as-is.
-if (process.env.NETLIFY && !process.env.DATABASE_URL?.startsWith('file:/tmp/')) {
-  process.env.DATABASE_URL = 'file:/tmp/mizigo.db'
+// A DATABASE_URL that points at a hosted engine (e.g. postgres://…) is never
+// touched — only relative/repo SQLite files are rewritten for the sandbox.
+if (
+  process.env.NETLIFY &&
+  (!process.env.DATABASE_URL ||
+    (process.env.DATABASE_URL.startsWith("file:") && !process.env.DATABASE_URL.startsWith("file:/tmp/")))
+) {
+  process.env.DATABASE_URL = "file:/tmp/mizigo.db";
 }
 
 const globalForPrisma = globalThis as unknown as {

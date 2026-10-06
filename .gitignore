@@ -69,3 +69,6 @@ download/shots/
 # runtime artifacts
 netlify-sim.log
 server.log
+
+# netlify local build output (function bundles)
+.netlify/
