@@ -17,10 +17,15 @@ const PORT = Number(process.argv[2] || 3100);
 
 process.env.NETLIFY = "true";
 process.env.NODE_ENV = "production";
-// Emulate the worst-case sandbox runtime (no repo .env) — but keep a hosted
-// DATABASE_URL when explicitly provided, to test the production Postgres path.
-if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
-  delete process.env.DATABASE_URL;
+// Emulate the worst-case sandbox runtime. NOTE: the Netlify plugin copies the
+// repo .env into the function bundle, and the runtime loads it — so merely
+// deleting DATABASE_URL is NOT enough locally (the app would silently use the
+// repo DB). Force /tmp explicitly unless a hosted Postgres URL was exported to
+// test the production path.
+if (/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
+  // production Postgres test path — keep it
+} else {
+  process.env.DATABASE_URL = "file:/tmp/mizigo.db";
 }
 
 if (!process.env.HARNESS_KEEP_DB) {

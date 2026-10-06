@@ -12,11 +12,14 @@
 
 process.env.NETLIFY = "true";
 process.env.NODE_ENV = "production";
-// Real Netlify has no repo .env → DATABASE_URL starts undefined; db.ts shim
-// must rewrite it to file:/tmp/mizigo.db. Emulate that exactly — unless a
-// hosted Postgres URL was exported, which tests the production path.
-if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
-  delete process.env.DATABASE_URL;
+// Emulate the worst-case sandbox runtime: force /tmp SQLite (the plugin copies
+// the repo .env into the bundle and the runtime loads it, so deleting the
+// variable is not enough locally). A hosted Postgres URL is kept to test the
+// production path.
+if (/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
+  // production Postgres test path — keep it
+} else {
+  process.env.DATABASE_URL = "file:/tmp/mizigo.db";
 }
 
 if (!process.env.HARNESS_KEEP_DB) {

@@ -41,21 +41,24 @@ export async function seedAll(): Promise<void> {
     { key: "lorry_7t", name: "7-Tonne Lorry", description: "For bulk commercial cargo", capacityKg: 7000, volumeM3: 26, bodyType: "covered", lengthM: 5.5, widthM: 2.2, heightM: 2.0, baseFare: 2800, perKmRate: 190, perMinRate: 7, minimumFare: 5200, loadingFee: 1000, extraStopFee: 800, sortOrder: 5, supportedCargo: ["construction", "retail", "farm", "machinery", "other"] },
     { key: "lorry_10t", name: "10-Tonne Lorry", description: "Large commercial and inter-town loads", capacityKg: 10000, volumeM3: 38, bodyType: "covered", lengthM: 6.5, widthM: 2.3, heightM: 2.2, baseFare: 4200, perKmRate: 240, perMinRate: 9, minimumFare: 7800, loadingFee: 1500, extraStopFee: 1200, sortOrder: 6, supportedCargo: ["construction", "retail", "farm", "machinery", "other"] },
   ];
-  const cats = await Promise.all(catDefs.map(({ supportedCargo, ...c }) => db.vehicleCategory.create({ data: { ...c, supportedCargo: JSON.stringify(supportedCargo) } })));
+  // Deterministic ids: every serverless instance seeds the SAME ids, so a
+  // session cookie minted on one instance validates on any other (sandbox
+  // mode runs per-instance /tmp SQLite — see docs/NETLIFY_PRODUCTION.md).
+  const cats = await Promise.all(catDefs.map(({ supportedCargo, ...c }) => db.vehicleCategory.create({ data: { id: `seed-cat-${c.key}`, ...c, supportedCargo: JSON.stringify(supportedCargo) } })));
   const CAT = Object.fromEntries(cats.map((c) => [c.key, c]));
 
   // ── Pricing zone ──
   await db.pricingZone.create({
-    data: { key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, nightMultiplier: 1.12, scheduledDiscount: 0.05, platformFee: 100, commissionRate: 0.15, active: true },
+    data: { id: "seed-zone-nairobi", key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, nightMultiplier: 1.12, scheduledDiscount: 0.05, platformFee: 100, commissionRate: 0.15, active: true },
   });
 
   // ── Places ──
   await db.place.createMany({ data: PLACES.map(({ name, area, category, lat, lng, popular }) => ({ name, area, category, lat, lng, popular: !!popular })) });
 
   // ── People ──
-  const customer = await db.user.create({ data: { phone: "0712000001", email: "customer@mizigo.demo", name: "John Kariuki", role: "CUSTOMER", accountType: "PERSONAL", avatarSeed: "john", rating: 4.9, verified: true } });
-  const bizUser = await db.user.create({ data: { phone: "0722000033", email: "business@mizigo.demo", name: "Zainab Mabuyu", role: "CUSTOMER", accountType: "BUSINESS", businessName: "ABC Traders Ltd", avatarSeed: "zainab", rating: 4.8, verified: true } });
-  const admin = await db.user.create({ data: { phone: "0733000011", email: "admin@mizigo.demo", name: "Ops Control", role: "ADMIN", accountType: "PERSONAL", avatarSeed: "ops", verified: true } });
+  const customer = await db.user.create({ data: { id: "seed-user-john", phone: "0712000001", email: "customer@mizigo.demo", name: "John Kariuki", role: "CUSTOMER", accountType: "PERSONAL", avatarSeed: "john", rating: 4.9, verified: true } });
+  const bizUser = await db.user.create({ data: { id: "seed-user-zainab", phone: "0722000033", email: "business@mizigo.demo", name: "Zainab Mabuyu", role: "CUSTOMER", accountType: "BUSINESS", businessName: "ABC Traders Ltd", avatarSeed: "zainab", rating: 4.8, verified: true } });
+  const admin = await db.user.create({ data: { id: "seed-user-ops", phone: "0733000011", email: "admin@mizigo.demo", name: "Ops Control", role: "ADMIN", accountType: "PERSONAL", avatarSeed: "ops", verified: true } });
 
   const driverDefs = [
     { phone: "0712000002", email: "driver@mizigo.demo", name: "Peter Kamau", status: "OFFLINE", rating: 4.9, tripsCompleted: 438, acceptanceRate: 0.96, onTimePickup: 0.94, onTimeDelivery: 0.97, cancellationRate: 0.012, incidents: 0, lat: -1.2630, lng: 36.8050, vehicle: { make: "Toyota", model: "Dyna", registration: "KDA 123X", category: "pickup", capacityKg: 1000 }, licenceExpiry: ago(-400 * D) },
@@ -66,14 +69,14 @@ export async function seedAll(): Promise<void> {
     { phone: "0766000088", name: "Faith Chebet", status: "ONLINE", rating: 4.6, tripsCompleted: 88, acceptanceRate: 0.88, onTimePickup: 0.9, onTimeDelivery: 0.88, cancellationRate: 0.04, incidents: 0, lat: -1.2613, lng: 36.8027, vehicle: { make: "Nissan", model: "Vanette", registration: "KCF 890L", category: "van", capacityKg: 800 }, licenceExpiry: ago(-150 * D) },
     { phone: "0777000099", email: "samuel@mizigo.demo", name: "Samuel Kiprop", status: "ONLINE", rating: 4.8, tripsCompleted: 341, acceptanceRate: 0.94, onTimePickup: 0.95, onTimeDelivery: 0.96, cancellationRate: 0.015, incidents: 0, lat: -1.2990, lng: 36.8760, vehicle: { make: "Isuzu", model: "FVR 10T", registration: "KCA 234N", category: "lorry_10t", capacityKg: 10000 }, licenceExpiry: ago(-350 * D) },
   ];
-  const drivers = await Promise.all(driverDefs.map(async (d) => {
-    const u = await db.user.create({ data: { phone: d.phone, email: d.email, name: d.name, role: "DRIVER", accountType: "PERSONAL", avatarSeed: d.name.split(" ")[0].toLowerCase(), rating: d.rating, verified: true } });
-    return db.driver.create({ data: { userId: u.id, status: d.status, rating: d.rating, tripsCompleted: d.tripsCompleted, acceptanceRate: d.acceptanceRate, onTimePickup: d.onTimePickup, onTimeDelivery: d.onTimeDelivery, cancellationRate: d.cancellationRate, incidents: d.incidents, lat: d.lat, lng: d.lng, licenceClass: "BCE", licenceExpiry: d.licenceExpiry, verification: "VERIFIED", lastPingAt: ago(2 * M), onlineMinutes: 320 } });
+  const drivers = await Promise.all(driverDefs.map(async (d, i) => {
+    const u = await db.user.create({ data: { id: `seed-user-d${i + 1}`, phone: d.phone, email: d.email, name: d.name, role: "DRIVER", accountType: "PERSONAL", avatarSeed: d.name.split(" ")[0].toLowerCase(), rating: d.rating, verified: true } });
+    return db.driver.create({ data: { id: `seed-driver-d${i + 1}`, userId: u.id, status: d.status, rating: d.rating, tripsCompleted: d.tripsCompleted, acceptanceRate: d.acceptanceRate, onTimePickup: d.onTimePickup, onTimeDelivery: d.onTimeDelivery, cancellationRate: d.cancellationRate, incidents: d.incidents, lat: d.lat, lng: d.lng, licenceClass: "BCE", licenceExpiry: d.licenceExpiry, verification: "VERIFIED", lastPingAt: ago(2 * M), onlineMinutes: 320 } });
   }));
   const DRV = Object.fromEntries(drivers.map((d) => [d.id, d]));
 
   const vehicles = await Promise.all(driverDefs.map((d, i) =>
-    db.vehicle.create({ data: { driverId: drivers[i].id, categoryId: CAT[d.vehicle.category].id, make: d.vehicle.make, model: d.vehicle.model, registration: d.vehicle.registration, bodyType: CAT[d.vehicle.category].bodyType, capacityKg: d.vehicle.capacityKg, docRegistration: "VERIFIED", docInsurance: "VERIFIED", docInspection: "VERIFIED", insuranceExpiry: ago(-90 * D), inspectionExpiry: ago(-180 * D), active: true } })
+    db.vehicle.create({ data: { id: `seed-vehicle-d${i + 1}`, driverId: drivers[i].id, categoryId: CAT[d.vehicle.category].id, make: d.vehicle.make, model: d.vehicle.model, registration: d.vehicle.registration, bodyType: CAT[d.vehicle.category].bodyType, capacityKg: d.vehicle.capacityKg, docRegistration: "VERIFIED", docInsurance: "VERIFIED", docInspection: "VERIFIED", insuranceExpiry: ago(-90 * D), inspectionExpiry: ago(-180 * D), active: true } })
   ));
 
   // Peter's second vehicle? no — one per driver is fine.
@@ -109,13 +112,13 @@ export async function seedAll(): Promise<void> {
     { customer: bizUser.id, status: "COMPLETED", catKey: "pickup", driverIdx: 0, pickupName: "Mombasa Road Godowns", pickupArea: "Industrial Area", pLat: -1.3120, pLng: 36.8420, dropName: "Buru Buru Phase 1", dropArea: "Buru Buru", dLat: -1.2990, dLng: 36.8760, dist: 8.9, dur: 30, total: 3560, driverEarn: 2926, commission: 534, items: [{ name: "Drink crates", qty: 30, weightKg: 14 }], cargo: "retail", hoursAgo: 3, rating: 5 },
   ];
 
-  for (const h of hist) {
+  for (const [hi, h] of hist.entries()) {
     const code = shipmentCode();
     const created = ago(h.hoursAgo * H);
     const cat = CAT[h.catKey];
     const s = await db.shipment.create({
       data: {
-        code, shareToken: hashToken(shareToken()), customerId: h.customer, status: h.status,
+        id: `seed-ship-h${hi}`, code, shareToken: hashToken(shareToken()), customerId: h.customer, status: h.status,
         stateEnteredAt: ago((h.hoursAgo - 2) * H), createdAt: created, updatedAt: ago((h.hoursAgo - 2) * H),
         pickupName: h.pickupName, pickupArea: h.pickupArea, pickupLat: h.pLat, pickupLng: h.pLng,
         dropoffName: h.dropName, dropoffArea: h.dropArea, dropoffLat: h.dLat, dropoffLng: h.dLng,
