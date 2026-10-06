@@ -59,12 +59,22 @@ export interface ShipmentDTO {
   live: LivePosition | null;
 }
 
+// Notification rows as served by /api/customer: each carries a derived kind
+// (per-type icon + deep-link routing) and the linked shipment id when the code
+// resolves to one of the customer's own deliveries.
+export type NotificationKind = "status" | "rate" | "chat" | "promo" | "system";
+export interface NotificationRow {
+  id: string; title: string; body: string; createdAt: string; read: boolean;
+  shipmentCode: string | null; shipmentId: string | null; kind: NotificationKind;
+}
+
 export interface CustomerHome {
   user: { id: string; name: string; phone: string; accountType: string; businessName: string | null; rating: number } | null;
   active: ShipmentDTO | null;
   trips: ShipmentDTO[];
   saved: { id: string; label: string; name: string; area: string; lat: number; lng: number }[];
-  notifications: { id: string; title: string; body: string; createdAt: string; read: boolean; shipmentCode: string | null }[];
+  notifications: NotificationRow[];
+  unread: number;
   invoices: { month: string; deliveries: number; net: number; vat: number; total: number }[];
   stats: { completed: number; spent: number };
 }

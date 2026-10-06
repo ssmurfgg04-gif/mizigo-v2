@@ -3,23 +3,28 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, Bell, ChevronRight, CreditCard, FileText, Languages, LogOut, MapPin, PackageOpen, Smartphone, Trash2, ChevronDown } from "lucide-react";
+import { Banknote, Bell, BellRing, ChevronRight, CreditCard, FileText, Languages, LogOut, MapPin, MessageCircle, PackageOpen, Smartphone, Star, Trash2, ChevronDown } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { CustomerHome, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, EmptyState, ErrorState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus } from "@/components/mizigo/shared/ui";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
+import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import { kes, fmtDateTimeEAT, fmtPhone, relTimeEAT } from "@/lib/format";
 import { STATUS_LABEL, ACTIVE_STATES } from "@/lib/state-machine";
 import { LANGUAGES, t } from "@/lib/i18n";
+import { LanguagePicker } from "@/components/mizigo/shared/LanguagePicker";
 import { toast } from "@/hooks/use-toast";
 import { shareTrackLink } from "@/components/mizigo/shared/share";
 import { useSettings } from "@/components/mizigo/shared/useSettings";
+import { customerRating, isRateable, RatingSheetHost } from "./RatingSheet";
+import { KIND_ICON, useNotificationOpen } from "./notification-link";
+import { requestNotificationPermission, SystemNotifications, useNotificationPermission } from "./useSystemNotifications";
 
 // ─── Trips ───
 export function TripsScreen() {
-  const { user, focusShipmentId, setFocusShipment, setBookingStep, lang } = useSession();
+  const { user, focusShipmentId, setFocusShipment, setBookingStep, setRatingShipment, lang } = useSession();
   const [tab, setTab] = useState<"ALL" | "ACTIVE" | "COMPLETED" | "CANCELLED">("ALL");
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -38,7 +43,15 @@ export function TripsScreen() {
   );
   const detail = focusShipmentId ? all.find((t) => t.id === focusShipmentId) : null;
 
-  if (detail) return <TripDetail shipment={detail} onBack={() => setFocusShipment(null)} />;
+  if (detail) {
+    return (
+      <>
+        <TripDetail shipment={detail} onBack={() => setFocusShipment(null)} />
+        <RatingSheetHost />
+        <SystemNotifications />
+      </>
+    );
+  }
 
   if (isError) {
     return (
@@ -78,34 +91,55 @@ export function TripsScreen() {
       ) : (
         <div className="space-y-2.5">
           {filtered.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setFocusShipment(t.id)}
-              className="flex w-full items-center gap-3.5 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3.5 text-left transition hover:border-[var(--ink-3)] active:translate-y-px"
-            >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-2)]">
-                <VehicleAvatar category={t.category.key} size={34} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-bold">{t.route.pickup.area} → {t.route.dropoff.area}</span>
-                <span className="block text-[12px] font-medium text-[var(--ink-3)]">{relTimeEAT(t.createdAt)} · {t.code}</span>
-              </span>
-              <span className="text-right">
-                <span className="tnum block text-[14px] font-extrabold">{kes(t.fare.total)}</span>
-                <StatusBadge tone={toneForStatus(t.status)} className="mt-1">{STATUS_LABEL[t.status] ?? t.status}</StatusBadge>
-              </span>
-            </button>
+            <div key={t.id} className="overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)] transition hover:border-[var(--ink-3)]">
+              <button
+                onClick={() => setFocusShipment(t.id)}
+                className="flex w-full items-center gap-3.5 p-3.5 text-left transition active:translate-y-px"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-2)]">
+                  <VehicleAvatar category={t.category.key} size={34} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-bold">{t.route.pickup.area} → {t.route.dropoff.area}</span>
+                  <span className="block text-[12px] font-medium text-[var(--ink-3)]">{relTimeEAT(t.createdAt)} · {t.code}</span>
+                </span>
+                <span className="text-right">
+                  <span className="tnum block text-[14px] font-extrabold">{kes(t.fare.total)}</span>
+                  <StatusBadge tone={toneForStatus(t.status)} className="mt-1">{STATUS_LABEL[t.status] ?? t.status}</StatusBadge>
+                </span>
+              </button>
+              {/* unrated terminal delivery → persistent rate banner on the row */}
+              {isRateable(t) && (
+                <button
+                  onClick={() => setRatingShipment(t.id)}
+                  className="flex w-full items-center gap-2 border-t border-[var(--line)] bg-[var(--brand-soft)] px-3.5 py-3 text-left text-[13px] font-extrabold text-[var(--brand-ink)] transition hover:brightness-[0.98] active:translate-y-px"
+                  aria-label={`Rate the driver for delivery ${t.code}`}
+                >
+                  <Star size={15} className="fill-[var(--brand)] text-[var(--brand)]" aria-hidden="true" />
+                  Rate your driver
+                  <span className="ml-auto text-[11.5px] font-semibold text-[var(--ink-2)]">Takes 10 seconds</span>
+                  <ChevronRight size={14} className="text-[var(--ink-3)]" aria-hidden="true" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
+      <RatingSheetHost />
+      <SystemNotifications />
     </div>
   );
 }
 
 function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: () => void }) {
-  const { setBookingStep, setFocusShipment, setTrackToken, patchDraft, resetDraft, lang } = useSession();
+  const { setBookingStep, setFocusShipment, setRatingShipment, setChatShipment, chatShipmentId, patchDraft, resetDraft, lang } = useSession();
   const [podOpen, setPodOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
+  const rated = customerRating(s);
   const canRepeat = s.status === "COMPLETED";
+  // chat deep-link (notification centre / system notification): the chat is
+  // open while the flag points at this delivery — derived, no effect needed
+  const deepChat = chatShipmentId === s.id;
 
   // plan §70 Book again: preload locations, cargo and vehicle from this trip
   const bookAgain = () => {
@@ -235,11 +269,17 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
         </Button>
       )}
 
-      {/* unrated delivered shipment → rate first */}
-      {(s.status === "COMPLETED" || s.status === "POD_CONFIRMED") && !s.ratings.some((r) => r.byRole === "CUSTOMER") && (
-        <Button variant="brand" className="w-full" onClick={() => setBookingStep("rate")}>
+      {/* unrated delivered shipment → rating sheet (deep-link target) */}
+      {(s.status === "COMPLETED" || s.status === "POD_CONFIRMED" || s.status === "DELIVERED") && !rated && (
+        <Button variant="brand" className="w-full" onClick={() => setRatingShipment(s.id)}>
           {t("trips.rateDelivery", lang)}
         </Button>
+      )}
+      {rated && (
+        <div className="flex items-center justify-between rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5">
+          <span className="text-[13.5px] font-bold text-[var(--ink-2)]">You rated this delivery</span>
+          <StatusBadge tone="success">★ {rated.stars}</StatusBadge>
+        </div>
       )}
 
       <div className="grid grid-cols-2 gap-2.5">
@@ -251,6 +291,11 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
         <Button variant="outline" onClick={() => { void shareTrackLink(s.id); }}>
           {t("trips.shareTracking", lang)}
         </Button>
+        {s.driver && (
+          <Button variant="outline" onClick={() => setChatOpen(true)}>
+            <MessageCircle size={15} /> Message {s.driver.name.split(" ")[0]}
+          </Button>
+        )}
       </div>
 
       {!["CANCELLED"].includes(s.status) && (
@@ -258,30 +303,26 @@ function TripDetail({ shipment: s, onBack }: { shipment: ShipmentDTO; onBack: ()
           Something wrong? Report a problem
         </button>
       )}
+
+      {/* chat sheet — entry point + notification deep-link target */}
+      {(chatOpen || deepChat) && s.driver && (
+        <ChatSheet shipmentId={s.id} role="CUSTOMER" onClose={() => { setChatOpen(false); if (deepChat) setChatShipment(null); }} />
+      )}
     </div>
   );
 }
 
 // ─── Wallet ───
 export function WalletScreen() {
-  const { user, setFocusShipment, setCustomerTab, lang } = useSession();
+  const { user, lang } = useSession();
   const { data, isLoading } = useQuery({
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>("/api/customer"),
     enabled: !!user,
   });
 
-  // plan §40: deep-link a notification into the relevant trip
-  const openNotification = (code: string | null) => {
-    if (!code) return;
-    const target = [...(data?.active ? [data.active] : []), ...(data?.trips ?? [])].find((t) => t.code === code);
-    if (target) {
-      setFocusShipment(target.id);
-      setCustomerTab("trips");
-    } else {
-      toast({ title: "Delivery not found", description: "This delivery may have been removed." });
-    }
-  };
+  // the same deep-link routine as the notification centre (rate / chat / detail)
+  const open = useNotificationOpen({ trips: data?.trips, active: data?.active });
 
   return (
     <div className="space-y-4 pb-6">
@@ -292,9 +333,9 @@ export function WalletScreen() {
         {[
           { icon: Smartphone, label: "M-PESA", desc: `${user ? fmtPhone(user.phone) : ""} · default`, active: true },
           { icon: Banknote, label: "Cash", desc: "Pay the driver on completion", active: false },
-          { icon: CreditCard, label: "Card", desc: "Coming soon", active: false },
+          { icon: CreditCard, label: "Card", desc: "Not available yet — use M-PESA or cash", active: false, planned: true },
         ].map((m) => (
-          <div key={m.label} className={`flex items-center gap-3.5 rounded-[14px] border-2 bg-[var(--surface)] p-4 ${m.active ? "border-[var(--brand)]" : "border-[var(--line)]"}`}>
+          <div key={m.label} aria-disabled={!m.active} className={`flex items-center gap-3.5 rounded-[14px] border-2 bg-[var(--surface)] p-4 ${m.active ? "border-[var(--brand)]" : "border-[var(--line)] opacity-80"}`}>
             <span className={`flex h-11 w-11 items-center justify-center rounded-full ${m.active ? "bg-[var(--brand)] text-white" : "bg-[var(--surface-2)] text-[var(--ink-2)]"}`}>
               <m.icon size={18} />
             </span>
@@ -302,7 +343,11 @@ export function WalletScreen() {
               <span className="block text-[15px] font-extrabold">{m.label}</span>
               <span className="block text-[12.5px] font-medium text-[var(--ink-2)]">{m.desc}</span>
             </span>
-            {m.active && <span className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--brand-deep)]">Active</span>}
+            {m.active ? (
+              <span className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--brand-deep)]">Active</span>
+            ) : (
+              <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-widest text-[var(--ink-3)]">{m.planned ? "Planned" : "On delivery"}</span>
+            )}
           </div>
         ))}
       </div>
@@ -314,32 +359,46 @@ export function WalletScreen() {
         ) : (data?.notifications?.length ?? 0) === 0 ? (
           <EmptyState icon={<Bell size={22} />} title={t("wallet.caughtUp", lang)} body={t("wallet.caughtUpBody", lang)} />
         ) : (
-          data!.notifications.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => openNotification(n.shipmentCode)}
-              className="flex w-full items-start gap-3 border-b border-[var(--line)] px-4 py-3.5 text-left transition last:border-b-0 hover:bg-[var(--surface-2)]"
-            >
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Bell size={14} /></span>
-              <span className="flex-1">
-                <span className="block text-[13.5px] font-bold">{n.title}</span>
-                <span className="block text-[12px] font-medium text-[var(--ink-2)]">{n.body}</span>
-                <span className="block text-[11px] font-semibold text-[var(--ink-3)]">{relTimeEAT(n.createdAt)}{n.shipmentCode && n.shipmentCode !== "recent" ? ` · ${n.shipmentCode}` : ""}</span>
-              </span>
-              <ChevronRight size={15} className="mt-1.5 shrink-0 text-[var(--ink-3)]" />
-            </button>
-          ))
+          data!.notifications.map((n) => {
+            const Icon = KIND_ICON[n.kind] ?? KIND_ICON.system;
+            return (
+              <button
+                key={n.id}
+                onClick={() => void open(n)}
+                className={`flex w-full items-start gap-3 border-b border-[var(--line)] px-4 py-3.5 text-left transition last:border-b-0 hover:bg-[var(--surface-2)] ${n.read ? "" : "bg-[var(--brand-soft)]"}`}
+              >
+                <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${n.kind === "rate" ? "bg-[var(--brand)] text-white" : "bg-[var(--brand-soft)] text-[var(--brand-deep)]"}`} aria-hidden="true">
+                  <Icon size={14} />
+                </span>
+                <span className="flex-1">
+                  <span className="flex items-center gap-1.5 text-[13.5px] font-bold">
+                    {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--brand)]" aria-hidden="true" />}
+                    <span className="truncate">{n.title}</span>
+                  </span>
+                  <span className="block text-[12px] font-medium text-[var(--ink-2)]">{n.body}</span>
+                  <span className="block text-[11px] font-semibold text-[var(--ink-3)]">{relTimeEAT(n.createdAt)}{n.shipmentCode && n.shipmentCode !== "recent" ? ` · ${n.shipmentCode}` : ""}</span>
+                </span>
+                <ChevronRight size={15} className="mt-1.5 shrink-0 text-[var(--ink-3)]" />
+              </button>
+            );
+          })
         )}
       </div>
+
+      <SystemNotifications />
     </div>
   );
 }
 
 // ─── Account ───
 export function AccountScreen() {
-  const { user, logout, setSurface, setCustomerTab, lang, setLang } = useSession();
+  const { user, logout, setSurface, setCustomerTab, lang } = useSession();
+  const [langOpen, setLangOpen] = useState(false);
+  const currentLang = LANGUAGES.find((l) => l.code === lang);
   const qc = useQueryClient();
   const settings = useSettings();
+  const perm = useNotificationPermission();
+  const [permBusy, setPermBusy] = useState(false);
   const { data } = useQuery({
     queryKey: ["customer-home", user?.id],
     queryFn: () => api<CustomerHome>("/api/customer"),
@@ -356,6 +415,22 @@ export function AccountScreen() {
       toast({ title: "Place removed" });
     } catch (e) {
       toast({ title: "Couldn't remove place", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  const enableNotifications = async () => {
+    setPermBusy(true);
+    try {
+      const p = await requestNotificationPermission();
+      if (p === "granted") {
+        toast({ title: "System notifications on", description: "We'll alert you about delivery updates while the app is in the background." });
+      } else if (p === "denied") {
+        toast({ title: "Notifications blocked", description: "Allow notifications for this site in your browser settings to get delivery alerts." });
+      } else {
+        toast({ title: "Not enabled", description: "You can turn on delivery alerts any time from here." });
+      }
+    } finally {
+      setPermBusy(false);
     }
   };
 
@@ -437,20 +512,50 @@ export function AccountScreen() {
           </div>
         )}
 
-        {/* language (plan §62) */}
+        {/* system notifications (Web Notifications API) — permission is only requested on this explicit action */}
+        <div className="border-b border-[var(--line)] px-4 py-4">
+          <p className="text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Device alerts</p>
+          <div className="mt-2 flex items-center gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]" aria-hidden="true">
+              <BellRing size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-extrabold">Delivery alerts on this device</p>
+              <p className="text-[12px] font-medium leading-snug text-[var(--ink-2)]">
+                {perm === "granted"
+                  ? "On — we'll notify you about delivery updates while the app is in the background."
+                  : perm === "denied"
+                    ? "Blocked — allow notifications for this site in your browser settings."
+                    : perm === "unsupported"
+                      ? "Not supported in this browser."
+                      : "Get delivery updates even when the app is in the background."}
+              </p>
+            </div>
+            {perm === "default" && (
+              <Button variant="outline" className="h-11 shrink-0 px-4 text-[13px]" loading={permBusy} onClick={() => void enableNotifications()}>
+                Enable
+              </Button>
+            )}
+            {perm === "granted" && (
+              <span className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--success)]">On</span>
+            )}
+          </div>
+        </div>
+
+        {/* language (plan §62) — 18-language picker sheet (i18n task 10-D) */}
         <div className="border-b border-[var(--line)] px-4 py-4">
           <p className="flex items-center gap-1.5 text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]"><Languages size={12} /> {t("account.language", lang)}</p>
-          <div className="mt-2 flex gap-2">
-            {LANGUAGES.map((l) => (
-              <button
-                key={l.key}
-                onClick={() => setLang(l.key)}
-                className={`flex-1 rounded-[10px] border-2 px-3 py-2.5 text-[13px] font-bold transition ${lang === l.key ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-ink)]" : "border-[var(--line)] text-[var(--ink-2)]"}`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => setLangOpen(true)}
+            className="mt-2 flex w-full items-center gap-3 rounded-[10px] bg-[var(--surface-2)] px-4 py-3 text-start transition hover:bg-[var(--line)]"
+          >
+            <Languages size={16} className="shrink-0 text-[var(--ink-2)]" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13.5px] font-bold">{currentLang?.nativeName}</span>
+              <span className="block text-[11.5px] font-semibold text-[var(--ink-3)]">{currentLang?.englishName}</span>
+            </span>
+            <ChevronRight size={15} className="shrink-0 text-[var(--ink-3)]" />
+          </button>
         </div>
 
         <div className="px-4 py-4">
@@ -471,6 +576,11 @@ export function AccountScreen() {
         </Button>
       </div>
       <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo · Nairobi, Kenya · v2 sandbox</p>
+
+      {/* language picker sheet (i18n 10-D) */}
+      <LanguagePicker open={langOpen} onClose={() => setLangOpen(false)} />
+
+      <SystemNotifications />
     </div>
   );
 }

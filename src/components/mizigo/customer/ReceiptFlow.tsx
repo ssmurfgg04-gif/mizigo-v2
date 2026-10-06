@@ -1,25 +1,23 @@
 "use client";
-// Rate + Receipt — the closing moments of the core loop.
+// Rate + Receipt — the closing moments of the core loop. The rating UI is
+// the shared RatingForm from RatingSheet.tsx; the receipt nudges an unrated
+// delivery once (dismissable, remembered per delivery) and always keeps a
+// compact rate entry — no dead ends.
 
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Star } from "lucide-react";
-import { api, post } from "@/lib/api-client";
+import { Download, Star, X } from "lucide-react";
+import { api } from "@/lib/api-client";
 import type { ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, Row } from "@/components/mizigo/shared/ui";
 import { kes, fmtDateTimeEAT, fmtTimeEAT } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
-import { t } from "@/lib/i18n";
 import { shareTrackLink } from "@/components/mizigo/shared/share";
-
-const QUICK_TAGS = ["Arrived on time", "Careful with cargo", "Professional", "Good communication", "Vehicle clean"];
+import { isRateable, RatingForm, RatingSheetHost, useRateNudge } from "./RatingSheet";
+import { SystemNotifications } from "./useSystemNotifications";
 
 export function RateScreen() {
-  const { focusShipmentId, setBookingStep, setCustomerTab, lang } = useSession();
-  const [stars, setStars] = useState(0);
-  const [tags, setTags] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  const { focusShipmentId, setBookingStep } = useSession();
 
   const { data } = useQuery({
     queryKey: ["shipment", focusShipmentId],
@@ -30,17 +28,6 @@ export function RateScreen() {
 
   if (!s) return <div className="h-full animate-pulse bg-[var(--surface-2)]" />;
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      await post(`/api/shipments/${s.id}/action`, { action: "rate", actor: "CUSTOMER", stars: stars || 5, tags });
-      toast({ title: "Thanks for the feedback" });
-      setBookingStep("receipt");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <div className="flex min-h-full flex-col px-6 pb-8 pt-10">
       <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -49,43 +36,25 @@ export function RateScreen() {
           <path d="M24 40 L34 50 L54 29" fill="none" stroke="#15803D" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" className="animate-mz-check" style={{ strokeDasharray: 45 }} />
         </svg>
         <h1 className="mt-4 text-[24px] font-extrabold tracking-tight">Your delivery was completed</h1>
-        <div className="mt-2 rounded-[12px] bg-[var(--surface)] px-4 py-3 text-left">
+        <div className="mt-2 w-full rounded-[12px] bg-[var(--surface)] px-4 py-3 text-left">
           <Row label="Delivered to" value={s.pod?.recipient ?? "Recipient"} />
           <Row label="Time" value={s.pod ? fmtTimeEAT(s.pod.verifiedAt) : "—"} />
           <Row label="Location" value="GPS recorded" />
         </div>
-        <p className="mt-7 text-[16px] font-extrabold">How was {s.driver?.name.split(" ")[0]}?</p>
-        <div className="mt-3 flex gap-2" role="radiogroup" aria-label="Star rating">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <button key={i} onClick={() => setStars(i)} className="p-1.5 transition active:scale-90" aria-label={`${i} star${i > 1 ? "s" : ""}`} aria-pressed={stars === i}>
-              <Star size={34} strokeWidth={1.4} className={i <= stars ? "fill-[var(--brand)] text-[var(--brand-deep)]" : "text-[var(--line)]"} />
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {QUICK_TAGS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTags(tags.includes(t) ? tags.filter((x) => x !== t) : [...tags, t])}
-              className={`rounded-full border px-4 py-2 text-[13px] font-bold transition ${tags.includes(t) ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-2)]"}`}
-            >
-              {t}
-            </button>
-          ))}
+        <p className="mt-7 text-[16px] font-extrabold">How was {s.driver?.name.split(" ")[0] ?? "your delivery"}?</p>
+        <div className="mt-3 w-full">
+          <RatingForm shipment={s} onRated={() => setBookingStep("receipt")} />
         </div>
       </div>
-      <div className="space-y-2.5">
-        <Button variant="brand" className="w-full" onClick={submit} loading={busy} disabled={!stars}>
-          {t("rate.submit", lang)}
-        </Button>
-        <Button variant="ghost" className="w-full" onClick={() => setBookingStep("receipt")}>Skip</Button>
-      </div>
+      <Button variant="ghost" className="mt-4 w-full" onClick={() => setBookingStep("receipt")}>Skip</Button>
+      <SystemNotifications />
     </div>
   );
 }
 
 export function ReceiptScreen() {
-  const { focusShipmentId, setBookingStep, setCustomerTab, resetDraft, setFocusShipment, setTrackToken } = useSession();
+  const { focusShipmentId, setBookingStep, setCustomerTab, resetDraft, setFocusShipment, setTrackToken, setRatingShipment } = useSession();
+  const [nudgeDismissed, dismissNudge] = useRateNudge(focusShipmentId);
 
   const { data } = useQuery({
     queryKey: ["shipment", focusShipmentId],
@@ -199,6 +168,35 @@ export function ReceiptScreen() {
         </p>
       </div>
 
+      {/* unrated delivery → one dismissable nudge, then a persistent compact entry */}
+      {isRateable(s) &&
+        (nudgeDismissed ? (
+          <button
+            onClick={() => setRatingShipment(s.id)}
+            className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] py-3.5 text-[13.5px] font-bold text-[var(--brand-deep)] transition hover:bg-[var(--brand-soft)]"
+          >
+            <Star size={15} /> Rate your driver
+          </button>
+        ) : (
+          <div className="mt-4 rounded-[14px] border-2 border-[var(--brand)] bg-[var(--brand-soft)] p-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white" aria-hidden="true">
+                <Star size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-extrabold text-[var(--brand-ink)]">Rate {s.driver?.name.split(" ")[0] ?? "your driver"}</p>
+                <p className="text-[12px] font-medium leading-snug text-[var(--ink-2)]">How was this delivery? Your feedback keeps the network honest.</p>
+              </div>
+              <button onClick={dismissNudge} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--ink-3)] transition hover:bg-[var(--surface-2)]" aria-label="Dismiss rating reminder">
+                <X size={15} />
+              </button>
+            </div>
+            <Button variant="brand" className="mt-3 h-12 w-full text-[14px]" onClick={() => setRatingShipment(s.id)}>
+              Rate your driver
+            </Button>
+          </div>
+        ))}
+
       <div className="mt-4 grid grid-cols-2 gap-2.5">
         <Button variant="outline" onClick={download}>
           <Download size={16} /> Download
@@ -210,6 +208,9 @@ export function ReceiptScreen() {
       <Button variant="brand" className="mt-3 w-full" onClick={close}>
         Done
       </Button>
+
+      <RatingSheetHost />
+      <SystemNotifications />
     </div>
   );
 }

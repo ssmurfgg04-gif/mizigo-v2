@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ChevronDown, KeyRound, LifeBuoy, MessageCircle, Phone, Share2, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, KeyRound, LifeBuoy, MessageCircle, Phone, Share2, ShieldCheck, Star, TriangleAlert, X } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -18,15 +18,18 @@ import { toast } from "@/hooks/use-toast";
 import { CARGO_CATEGORIES } from "@/lib/pricing";
 import { shareTrackLink } from "@/components/mizigo/shared/share";
 import { useSettings } from "@/components/mizigo/shared/useSettings";
+import { isRateable, RatingSheetHost, useRateNudge } from "./RatingSheet";
+import { SystemNotifications } from "./useSystemNotifications";
 
 export default function ActiveTrip() {
-  const { focusShipmentId, setBookingStep, setCustomerTab, setTrackToken } = useSession();
+  const { focusShipmentId, setBookingStep, setCustomerTab, setTrackToken, setRatingShipment, setChatShipment, chatShipmentId } = useSession();
   const [expanded, setExpanded] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const settings = useSettings();
+  const [nudgeDismissed, dismissNudge] = useRateNudge(focusShipmentId);
 
   const { data } = useQuery({
     queryKey: ["shipment", focusShipmentId, "auto"],
@@ -36,18 +39,16 @@ export default function ActiveTrip() {
   });
   const s = data?.shipment;
 
-  // auto-advance to rating/receipt once POD is confirmed
+  // terminal states: land on the receipt. Rating is a dismissable nudge banner
+  // here and on the receipt — never a forced screen (owner complaint fixed).
   useEffect(() => {
     if (!s) return;
-    const rated = s.ratings.some((r) => r.byRole === "CUSTOMER");
-    if (s.status === "COMPLETED" && !rated) {
-      setBookingStep("rate");
-    } else if (s.status === "COMPLETED" && rated) {
-      setBookingStep("receipt");
-    } else if (s.status === "POD_CONFIRMED" && !rated) {
-      setBookingStep("rate");
-    }
+    if (s.status === "COMPLETED") setBookingStep("receipt");
   }, [s?.status]);
+
+  // chat deep-link (notification centre / system notification): the chat is
+  // open while the flag points at this delivery — derived, no effect needed
+  const deepChat = !!chatShipmentId && !!s && chatShipmentId === s.id;
 
   if (!s) return <div className="h-full animate-pulse bg-[var(--surface-2)]" />;
 
@@ -130,6 +131,27 @@ export default function ActiveTrip() {
               <p className="text-[12px] font-medium text-[var(--ink-2)]">Read this to your driver when they arrive</p>
             </div>
             <span className="tnum text-[26px] font-extrabold tracking-[0.14em] text-[var(--brand-ink)]">{s.deliveryCode}</span>
+          </div>
+        )}
+
+        {/* terminal + unrated → one-time rating nudge (banner, not forced) */}
+        {isRateable(s) && !nudgeDismissed && (
+          <div className="mt-3 rounded-[12px] border-2 border-[var(--brand)] bg-[var(--brand-soft)] p-3.5" role="status">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white" aria-hidden="true">
+                <Star size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13.5px] font-extrabold leading-snug text-[var(--brand-ink)]">Delivery confirmed — rate {s.driver?.name.split(" ")[0] ?? "your driver"}?</p>
+                <p className="text-[12px] font-medium text-[var(--ink-2)]">Takes 10 seconds and helps other customers.</p>
+              </div>
+              <button onClick={dismissNudge} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--ink-3)] transition hover:bg-[var(--surface-2)]" aria-label="Dismiss rating reminder">
+                <X size={15} />
+              </button>
+            </div>
+            <Button variant="brand" className="mt-3 h-12 w-full text-[14px]" onClick={() => setRatingShipment(s.id)}>
+              Rate your driver
+            </Button>
           </div>
         )}
 
@@ -229,8 +251,12 @@ export default function ActiveTrip() {
         </button>
       </div>
 
-      {/* chat sheet (plan §77) */}
-      {chatOpen && <ChatSheet shipmentId={s.id} role="CUSTOMER" onClose={() => setChatOpen(false)} />}
+      {/* chat sheet (plan §77) — entry points + notification deep-link target */}
+      {(chatOpen || deepChat) && <ChatSheet shipmentId={s.id} role="CUSTOMER" onClose={() => { setChatOpen(false); if (deepChat) setChatShipment(null); }} />}
+
+      {/* rating sheet (deep-link target) + background system notifications */}
+      <RatingSheetHost />
+      <SystemNotifications />
 
       {/* help centre (plan §37/§76) */}
       {helpOpen && (
@@ -363,6 +389,7 @@ function statusHeadline(s: ShipmentDTO): string {
     case "ARRIVING": return "Arriving at the destination";
     case "DELIVERED": return "Arrived · unloading";
     case "POD_CONFIRMED": return "Delivery confirmed";
+    case "COMPLETED": return "Delivery completed";
     default: return STATUS_LABEL[s.status] ?? s.status;
   }
 }

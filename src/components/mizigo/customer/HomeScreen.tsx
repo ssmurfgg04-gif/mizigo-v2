@@ -4,7 +4,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowRight, Bell, ChevronRight, Clock3, Home as HomeIcon, MapPin, Package, PackageOpen, Sofa, Building2, HardHat } from "lucide-react";
+import { ArrowRight, Bell, ChevronRight, Clock3, Home as HomeIcon, MapPin, Package, PackageOpen, Sofa, Building2, HardHat, Star } from "lucide-react";
 import { api } from "@/lib/api-client";
 import type { CustomerHome } from "@/lib/types";
 import { kes, etaText, relTimeEAT, fmtTimeEAT } from "@/lib/format";
@@ -15,6 +15,8 @@ import MapCanvas from "@/components/mizigo/shared/MapCanvas";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ReturnLoadDeals from "./ReturnLoadDeals";
 import NotificationsSheet from "./NotificationsSheet";
+import { isRateable } from "./RatingSheet";
+import { SystemNotifications } from "./useSystemNotifications";
 import { STATUS_LABEL } from "@/lib/state-machine";
 
 const SHORTCUTS = [
@@ -25,7 +27,7 @@ const SHORTCUTS = [
 ];
 
 export default function HomeScreen() {
-  const { user, setBookingStep, setCustomerTab, setFocusShipment, setSurface, draft, patchDraft, lang } = useSession();
+  const { user, setBookingStep, setCustomerTab, setFocusShipment, setRatingShipment, setSurface, draft, patchDraft, lang } = useSession();
   const [notifOpen, setNotifOpen] = useState(false);
   const q = useQuery({
     queryKey: ["customer-home", user?.id],
@@ -49,6 +51,9 @@ export default function HomeScreen() {
   const active = d?.active;
   const recent = (d?.trips ?? []).filter((t) => !["CANCELLED"].includes(t.status)).slice(0, 3);
   const isQuoted = active?.status === "QUOTED";
+  // most recent unrated terminal delivery → persistent "Rate your driver" banner
+  const rateTarget = (d?.trips ?? []).find((t) => isRateable(t)) ?? (active && isRateable(active) ? active : null);
+  const unread = d?.unread ?? (d?.notifications ?? []).filter((n) => !n.read).length;
 
   if (q.isError) {
     return (
@@ -71,15 +76,42 @@ export default function HomeScreen() {
           <h1 className="text-[24px] font-extrabold tracking-tight">{business ?? `${firstName}`}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setNotifOpen(true)} className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]" aria-label="Notifications">
+          <button onClick={() => setNotifOpen(true)} className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]" aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ""}`}>
             <Bell size={18} />
-            {(d?.notifications?.length ?? 0) > 0 && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[var(--brand)]" />}
+            {unread > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand-deep)] px-1 text-[10.5px] font-extrabold leading-none text-white" aria-hidden="true">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
           </button>
           <button onClick={() => setCustomerTab("account")} className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--ink)] text-[15px] font-extrabold text-white" aria-label="Account">
             {firstName.slice(0, 1)}
           </button>
         </div>
       </header>
+
+      {/* rate your driver — the same deep-link as the rate notification */}
+      {rateTarget && (
+        <button
+          onClick={() => {
+            setFocusShipment(rateTarget.id);
+            setRatingShipment(rateTarget.id);
+            setCustomerTab("trips");
+          }}
+          className="flex w-full items-center gap-3.5 rounded-[16px] border-2 border-[var(--brand)] bg-[var(--brand-soft)] p-4 text-left transition hover:brightness-[0.99] active:translate-y-px"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white" aria-hidden="true">
+            <Star size={18} className="fill-white" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-extrabold tracking-tight text-[var(--brand-ink)]">Rate your driver</span>
+            <span className="block truncate text-[12.5px] font-semibold text-[var(--ink-2)]">
+              {rateTarget.driver ? `${rateTarget.driver.name.split(" ")[0]} · ` : ""}{rateTarget.route.pickup.area} → {rateTarget.route.dropoff.area}
+            </span>
+          </span>
+          <ChevronRight size={16} className="shrink-0 text-[var(--brand-deep)]" />
+        </button>
+      )}
 
       {/* active delivery dominates when present */}
       {q.isLoading ? (
@@ -276,8 +308,11 @@ export default function HomeScreen() {
       </button>
 
       {notifOpen && (
-        <NotificationsSheet notifications={d?.notifications ?? []} trips={d?.trips} onClose={() => setNotifOpen(false)} />
+        <NotificationsSheet notifications={d?.notifications ?? []} trips={d?.trips} active={d?.active} onClose={() => setNotifOpen(false)} />
       )}
+
+      {/* background system notifications (Web Notifications API) */}
+      <SystemNotifications />
     </div>
   );
 }
