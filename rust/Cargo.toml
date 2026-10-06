@@ -1,0 +1,23 @@
+[package]
+name = "pricing-core"
+version = "0.1.0"
+edition = "2021"
+description = "MIZIGO money path: integer-exact fare computation + dispatch scoring, compiled to wasm32 for the Next.js server."
+publish = false
+
+[lib]
+name = "pricing_core"
+# cdylib → pricing_core.wasm for the server; rlib → lets `cargo test` run the
+# same code on the host target.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# intentionally none — no wasm-bindgen, no serde, no allocator baggage.
+# The ABI is a flat #[repr(C)] surface over linear memory (see src/lib.rs).
+
+[profile.release]
+opt-level = "z"      # the artifact is committed (and base64-embedded): size matters
+lto = true
+codegen-units = 1
+panic = "abort"      # a trap becomes a JS exception → the TS fallback takes over
+strip = true

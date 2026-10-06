@@ -2,6 +2,7 @@
 // Nothing is hard-coded: the admin can edit every input and the next quote picks it up.
 
 import type { VehicleCategory, PricingZone } from "@prisma/client";
+import { computeFareRust, withinRustContract } from "@/lib/rust-engine";
 
 export interface QuoteInput {
   distanceKm: number;
@@ -26,7 +27,57 @@ export function isNightHour(d: Date): boolean {
   return h >= 19 || h < 6;
 }
 
+// Money-path multiplier helper: floats from the DB (≤3 decimals by contract)
+// become permille integers for the Rust core (1120 = ×1.12).
+const permille = (x: number) => Math.round(x * 1000);
+
 export function priceFor(category: Pick<VehicleCategory, "baseFare" | "perKmRate" | "perMinRate" | "minimumFare" | "loadingFee" | "extraStopFee">, zone: Pick<PricingZone, "platformFee" | "commissionRate" | "peakMultiplier" | "nightMultiplier" | "scheduledDiscount">, input: QuoteInput): Fare {
+  // Money path: prefer the Rust/WASM core (bit-exact port — see rust/ +
+  // tests/rust/parity.test.ts) and fall back to the TypeScript reference
+  // implementation below whenever the wasm is unavailable or the input is
+  // outside the documented bit-exact contract. Both paths produce identical
+  // results by construction; the parity suite proves it on every push.
+  if (withinRustContract(input)) {
+    const rust = computeFareRust({
+      baseFare: category.baseFare * 100,
+      perKm: category.perKmRate * 100,
+      perMin: category.perMinRate * 100,
+      loadingFee: category.loadingFee * 100,
+      helperFee: 0, // TS has no second helper fee — ABI contract keeps it 0
+      stopFee: category.extraStopFee * 100,
+      platformFee: zone.platformFee * 100,
+      minimumFare: category.minimumFare * 100,
+      distanceM: Math.round(input.distanceKm * 1000),
+      durationMin: input.durationMin,
+      helpers: input.helpers,
+      extraStops: input.extraStops,
+      nightPermille: input.night ? permille(zone.nightMultiplier ?? 1.12) : 1000,
+      schedulePermille: input.scheduled ? permille(1 - (zone.scheduledDiscount ?? 0.05)) : 1000,
+      discountPermille: 0, // promos are applied by the quote route, not the engine
+      commissionPermille: permille(zone.commissionRate),
+      peakPermille: input.peak ? permille(zone.peakMultiplier) : 1000,
+    });
+    if (rust) {
+      const K = (minor: number) => minor / 100; // minor units → whole KES (exact: every component is ×100)
+      const base = K(rust.base), distance = K(rust.distance), duration = K(rust.duration);
+      const loading = K(rust.loading), stops = K(rust.stops), night = K(rust.night);
+      const schedule = K(rust.schedule), platform = K(rust.platform);
+      const total = K(rust.total), commission = K(rust.commission), driverEarnings = K(rust.driverEarnings);
+      const nightMult = input.night ? (zone.nightMultiplier ?? 1.12) : 1;
+      const lines: FareLine[] = [
+        { key: "base", label: "Base transport", amount: base },
+        { key: "distance", label: `Distance · ${input.distanceKm.toFixed(1)} km`, amount: distance },
+        { key: "duration", label: "Time on road", amount: duration },
+      ];
+      if (loading > 0) lines.push({ key: "loading", label: `Loading assistance × ${input.helpers}`, amount: loading });
+      if (stops > 0) lines.push({ key: "stops", label: `Extra stops × ${input.extraStops}`, amount: stops });
+      if (night > 0) lines.push({ key: "night", label: `Night transport × ${nightMult.toFixed(2)}`, amount: night });
+      if (schedule > 0) lines.push({ key: "schedule", label: "Planned delivery discount", amount: -schedule });
+      lines.push({ key: "platform", label: "Platform fee", amount: platform });
+      if (rust.minimumApplied) lines.push({ key: "minimum", label: "Minimum fare applied", amount: 0 });
+      return { base, distance, duration, loading, stops, night, schedule, platform, total, minimumApplied: rust.minimumApplied, lines, driverEarnings, commission };
+    }
+  }
   const peak = input.peak ? zone.peakMultiplier : 1;
   const base = Math.round(category.baseFare * peak);
   const distance = Math.round(category.perKmRate * input.distanceKm);

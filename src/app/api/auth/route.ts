@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { issueOtp, verifyOtp, rateLimit, withSession, clearSession, getSession, type Role } from "@/lib/security";
+import { isAtEnabled, sendSMS } from "@/lib/integrations";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Enter a valid Kenyan phone number, e.g. 0712 345 678." }, { status: 400 });
     }
     const code = issueOtp(phone);
+    // AFRICASTALKING: when AT keys are configured the code goes out by real
+    // SMS and is NEVER echoed back (no devCode field in that mode). OTP
+    // expiry/attempts semantics live in lib/security.ts — unchanged either way.
+    if (isAtEnabled()) {
+      const sent = await sendSMS(phone, `Your MIZIGO verification code is ${code}. It expires in 5 minutes.`);
+      if (sent.ok) {
+        return NextResponse.json({ ok: true, sentTo: phone, provider: "AFRICASTALKING" });
+      }
+      // AT send failed → log + fall back to the current sandbox behavior
+      // so login still works (integration rule: failures never hard-block).
+      console.error("[africastalking] OTP SMS failed — falling back to sandbox echo", sent.error);
+    }
     // MOCK_SMS: the sandbox displays the code in-app instead of texting it
     return NextResponse.json({ ok: true, sentTo: phone, devCode: code, provider: "MOCK_SMS" });
   }

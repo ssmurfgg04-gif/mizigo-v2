@@ -1,4 +1,4 @@
-// POST /api/driver — driver actions: status | withdraw | publish-return-load | return-load-cancel
+// POST /api/driver — driver actions: ping (GPS) | status | withdraw | publish-return-load | return-load-cancel
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { mpesaRef } from "@/lib/format";
@@ -14,13 +14,33 @@ export async function POST(req: Request) {
   // every driver action is bound to the session's own driver profile
   const session = requireSession(req);
   if (isResponse(session)) return session;
-  const limited = rateLimit(req, "driver:action", 40, 60_000);
-  if (limited) return limited;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");
+  // GPS pings get their own tight window (see the "ping" action below);
+  // every other action keeps the shared 40/min driver-action budget.
+  const limited = action === "ping"
+    ? rateLimit(req, "driver:ping", 60, 60_000)
+    : rateLimit(req, "driver:action", 40, 60_000);
+  if (limited) return limited;
   const driverId = session.did;
   if (!driverId && session.role !== "ADMIN") {
     return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
+  }
+
+  // ── GPS ping — the seam where a real driver app later feeds live position ──
+  // Today tracking prefers the server-side simulation (simulateLive in
+  // lib/shipments.ts derives position from state + elapsed time); a future
+  // change can prefer fresh pings (lastPingAt < 90s) on the tracking surfaces
+  // once the driver app is actually feeding this endpoint.
+  if (action === "ping") {
+    if (!driverId) return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
+    const c = validCoord(body.lat, body.lng);
+    if (!c) return NextResponse.json({ error: "Invalid coordinates." }, { status: 400 });
+    // 401: session-bound driver missing = stale session (sandbox instance churn)
+    const d = await db.driver.findUnique({ where: { id: driverId }, select: { id: true } });
+    if (!d) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
+    await db.driver.update({ where: { id: driverId }, data: { lat: c.lat, lng: c.lng, lastPingAt: new Date() } });
+    return NextResponse.json({ ok: true, lat: c.lat, lng: c.lng });
   }
 
   if (action === "status") {

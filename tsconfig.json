@@ -31,6 +31,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "instrumentation.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "scripts/reseed.ts",

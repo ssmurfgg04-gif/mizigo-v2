@@ -3,6 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, ReactNode } from "react";
+import SentryBridge from "@/components/mizigo/shared/SentryBridge";
 
 export default function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -17,5 +18,11 @@ export default function Providers({ children }: { children: ReactNode }) {
         },
       })
   );
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      {/* no-op unless NEXT_PUBLIC_SENTRY_DSN is set (client error telemetry) */}
+      <SentryBridge />
+      {children}
+    </QueryClientProvider>
+  );
 }
