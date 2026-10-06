@@ -7,7 +7,7 @@ import { haversineKm } from "./geo";
 
 export interface MatchCandidate extends Driver {
   user: { name: string } | null;
-  vehicles: (Vehicle & { category: VehicleCategory | null })[]
+  vehicles: (Vehicle & { category: VehicleCategory | null })[];
 }
 
 // v1 goodness: reputation as one comparable number.
@@ -50,6 +50,43 @@ export interface ScoredDriver {
   capacityKg: number;
 }
 
+export function etaConfidenceScore(etaMin: number, distanceKm: number): number {
+  const distanceWeight = Math.max(0, 1 - distanceKm / 18);
+  const etaWeight = Math.max(0, 1 - etaMin / 40);
+  return Math.max(0, Math.min(1, 0.55 * distanceWeight + 0.45 * etaWeight));
+}
+
+export function dispatchScore(input: {
+  distanceKm: number;
+  etaMin: number;
+  rating: number;
+  tripsCompleted: number;
+  acceptanceRate: number;
+  reliability: number;
+  capacityHeadroom: number;
+  cancellationRate: number;
+}): number {
+  const distanceScore = Math.max(0, 1 - input.distanceKm / 14);
+  const etaScore = Math.max(0, 1 - input.etaMin / 30);
+  const ratingScore = Math.max(0, Math.min(1, (input.rating - 4) / 1));
+  const tripScore = Math.min(1, input.tripsCompleted / 250);
+  const acceptanceScore = Math.max(0, Math.min(1, input.acceptanceRate));
+  const capacityScore = Math.max(0, Math.min(1, input.capacityHeadroom / 1000));
+  const reliabilityScoreValue = Math.max(0, Math.min(1, input.reliability));
+  const cancellationPenalty = Math.max(0, input.cancellationRate * 2.5);
+
+  return (
+    distanceScore * 0.23 +
+    etaScore * 0.14 +
+    ratingScore * 0.16 +
+    tripScore * 0.08 +
+    acceptanceScore * 0.12 +
+    capacityScore * 0.09 +
+    reliabilityScoreValue * 0.18 -
+    cancellationPenalty * 0.08
+  );
+}
+
 export function matchDriver(
   candidates: MatchCandidate[],
   pickup: { lat: number; lng: number },
@@ -78,11 +115,18 @@ export function matchDriver(
     const acceptanceScore = d.acceptanceRate; // history
     const experienceScore = Math.min(1, d.tripsCompleted / 400); // reliability
     const etaScore = Math.max(0, 1 - etaMin / 30);
-    // v1 goodness: completion × rating × on-time reliability, penalised by incidents
     const reliability = driverReliability(d);
-    const score =
-      distanceScore * 0.28 + etaScore * 0.16 + ratingScore * 0.16 +
-      acceptanceScore * 0.12 + experienceScore * 0.1 + reliability * 0.18;
+    const capacityHeadroom = Math.max(0, v.capacityKg - need.weightKg);
+    const score = dispatchScore({
+      distanceKm,
+      etaMin,
+      rating: d.rating,
+      tripsCompleted: d.tripsCompleted,
+      acceptanceRate: d.acceptanceRate,
+      reliability,
+      capacityHeadroom,
+      cancellationRate: d.cancellationRate,
+    });
 
     pool.push({
       driverId: d.id,
@@ -117,8 +161,10 @@ export function nearbyDrivers(candidates: MatchCandidate[], origin: { lat: numbe
       vehicle: d.vehicles?.[0] ? `${d.vehicles[0].make} ${d.vehicles[0].model}` : "",
       categoryKey: d.vehicles?.[0]?.category?.key ?? "pickup",
       distanceKm: Math.round(haversineKm({ lat: d.lat, lng: d.lng }, origin) * 10) / 10,
+      etaConfidence: etaConfidenceScore(Math.max(3, Math.round((haversineKm({ lat: d.lat, lng: d.lng }, origin) / 26) * 60) + 2), haversineKm({ lat: d.lat, lng: d.lng }, origin)),
     }))
-    .filter((d) => d.distanceKm <= radiusKm);
+    .filter((d) => d.distanceKm <= radiusKm)
+    .sort((a, b) => b.etaConfidence - a.etaConfidence);
 }
 
 // Demand zones for the driver home map (simple, honest indicators)
@@ -130,3 +176,4 @@ export const DEMAND_ZONES = [
   { name: "Thika Road", level: "high" },
   { name: "Karen", level: "low" },
 ];
+
