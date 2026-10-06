@@ -137,6 +137,10 @@ jobs:
           path: .next/standalone
           retention-days: 1
           if-no-files-found: error
+          # v4 excludes hidden files/dirs by default — without this the nested
+          # .next build directory is dropped and the standalone server can't
+          # find its production build
+          include-hidden-files: true
 
   # ───────────────────────────────────────────────────────────────────────────
   # e2e against the standalone production server, sandbox mode (SQLite in /tmp,
@@ -261,6 +265,7 @@ jobs:
           cd .next/standalone
           PORT=3999 HOSTNAME=127.0.0.1 \
             MIZIGO_SESSION_SECRET=ci-session-secret \
+            DEMO_AUTO_PROGRESS=true \
             nohup node server.js > server.log 2>&1 &
           echo $! > "$GITHUB_WORKSPACE/server.pid"
 

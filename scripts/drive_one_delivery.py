@@ -2,7 +2,8 @@
 """Drive one booking to DELIVERED for browser verification of the rating sheet."""
 import json, time, urllib.request
 
-BASE = "http://localhost:3100"
+import os
+BASE = os.environ.get("MIZIGO_BASE", "http://localhost:3100")
 
 def req(path, body=None, cookie=None, method=None):
     data = json.dumps(body).encode() if body is not None else None
