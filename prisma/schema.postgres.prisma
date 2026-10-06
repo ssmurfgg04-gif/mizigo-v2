@@ -1,0 +1,411 @@
+// MIZIGO — Prisma schema
+// SQLite: no enums → String + validated in code (src/lib/state-machine.ts, types.ts)
+// No arrays → JSON strings for tag lists.
+
+generator client {
+  provider = "prisma-client-js"
+  // native = build machine (local + Netlify Ubuntu build image);
+  // rhel/debian targets cover AWS Lambda (Netlify function runtime).
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Marketplace configuration ────────────────────────────────────────────
+
+model VehicleCategory {
+  id            String  @id @default(cuid())
+  key           String  @unique // "tuktuk" | "pickup" | "canter" ...
+  name          String
+  description   String
+  capacityKg    Int
+  volumeM3      Float
+  bodyType      String // "open" | "covered" | "refrigerated"
+  lengthM       Float
+  widthM        Float
+  heightM       Float
+  baseFare      Int // KES
+  perKmRate     Int // KES
+  perMinRate    Int // KES
+  minimumFare   Int
+  loadingFee    Int
+  extraStopFee  Int
+  sortOrder     Int
+  active        Boolean @default(true)
+  supportedCargo String @default("[]") // JSON array of cargo categories
+  vehicles      Vehicle[]
+  shipments     Shipment[]
+}
+
+model PricingZone {
+  id              String  @id @default(cuid())
+  key             String  @unique // "nairobi"
+  name            String
+  basePrice       Int
+  pricePerKm      Int
+  pricePerMin     Int
+  minimumPrice    Int
+  waitingRateMin  Int
+  loadingFee      Int
+  extraStopFee    Int
+  peakMultiplier  Float   @default(1)
+  nightMultiplier Float   @default(1.12) // v1 lesson: night transport surcharge (19:00–06:00)
+  scheduledDiscount Float @default(0.05) // v1 lesson: planned loads cost less than instant
+  platformFee     Int     @default(100)
+  commissionRate  Float   @default(0.15)
+  active          Boolean @default(true)
+}
+
+model Place {
+  id        String  @id @default(cuid())
+  name      String
+  area      String // Westlands, Industrial Area...
+  category  String // estate | landmark | business | road | terminal
+  lat       Float
+  lng       Float
+  popular   Boolean @default(false)
+}
+
+// ─── People ───────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique // 07XXXXXXXX
+  email        String?
+  name         String
+  role         String // CUSTOMER | DRIVER | ADMIN
+  accountType  String   @default("PERSONAL") // PERSONAL | BUSINESS
+  businessName String?
+  avatarSeed   String   @default("mz")
+  rating       Float    @default(5)
+  verified     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  customerShipments Shipment[] @relation("CustomerShipments")
+  driver        Driver?
+}
+
+model Driver {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  status         String   @default("OFFLINE") // ONLINE | OFFLINE | BUSY | BREAK
+  // reliability metrics
+  rating         Float    @default(4.8)
+  tripsCompleted Int      @default(0)
+  acceptanceRate Float    @default(0.9)
+  onTimePickup   Float    @default(0.94)
+  onTimeDelivery Float    @default(0.96)
+  cancellationRate Float  @default(0.02)
+  incidents      Int      @default(0)
+  // compliance
+  licenceClass   String   @default("BCE")
+  licenceExpiry  DateTime?
+  verification   String   @default("VERIFIED") // VERIFIED | PENDING | SUSPENDED
+  lat            Float    @default(-1.2864)
+  lng            Float    @default(36.8172)
+  lastPingAt     DateTime @default(now())
+  onlineMinutes  Int      @default(0)
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+  vehicles       Vehicle[]
+  shipments      Shipment[] @relation("DriverShipments")
+  quotes         Quote[]
+}
+
+model Vehicle {
+  id           String   @id @default(cuid())
+  driverId     String
+  categoryId   String
+  make         String
+  model        String
+  registration String   @unique
+  bodyType     String
+  capacityKg   Int
+  photos       String   @default("[]") // JSON: front/back/side/cargo (emoji-free labels)
+  // documents
+  docRegistration String  @default("VERIFIED") // VERIFIED | PENDING | EXPIRED | REJECTED
+  docInsurance    String  @default("VERIFIED")
+  docInspection   String  @default("VERIFIED")
+  insuranceExpiry DateTime?
+  inspectionExpiry DateTime?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  driver       Driver          @relation(fields: [driverId], references: [id])
+  category     VehicleCategory @relation(fields: [categoryId], references: [id])
+  shipments    Shipment[]
+}
+
+// ─── Shipments ────────────────────────────────────────────────────────────
+
+model Shipment {
+  id          String   @id @default(cuid())
+  code        String   @unique // MZG-482913
+  shareToken  String   @unique
+  customerId  String
+  status      String   @default("DRAFT")
+  stateEnteredAt DateTime @default(now())
+  scheduledAt DateTime?
+
+  // route
+  pickupName     String
+  pickupArea     String
+  pickupLat      Float
+  pickupLng      Float
+  pickupNote     String? // "Gate B, next to the petrol station"
+  pickupContact  String?
+  pickupPhone    String?
+  dropoffName    String
+  dropoffArea    String
+  dropoffLat     Float
+  dropoffLng     Float
+  dropoffNote    String?
+  dropoffContact String?
+  dropoffPhone   String?
+  stops          String   @default("[]") // JSON array of intermediate stops
+
+  distanceKm Float
+  durationMin Int
+
+  // cargo
+  cargoCategory   String
+  cargoLoad       String  @default("MEDIUM") // SMALL | MEDIUM | LARGE | VERY_LARGE
+  helpers        Int     @default(0) // loading assistance count
+  specialHandling String  @default("[]") // JSON: fragile, keep_dry...
+  notes           String?
+
+  // vehicle + assignment
+  categoryId String
+  vehicleId  String?
+  driverId   String?
+  vehicle    Vehicle?         @relation(fields: [vehicleId], references: [id])
+  driver     Driver?          @relation("DriverShipments", fields: [driverId], references: [id])
+  customer   User             @relation("CustomerShipments", fields: [customerId], references: [id])
+  category   VehicleCategory  @relation(fields: [categoryId], references: [id])
+
+  // money (KES)
+  pricingMode  String  @default("INSTANT") // INSTANT | QUOTE
+  fareBase     Int
+  fareDistance Int
+  fareDuration Int
+  fareLoading  Int
+  fareStops    Int
+  fareNight    Int     @default(0) // night surcharge (19:00–06:00)
+  fareSchedule Int     @default(0) // scheduled-delivery discount (positive number, subtracted)
+  farePlatform Int
+  fareTotal    Int
+  driverEarnings Int
+  commission   Int
+  returnLoadId String? // set when this trip booked a published empty leg
+
+  // payment
+  paymentMethod  String  @default("MPESA") // MPESA | CASH | CARD
+  paymentStatus  String  @default("PENDING")
+  paymentRef     String? // Daraja-style receipt
+  checkoutReqId  String? // idempotency key
+  paidAt         DateTime?
+
+  // proof of delivery
+  deliveryCode  String? // 4-digit handshake shown to the customer at drop-off
+  podRecipient  String?
+  podOtp        String?
+  podPhotoTaken Boolean @default(false)
+  podVerifiedAt DateTime?
+  podLat        Float?
+  podLng        Float?
+
+  // promotions
+  promoCode    String?
+  fareDiscount Int     @default(0)
+
+  cancelledBy  String?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    ShipmentItem[]
+  events   ShipmentEvent[]
+  quotes   Quote[]
+  payments PaymentEvent[]
+  ratings  Rating[]
+  disputes Dispute[]
+  messages ChatMessage[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([driverId])
+}
+
+model ShipmentItem {
+  id         String @id @default(cuid())
+  shipmentId String
+  name       String
+  qty        Int
+  weightKg   Int    @default(0)
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+// append-only chain of custody
+model ShipmentEvent {
+  id         String   @id @default(cuid())
+  shipmentId String
+  type       String // BOOKING_CREATED, PAYMENT_CONFIRMED, DRIVER_ASSIGNED...
+  label      String // human readable
+  lat        Float?
+  lng        Float?
+  actor      String  @default("SYSTEM") // CUSTOMER | DRIVER | SYSTEM | ADMIN
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+model Quote {
+  id         String   @id @default(cuid())
+  shipmentId String
+  driverId   String
+  vehicleId  String?
+  amount     Int
+  etaText    String
+  message    String?  // optional driver note
+  status     String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | EXPIRED
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  driver     Driver?  @relation(fields: [driverId], references: [id])
+}
+
+model PaymentEvent {
+  id             String   @id @default(cuid())
+  shipmentId     String
+  checkoutReqId  String   @unique
+  method         String
+  amount         Int
+  status         String   // PENDING | CONFIRMED | FAILED | TIMEOUT | REFUNDED
+  mpesaReceipt   String?
+  createdAt      DateTime @default(now())
+  shipment       Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+model Payout {
+  id        String   @id @default(cuid())
+  driverId  String
+  amount    Int
+  method    String   @default("MPESA")
+  status    String   @default("PAID") // PENDING | PROCESSING | PAID | FAILED
+  ref       String?
+  createdAt DateTime @default(now())
+}
+
+model Rating {
+  id         String   @id @default(cuid())
+  shipmentId String
+  byRole     String // CUSTOMER | DRIVER
+  stars      Int
+  tags       String   @default("[]") // JSON
+  comment    String?
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+model Dispute {
+  id         String   @id @default(cuid())
+  shipmentId String
+  type       String // CARGO_DAMAGE | MISSING_ITEM | LATE | DRIVER_ISSUE | PAYMENT | OTHER
+  notes      String
+  status     String   @default("OPEN") // OPEN | RESOLVING | RESOLVED
+  resolution String?
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id      String   @id @default(cuid())
+  userId  String
+  role    String
+  title   String
+  body    String
+  shipmentCode String?
+  read    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// customer ↔ driver quick-message chat (numbers stay masked)
+model ChatMessage {
+  id         String   @id @default(cuid())
+  shipmentId String
+  senderRole String   // CUSTOMER | DRIVER
+  body       String
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+// admin-configurable promotions (plan §75)
+model PromoCode {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  kind            String   @default("FLAT") // FLAT | PERCENT
+  value           Int      // KES amount or percent
+  minFare         Int      @default(0)
+  firstBookingOnly Boolean @default(false)
+  businessOnly    Boolean @default(false)
+  active          Boolean  @default(true)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+}
+
+// key/value platform settings, editable in admin (plan §34, §41 Settings)
+model PlatformSetting {
+  key        String   @id
+  value      String
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String
+  action    String
+  target    String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model SavedPlace {
+  id       String @id @default(cuid())
+  userId   String
+  label    String // Home, Shop
+  name     String
+  area     String
+  lat      Float
+  lng      Float
+}
+
+// v1 goodness: empty-leg / return-load marketplace. A driver whose vehicle is
+// travelling back empty publishes the leg at a discount; customers reserve
+// capacity that is already moving ("Use the empty leg").
+model ReturnLoad {
+  id               String    @id @default(cuid())
+  driverId         String
+  fromName         String
+  fromArea         String
+  fromLat          Float
+  fromLng          Float
+  toName           String
+  toArea           String
+  toLat            Float
+  toLng            Float
+  categoryKey      String // vehicle category offering the leg
+  cargoNote        String    @default("General cargo")
+  maxWeightKg      Int
+  priceKes         Int // discounted empty-leg price
+  normalPriceKes   Int // estimated normal fare, for the savings badge
+  status           String    @default("AVAILABLE") // AVAILABLE | BOOKED | CANCELLED
+  availableUntil   DateTime?
+  bookedById       String? // customer userId
+  bookedShipmentId String?
+  createdAt        DateTime  @default(now())
+}

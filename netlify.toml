@@ -1,13 +1,18 @@
 # MIZIGO — Netlify deployment
 # Connect the repo at https://app.netlify.com (New site from Git) and it picks
-# this file up automatically. First deploy bootstraps SQLite in the function's
-# /tmp and seeds demo data on the first API hit (see src/lib/db-ready.ts).
+# this file up automatically.
 #
-# build:netlify first runs scripts/patch_netlify_cache.mjs, which replaces the
-# Next runtime's Blobs-backed cache handler with a no-op one: the original
-# throws MissingBlobsEnvironmentError on sites without the injected Blobs
-# context and 500s every API route. MIZIGO uses no ISR/fetch caching, so the
-# no-op handler is functionally identical and platform-proof.
+# Two modes (see docs/NETLIFY_PRODUCTION.md):
+#   DATABASE_URL unset        → sandbox: per-instance /tmp SQLite, self-bootstraps
+#                               schema + demo seed on cold start (single-user demo)
+#   DATABASE_URL=postgresql://→ production: hosted Postgres (Neon/Supabase);
+#                               db-prepare pushes the schema at build time
+#
+# build:netlify runs scripts/patch_netlify_cache.mjs before next build, which
+# replaces the Next runtime's Blobs-backed cache handler with a no-op one: the
+# original throws MissingBlobsEnvironmentError on sites without the injected
+# Blobs context and 500s every API route. MIZIGO uses no ISR/fetch caching, so
+# the no-op handler is functionally identical and platform-proof.
 
 [build]
   command = "npm run build:netlify"

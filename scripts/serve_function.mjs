@@ -17,7 +17,11 @@ const PORT = Number(process.argv[2] || 3100);
 
 process.env.NETLIFY = "true";
 process.env.NODE_ENV = "production";
-delete process.env.DATABASE_URL;
+// Emulate the worst-case sandbox runtime (no repo .env) — but keep a hosted
+// DATABASE_URL when explicitly provided, to test the production Postgres path.
+if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
+  delete process.env.DATABASE_URL;
+}
 
 if (!process.env.HARNESS_KEEP_DB) {
   for (const f of ["/tmp/mizigo.db", "/tmp/mizigo.db-journal"]) {

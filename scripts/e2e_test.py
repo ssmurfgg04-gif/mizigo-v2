@@ -17,25 +17,33 @@ BASE = os.environ.get("MIZIGO_BASE", "http://localhost:3000")
 
 # ─── plumbing: cookie-aware calls ────────────────────────────────────────────
 
-def call(path, method="GET", body=None, sess=None, raw_cookie=None):
-    """ sess = cookie string obtained from login(); raw_cookie overrides (forgery tests). """
+def call(path, method="GET", body=None, sess=None, raw_cookie=None, retry_on_429=True):
+    """ sess = cookie string obtained from login(); raw_cookie overrides (forgery tests).
+    retry_on_429: transparently wait out a rate-limit window once — the limiter
+    is per-instance/in-memory, and full-suite re-runs against the same warm
+    instance (or persistent DB) otherwise trip leftover buckets (by design). """
     headers = {"Content-Type": "application/json"}
     if raw_cookie is not None:
         headers["Cookie"] = raw_cookie
     elif sess:
         headers["Cookie"] = sess
-    req = urllib.request.Request(BASE + path, method=method,
-        data=json.dumps(body).encode() if body is not None else None,
-        headers=headers)
-    try:
-        with urllib.request.urlopen(req) as r:
-            setc = r.headers.get("Set-Cookie") or ""
-            return {"_setCookie": setc, **json.loads(r.read())}
-    except urllib.error.HTTPError as e:
+    for attempt in (1, 2):
+        req = urllib.request.Request(BASE + path, method=method,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers=headers)
         try:
-            return {"_status": e.code, "_setCookie": e.headers.get("Set-Cookie") or "", **json.loads(e.read() or b"{}")}
-        except Exception:
-            return {"_status": e.code}
+            with urllib.request.urlopen(req) as r:
+                setc = r.headers.get("Set-Cookie") or ""
+                return {"_setCookie": setc, **json.loads(r.read())}
+        except urllib.error.HTTPError as e:
+            try:
+                out = {"_status": e.code, "_setCookie": e.headers.get("Set-Cookie") or "", **json.loads(e.read() or b"{}")}
+            except Exception:
+                out = {"_status": e.code}
+            if e.code == 429 and retry_on_429 and attempt == 1:
+                time.sleep(65)  # wait out the 60s sliding window, then retry once
+                continue
+            return out
 
 fails = []
 def check(name, cond, extra=""):
@@ -551,6 +559,14 @@ check("concurrent claim → exactly one winner", len(winners) == 1, f"{len(winne
 s8 = call("/api/shipments", "POST", {"draftId": "test-race-cancel",
     "pickup": {"name": "Toi Market", "lat": -1.297, "lng": 36.779}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
     "cargo": {"items": [{"name": "Rug", "qty": 1, "weightKg": 15}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"}, sess=CUST)
+if "shipment" not in s8:
+    print(f"    19b create FAILED → status={s8.get('_status')} body={json.dumps(s8)[:300]}")
+    if s8.get("_status") == 429:
+        print("    (rate limiter tripped — waiting 65s and retrying once)")
+        time.sleep(65)
+        s8 = call("/api/shipments", "POST", {"draftId": "test-race-cancel-r2",
+            "pickup": {"name": "Toi Market", "lat": -1.297, "lng": 36.779}, "dropoff": {"name": "Yaya Centre", "lat": -1.2921, "lng": 36.7859},
+            "cargo": {"items": [{"name": "Rug", "qty": 1, "weightKg": 15}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"}, sess=CUST)
 sid8 = s8["shipment"]["id"]
 races = []
 def cancel():
@@ -591,10 +607,11 @@ r = call(f"/api/shipments/{sid}/action", "POST", {"action": "not-an-action"}, se
 check("unknown action → 400", r.get("_status") == 400)
 
 # 19e. rapid-fire quotes stay under the rate limit, then the limiter trips
+# (retry_on_429=False: this test deliberately observes the limiter working)
 flood_ok, flood_limited = 0, 0
 for i in range(48):
     r = call("/api/quote", "POST", {"pickup": {"name": "A", "lat": -1.28, "lng": 36.8}, "dropoff": {"name": "B", "lat": -1.29, "lng": 36.81},
-        "cargo": {"items": [], "load": "SMALL", "helpers": 0}})
+        "cargo": {"items": [], "load": "SMALL", "helpers": 0}}, retry_on_429=False)
     if r.get("_status") == 429: flood_limited += 1
     elif "quotes" in r: flood_ok += 1
 check("rate limiter trips under flood (429 seen)", flood_limited >= 1, f"{flood_ok} ok, {flood_limited} limited")

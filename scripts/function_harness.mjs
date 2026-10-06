@@ -13,8 +13,11 @@
 process.env.NETLIFY = "true";
 process.env.NODE_ENV = "production";
 // Real Netlify has no repo .env → DATABASE_URL starts undefined; db.ts shim
-// must rewrite it to file:/tmp/mizigo.db. Emulate that exactly.
-delete process.env.DATABASE_URL;
+// must rewrite it to file:/tmp/mizigo.db. Emulate that exactly — unless a
+// hosted Postgres URL was exported, which tests the production path.
+if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "")) {
+  delete process.env.DATABASE_URL;
+}
 
 if (!process.env.HARNESS_KEEP_DB) {
   const fs = await import("node:fs");

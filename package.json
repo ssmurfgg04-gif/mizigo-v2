@@ -5,14 +5,15 @@
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "build:netlify": "node scripts/patch_netlify_cache.mjs && next build",
+    "build:netlify": "node scripts/db-prepare.mjs && node scripts/patch_netlify_cache.mjs && next build",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
-    "postinstall": "prisma generate",
+    "postinstall": "node scripts/db-prepare.mjs",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "db:prepare": "node scripts/db-prepare.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",
