@@ -69,7 +69,7 @@ model Place {
   popular   Boolean @default(false)
 }
 
-// ─── People ───────────────────────────────────────────────────────────────
+// ─── People ────────────────────────────────────────────────────────────
 
 model User {
   id           String   @id @default(cuid())
@@ -112,6 +112,9 @@ model Driver {
   vehicles       Vehicle[]
   shipments      Shipment[] @relation("DriverShipments")
   quotes         Quote[]
+
+  @@index([lat, lng])
+  @@index([status, verification])
 }
 
 model Vehicle {
@@ -137,7 +140,7 @@ model Vehicle {
   shipments    Shipment[]
 }
 
-// ─── Shipments ────────────────────────────────────────────────────────────
+// ─── Shipments ──────────────────────────────────────────────────────────
 
 model Shipment {
   id          String   @id @default(cuid())
@@ -234,6 +237,7 @@ model Shipment {
   messages ChatMessage[]
 
   @@index([status])
+  @@index([status, createdAt])
   @@index([customerId])
   @@index([driverId])
 }
@@ -260,6 +264,7 @@ model ShipmentEvent {
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId])
+  @@index([shipmentId, createdAt])
 }
 
 model Quote {
@@ -275,6 +280,9 @@ model Quote {
   createdAt  DateTime @default(now())
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   driver     Driver?  @relation(fields: [driverId], references: [id])
+
+  @@index([shipmentId])
+  @@index([driverId])
 }
 
 model PaymentEvent {
@@ -287,6 +295,8 @@ model PaymentEvent {
   mpesaReceipt   String?
   createdAt      DateTime @default(now())
   shipment       Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
 }
 
 model Payout {
@@ -330,6 +340,8 @@ model Notification {
   shipmentCode String?
   read    Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // customer ↔ driver quick-message chat (numbers stay masked)
@@ -342,6 +354,7 @@ model ChatMessage {
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId])
+  @@index([shipmentId, createdAt])
 }
 
 // admin-configurable promotions (plan §75)
@@ -409,3 +422,4 @@ model ReturnLoad {
   bookedShipmentId String?
   createdAt        DateTime  @default(now())
 }
+

@@ -1,220 +1,176 @@
-"use client";
-// MIZIGO domain UI kit — status language, buttons, sheets, empty/error/skeleton states.
+// POST /api/shipments — create a PRICED shipment (idempotent by draftId).
+// Supports promo codes, scheduled bookings and QUOTE pricing mode.
+// GET /api/shipments — the caller's own trip history (session-scoped).
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { ensureDB } from "@/lib/db-ready";
+import { getCached } from "@/lib/query-cache";
+import { newShipmentCode, newShareToken, getShipmentFull, shipmentDTO } from "@/lib/shipments";
+import { priceFor, estimateWeight, recommendCategory, isNightHour } from "@/lib/pricing";
+import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
+import { requireSession, isResponse, rateLimit, capStr, clampInt, validCoord, sanitizeItems, sanitizeStops } from "@/lib/security";
 
-import { ReactNode, ButtonHTMLAttributes } from "react";
-import { CheckCircle2, Circle, Clock, Loader2, TriangleAlert, XCircle, ChevronRight, SearchX } from "lucide-react";
-import { C } from "@/lib/palette";
+export const dynamic = "force-dynamic";
 
-export function cx(...parts: (string | false | null | undefined)[]) {
-  return parts.filter(Boolean).join(" ");
+export async function POST(req: Request) {
+  await ensureDB();
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const limited = rateLimit(req, "shipments:create", 15, 60_000);
+  if (limited) return limited;
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+
+  const { draftId, pickup, dropoff, cargo = {}, categoryKey, paymentMethod, scheduledAt, promoCode, pricingMode } = body;
+  // the booking belongs to the signed-in customer (admins may book on behalf)
+  const customerId = session.role === "ADMIN" && body.customerId ? String(body.customerId) : session.uid;
+
+  // coordinate sanity: pickup/dropoff/stops must be finite + inside the service region
+  const pickupC = validCoord(pickup?.lat, pickup?.lng);
+  const dropoffC = validCoord(dropoff?.lat, dropoff?.lng);
+  if (!draftId || !pickupC || !dropoffC || !categoryKey) {
+    return NextResponse.json({ error: "Missing or invalid booking details." }, { status: 400 });
+  }
+  const stops = sanitizeStops(body.stops);
+  const items = sanitizeItems(cargo.items);
+
+  // scheduled bookings: admin controls how far ahead is allowed (plan §34)
+  if (scheduledAt) {
+    const when = new Date(scheduledAt);
+    if (!Number.isNaN(when.getTime())) {
+      const advanceDays = Number((await db.platformSetting.findUnique({ where: { key: "advanceBookingDays" } }))?.value ?? 14);
+      const maxAt = new Date(Date.now() + advanceDays * 86400_000);
+      if (when < new Date(Date.now() - 3600_000) || when > maxAt) {
+        return NextResponse.json({ error: `Scheduled deliveries must be within the next ${advanceDays} days.` }, { status: 400 });
+      }
+    }
+  }
+
+  // idempotency: same draft returns the same shipment
+  const existing = await db.shipment.findFirst({ where: { paymentRef: `DRAFT:${draftId}`, status: { in: ["PRICED", "PAYMENT_PENDING", "PAYMENT_CONFIRMED", "MATCHING"] } } });
+  if (existing) {
+    const full = await getShipmentFull({ id: existing.id });
+    return NextResponse.json({ ok: true, shipment: shipmentDTO(full!) });
+  }
+
+  const [zone, category] = await Promise.all([
+    db.pricingZone.findFirst({ where: { key: "nairobi" } }),
+    db.vehicleCategory.findUnique({ where: { key: categoryKey } }),
+  ]);
+  if (!zone || !category) return NextResponse.json({ error: "Vehicle category unavailable" }, { status: 400 });
+
+  const waypoints = [pickupC, ...stops, dropoffC];
+  let distanceKm = 0;
+  for (let i = 0; i < waypoints.length - 1; i++) distanceKm += routeDistanceKm(waypoints[i], waypoints[i + 1]);
+  distanceKm = Math.round(distanceKm * 10) / 10;
+  const durationMin = routeDurationMin(distanceKm);
+  const weightKg = estimateWeight(items, cargo.load ?? "MEDIUM");
+  const helpers = clampInt(cargo.helpers, 0, 6, 0);
+  const extraStops = Math.max(0, waypoints.length - 2);
+  // v1 pricing factors: night surcharge + planned-delivery discount
+  const scheduledDate = scheduledAt ? new Date(scheduledAt) : null;
+  const night = isNightHour(scheduledDate ?? new Date());
+  let fare = priceFor(category, zone, { distanceKm, durationMin, helpers, extraStops, night, scheduled: !!scheduledDate });
+
+  // ── promo validation + server-side discount (plan §75) ──
+  let discount = 0;
+  let appliedPromo: string | null = null;
+  let promoError: string | null = null;
+  const rawPromo = String(promoCode ?? "").trim().toUpperCase();
+  if (rawPromo) {
+    const promo = await db.promoCode.findUnique({ where: { code: rawPromo } });
+    const customer = await db.user.findUnique({ where: { id: customerId } });
+    const firstTrip = !(await db.shipment.count({ where: { customerId, status: { in: ["COMPLETED", "IN_TRANSIT", "ARRIVING", "DELIVERED", "POD_CONFIRMED"] } } }));
+    if (!promo || !promo.active) promoError = "That promo code isn't valid.";
+    else if (promo.expiresAt && promo.expiresAt < new Date()) promoError = "That promo code has expired.";
+    else if (promo.minFare > fare.total) promoError = `Promo needs a minimum fare of KES ${promo.minFare.toLocaleString()}.`;
+    else if (promo.firstBookingOnly && !firstTrip) promoError = "That promo is only for first deliveries.";
+    else if (promo.businessOnly && customer?.accountType !== "BUSINESS") promoError = "That promo is for business accounts.";
+    else {
+      discount = promo.kind === "PERCENT" ? Math.round((fare.total * promo.value) / 100) : promo.value;
+      discount = Math.min(discount, fare.total);
+      appliedPromo = promo.code;
+    }
+  }
+  const finalTotal = Math.max(0, fare.total - discount);
+  const finalEarnings = Math.max(0, finalTotal - Math.round(finalTotal * (zone.commissionRate ?? 0.15)));
+  const commission = finalTotal - finalEarnings;
+  if (promoError) return NextResponse.json({ error: promoError }, { status: 400 });
+  fare = { ...fare, total: finalTotal, driverEarnings: finalEarnings, commission };
+
+  const code = await newShipmentCode();
+  const token = await newShareToken();
+  const deliveryCode = String(1000 + Math.floor(Math.random() * 9000));
+
+  const s = await db.shipment.create({
+    data: {
+      code, shareToken: token.hash, deliveryCode, customerId, status: "PRICED", stateEnteredAt: new Date(),
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+      pickupName: capStr(pickup.name, 90), pickupArea: capStr(pickup.area ?? "", 60), pickupLat: pickupC.lat, pickupLng: pickupC.lng,
+      pickupNote: capStr(pickup.note, 200) || null, pickupContact: capStr(pickup.contact, 60) || null, pickupPhone: capStr(pickup.phone, 20) || null,
+      dropoffName: capStr(dropoff.name, 90), dropoffArea: capStr(dropoff.area ?? "", 60), dropoffLat: dropoffC.lat, dropoffLng: dropoffC.lng,
+      dropoffNote: capStr(dropoff.note, 200) || null, dropoffContact: capStr(dropoff.contact, 60) || null, dropoffPhone: capStr(dropoff.phone, 20) || null,
+      stops: JSON.stringify(stops),
+      distanceKm, durationMin,
+      cargoCategory: cargo.category ?? "other", cargoLoad: cargo.load ?? "MEDIUM",
+      helpers, specialHandling: JSON.stringify(Array.isArray(cargo.special) ? cargo.special.slice(0, 8).map((s: unknown) => capStr(s, 24)) : []), notes: capStr(cargo.notes, 400) || null,
+      categoryId: category.id,
+      pricingMode: pricingMode === "QUOTE" ? "QUOTE" : "INSTANT",
+      promoCode: appliedPromo, fareDiscount: discount,
+      fareBase: fare.base, fareDistance: fare.distance, fareDuration: fare.duration,
+      fareLoading: fare.loading, fareStops: fare.stops, fareNight: fare.night, fareSchedule: fare.schedule, farePlatform: fare.platform,
+      fareTotal: fare.total, driverEarnings: fare.driverEarnings, commission: fare.commission,
+      paymentMethod: paymentMethod ?? "MPESA", paymentStatus: "PENDING",
+      paymentRef: `DRAFT:${draftId}`,
+      items: { create: items.map((i) => ({ name: i.name, qty: i.qty, weightKg: i.weightKg })) },
+      events: { create: [{ type: "BOOKING_CREATED", label: "Booking created · fare locked", actor: "CUSTOMER", lat: pickupC.lat, lng: pickupC.lng }] },
+    },
+  });
+
+  const full = await getShipmentFull({ id: s.id });
+  return NextResponse.json({ ok: true, shipment: shipmentDTO(full!) });
 }
 
-// ── Status language: icon + text + color, never color alone ──
-type Tone = "success" | "active" | "pending" | "warn" | "danger" | "info" | "neutral";
+export async function GET(req: Request) {
+  await ensureDB();
+  const session = requireSession(req);
+  if (isResponse(session)) return session;
+  const url = new URL(req.url);
+  const page = Math.max(1, Number(url.searchParams.get("page") ?? 1));
+  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? 20)));
+  const skip = (page - 1) * limit;
+  const where =
+    session.role === "ADMIN" ? undefined :
+    session.role === "DRIVER" ? { driverId: session.did! } :
+    { customerId: session.uid };
 
-const TONES: Record<Tone, { wrap: string; icon: ReactNode }> = {
-  success: { wrap: "bg-[var(--success-soft)] text-[var(--success)]", icon: <CheckCircle2 size={13} strokeWidth={2.4} /> },
-  active: { wrap: "bg-[var(--brand-soft)] text-[var(--brand-deep)]", icon: <Loader2 size={13} strokeWidth={2.4} className="animate-spin" /> },
-  pending: { wrap: "bg-[var(--surface-2)] text-[var(--ink-3)]", icon: <Circle size={13} strokeWidth={2.4} /> },
-  warn: { wrap: "bg-[var(--warn-soft)] text-[var(--warn)]", icon: <Clock size={13} strokeWidth={2.4} /> },
-  danger: { wrap: "bg-[var(--danger-soft)] text-[var(--danger)]", icon: <XCircle size={13} strokeWidth={2.4} /> },
-  info: { wrap: "bg-[var(--surface-2)] text-[var(--info)]", icon: <TriangleAlert size={13} strokeWidth={2.4} /> },
-  neutral: { wrap: "bg-[var(--surface-2)] text-[var(--ink-2)]", icon: <Circle size={13} strokeWidth={2.4} /> },
-};
+  const cacheKey = `shipments:${session.role}:${session.uid}:${session.did ?? "-"}:${page}:${limit}`;
+  const rows = await getCached(cacheKey, 2000, async () => {
+    const [items, total] = await Promise.all([
+      db.shipment.findMany({
+        where,
+        include: {
+          category: true,
+          vehicle: true,
+          driver: { include: { user: true } },
+          customer: true,
+          items: true,
+          events: { orderBy: { createdAt: "asc" }, take: 6 },
+          ratings: true,
+          quotes: { orderBy: { amount: "asc" }, take: 3, include: { driver: { include: { user: true, vehicles: true } } } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      db.shipment.count({ where })
+    ]);
 
-export function StatusBadge({ tone, children, className = "" }: { tone: Tone; children: ReactNode; className?: string }) {
-  const t = TONES[tone];
-  return (
-    <span className={cx("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold", t.wrap, className)}>
-      {t.icon}
-      {children}
-    </span>
-  );
+    return { items, total };
+  });
+
+  const res = NextResponse.json({ shipments: rows.items.map(shipmentDTO), page, limit, total: rows.total });
+  res.headers.set("Cache-Control", "no-store");
+  return res;
 }
 
-export function toneForStatus(status: string): Tone {
-  if (["COMPLETED", "DELIVERED", "POD_CONFIRMED", "PAYMENT_CONFIRMED"].includes(status)) return "success";
-  if (["MATCHING", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "DRIVER_ARRIVED", "LOADING", "LOADED", "IN_TRANSIT", "ARRIVING"].includes(status)) return "active";
-  if (["CANCELLED"].includes(status)) return "danger";
-  if (["DISPUTED", "NO_DRIVERS"].includes(status)) return "warn";
-  if (["PAYMENT_PENDING", "PRICED", "DRAFT"].includes(status)) return "pending";
-  return "neutral";
-}
-
-// ── Buttons ──
-interface BtnProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "ink" | "brand" | "outline" | "ghost" | "danger";
-  loading?: boolean;
-}
-
-export function Button({ variant = "ink", loading, className = "", children, disabled, ...rest }: BtnProps) {
-  const styles: Record<string, string> = {
-    ink: "bg-[var(--ink)] text-white hover:bg-[#2A2C33] active:translate-y-px",
-    brand: "bg-[var(--brand-deep)] text-white hover:bg-[var(--brand)] active:translate-y-px",
-    outline: "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:bg-[var(--surface-2)] active:translate-y-px",
-    ghost: "text-[var(--ink-2)] hover:bg-[var(--surface-2)] active:translate-y-px",
-    danger: "border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger-soft)] active:translate-y-px",
-  };
-  return (
-    <button
-      className={cx(
-        "inline-flex h-14 items-center justify-center gap-2 rounded-[10px] px-6 text-[15px] font-bold tracking-tight transition-all duration-150 disabled:pointer-events-none disabled:opacity-45",
-        styles[variant], className
-      )}
-      disabled={disabled || loading}
-      {...rest}
-    >
-      {loading && <Loader2 size={17} className="animate-spin" />}
-      {children}
-    </button>
-  );
-}
-
-// ── Brand mark ──
-export function Logo({ size = "md", wordmark = true, tone = "ink" }: { size?: "sm" | "md" | "lg" | "xl"; wordmark?: boolean; tone?: "ink" | "light" }) {
-  const dims = { sm: 20, md: 26, lg: 34, xl: 46 }[size];
-  const word = { sm: "text-[15px]", md: "text-[19px]", lg: "text-[25px]", xl: "text-[34px]" }[size];
-  const c = tone === "ink" ? "text-[var(--ink)]" : "text-white";
-  return (
-    <span className={cx("inline-flex items-center gap-2 font-extrabold tracking-[-0.03em]", c)}>
-      {/* route-M: an M drawn as a delivery route — origin leg, two arcs, and an
-          orange waypoint dot where the cargo lands. Reads as M + map pin. */}
-      <svg width={dims} height={dims} viewBox="0 0 32 32" aria-hidden="true">
-        <rect x="1" y="1" width="30" height="30" rx="9" fill={tone === "ink" ? C.ink : C.white} />
-        <g
-          stroke={tone === "ink" ? C.white : C.ink}
-          strokeWidth="2.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        >
-          <path d="M8.5 22.7 L8.5 9.3 L13.3 16" />
-          <path d="M18.7 16 L23.5 9.3 L23.5 22.7" />
-        </g>
-        <circle cx="16" cy="18.2" r="2.9" fill={C.brand} />
-      </svg>
-      {wordmark && <span className={word}>MIZIGO</span>}
-    </span>
-  );
-}
-
-// ── Sections ──
-export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between">
-      <h2 className="text-[17px] font-extrabold tracking-tight text-[var(--ink)]">{children}</h2>
-      {action}
-    </div>
-  );
-}
-
-export function Row({ label, value, strong }: { label: ReactNode; value: ReactNode; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className={cx("text-[13.5px]", strong ? "font-bold text-[var(--ink)]" : "font-medium text-[var(--ink-2)]")}>{label}</span>
-      <span className={cx("text-[13.5px] tnum", strong ? "font-extrabold text-[var(--ink)]" : "font-semibold text-[var(--ink)]")}>{value}</span>
-    </div>
-  );
-}
-
-// ── States ──
-export function EmptyState({ icon, title, body, action }: { icon?: ReactNode; title: string; body: string; action?: ReactNode }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-8 py-14 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--surface-2)] text-[var(--ink-3)]">
-        {icon ?? <SearchX size={22} />}
-      </div>
-      <div>
-        <p className="text-[16px] font-bold text-[var(--ink)]">{title}</p>
-        <p className="mt-1 max-w-[260px] text-[13px] font-medium leading-relaxed text-[var(--ink-2)]">{body}</p>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-export function ErrorState({ title, body, actions }: { title: string; body: string; actions?: ReactNode }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 px-8 py-12 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--danger-soft)] text-[var(--danger)]">
-        <TriangleAlert size={22} />
-      </div>
-      <div>
-        <p className="text-[16px] font-bold text-[var(--ink)]">{title}</p>
-        <p className="mt-1 max-w-[280px] text-[13px] font-medium leading-relaxed text-[var(--ink-2)]">{body}</p>
-      </div>
-      {actions && <div className="flex flex-col gap-2 self-stretch">{actions}</div>}
-    </div>
-  );
-}
-
-// Skeletons match final layouts
-export function VehicleSkeleton() {
-  return (
-    <div className="flex items-center gap-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4">
-      <div className="h-14 w-14 animate-pulse rounded-xl bg-[var(--surface-2)]" />
-      <div className="flex-1 space-y-2.5">
-        <div className="h-3.5 w-1/3 animate-pulse rounded bg-[var(--surface-2)]" />
-        <div className="h-3 w-1/2 animate-pulse rounded bg-[var(--surface-2)]" />
-      </div>
-      <div className="h-6 w-20 animate-pulse rounded bg-[var(--surface-2)]" />
-    </div>
-  );
-}
-
-export function ListSkeleton({ rows = 4 }: { rows?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4" style={{ opacity: 1 - i * 0.15 }}>
-          <div className="h-11 w-11 animate-pulse rounded-full bg-[var(--surface-2)]" />
-          <div className="flex-1 space-y-2">
-            <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--surface-2)]" />
-            <div className="h-2.5 w-1/3 animate-pulse rounded bg-[var(--surface-2)]" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function ChevronLink({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="inline-flex items-center gap-0.5 text-[13px] font-bold text-[var(--brand-deep)]">
-      {children}
-      <ChevronRight size={14} strokeWidth={2.6} />
-    </button>
-  );
-}
-
-export function Stars({ value, size = 14, className = "" }: { value: number; size?: number; className?: string }) {
-  return (
-    <span className={cx("inline-flex items-center gap-0.5", className)} aria-label={`${value} out of 5 stars`}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <svg key={i} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 2.6 L14.9 8.6 L21.5 9.5 L16.7 14.1 L17.9 20.7 L12 17.6 L6.1 20.7 L7.3 14.1 L2.5 9.5 L9.1 8.6 Z"
-            fill={i <= Math.round(value) ? C.brand : C.line}
-          />
-        </svg>
-      ))}
-    </span>
-  );
-}
-
-export function AvatarInitials({ initials, size = 46, tone = "ink" }: { initials: string; size?: number; tone?: "ink" | "brand" | "surface" }) {
-  const styles = {
-    ink: "bg-[var(--ink)] text-white",
-    brand: "bg-[var(--brand-deep)] text-white",
-    surface: "bg-[var(--surface-2)] text-[var(--ink)]",
-  }[tone];
-  return (
-    <span
-      className={cx("inline-flex shrink-0 items-center justify-center rounded-full font-extrabold tracking-tight", styles)}
-      style={{ width: size, height: size, fontSize: size * 0.36 }}
-      aria-hidden="true"
-    >
-      {initials}
-    </span>
-  );
-}
