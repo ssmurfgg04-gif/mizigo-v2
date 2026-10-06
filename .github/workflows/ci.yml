@@ -130,17 +130,20 @@ jobs:
             cp -r node_modules/@prisma/client .next/standalone/node_modules/@prisma/
           fi
 
+      # Zip the bundle ourselves: artifact uploads reject ':' in filenames
+      # (turbopack chunk names like "[externals]_node:http_..._.js"), and
+      # upload-artifact v4 drops hidden dirs (.next!) unless told otherwise.
+      # A single zip sidesteps both problems and uploads faster.
+      - name: Bundle standalone (zip)
+        run: cd .next && zip -qr standalone-bundle.zip standalone
+
       - name: Upload standalone bundle
         uses: actions/upload-artifact@v4
         with:
           name: standalone-app
-          path: .next/standalone
+          path: .next/standalone-bundle.zip
           retention-days: 1
           if-no-files-found: error
-          # v4 excludes hidden files/dirs by default — without this the nested
-          # .next build directory is dropped and the standalone server can't
-          # find its production build
-          include-hidden-files: true
 
   # ───────────────────────────────────────────────────────────────────────────
   # e2e against the standalone production server, sandbox mode (SQLite in /tmp,
@@ -155,15 +158,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download standalone bundle
+      - name: Download + unzip standalone bundle
         uses: actions/download-artifact@v4
         with:
           name: standalone-app
-          path: standalone
+          path: bundle
 
       - name: Boot the standalone server (fresh /tmp SQLite)
         run: |
           rm -f /tmp/ci.db
+          unzip -q bundle/standalone-bundle.zip
           cd standalone
           PORT=3999 HOSTNAME=127.0.0.1 \
             DATABASE_URL=file:/tmp/ci.db \
