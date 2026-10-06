@@ -244,3 +244,22 @@ Stage Summary:
 - Root cause of the production outage was never SQLite/Prisma (engines bundle correctly) — it was the Next runtime's Blobs-backed cache handler crashing on sites without injected Blobs context, 500-ing every dynamic route
 - The fix is platform-proof (no dependency on Netlify Blobs at all), self-verifying, and keeps upstream upgradeability
 - True production simulation now exists: e2e can run against the exact artifact Netlify ships
+
+---
+Task ID: 8
+Agent: Super Z (main agent)
+Task: Post-outage hardening: diagnose residual live flakiness, implement + verify production Postgres mode, final live e2e.
+
+Work Log:
+- Full e2e against the live site: all auth/security/stress checks PASS but the suite crashed at different points per run — a GET for a just-created resource intermittently returned 404
+- Measured instance affinity live: sequential GETs 20/20 stay on the data-owning instance; 5-way parallel bursts → ~70% of requests land on foreign instances (404); after churn, sequential traffic remained stuck on a cold instance (0/10) — confirmed the platform limit: Netlify functions scale horizontally and per-instance /tmp SQLite cannot serve concurrent users
+- Installed embedded-postgres (real PostgreSQL 18, non-root) locally on :5433 to verify the production path end-to-end
+- Implemented dual-mode data layer: prisma/schema.postgres.prisma (portable twin), scripts/db-prepare.mjs (provider-aware generate + idempotent db push in postinstall + build:netlify), db-ready.ts postgres branch (information_schema check + clear error), db.ts already preserves hosted URLs
+- Verified on real PG against the real Netlify function bundle: schema push + seed + FULL e2e ALL PASS; back-to-back double suite runs on the same persistent DB ALL PASS (429-aware retries in the e2e harness; flood tests opt out); sandbox regression rebuild + full suite ALL PASS
+- Removed temporary /api/diag; eslint ignores .netlify build artifacts + the intentional CJS patch file; tsc + eslint clean
+- Wrote docs/NETLIFY_PRODUCTION.md: mode table, measured concurrency data, 5-minute Neon/Supabase upgrade, connection-pool hygiene, MIZIGO_SESSION_SECRET guidance
+
+Stage Summary:
+- mizigo.netlify.app outage fully resolved (Blobs cache handler no-op'd; DATABASE_URL runtime shim platform-independent)
+- Production multi-user is one env var away (DATABASE_URL=postgresql://…), fully implemented and verified against real Postgres
+- Sandbox mode remains the zero-config single-user demo; both modes pass the same 150+ check e2e suite against the real deployable bundle
