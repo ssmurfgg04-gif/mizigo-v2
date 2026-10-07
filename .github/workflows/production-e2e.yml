@@ -49,8 +49,9 @@ jobs:
           NODE_ENV: production
         run: |
           nohup node node_modules/next/dist/bin/next start -p 3100 > server.log 2>&1 &
+          code=000
           for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/api/bootstrap --max-time 120)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 http://localhost:3100/api/bootstrap || echo 000)
             [ "$code" = "200" ] && break
             sleep 2
           done
