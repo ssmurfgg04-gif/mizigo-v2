@@ -497,3 +497,19 @@ Stage Summary:
 - mizigo.netlify.app now carries: fee-transparent cancellations, a real safety centre (customer + driver + ops queue), blocking POD codes, tips, take-rate transparency, calibrated Nairobi pricing with boda, and the Daraja-required legal pages
 - Production Postgres ready: isolated mizigo schema on Supabase (plugpay untouched), secrets + 3 workflows live, production path proven 14/14 against the cloud DB; the single remaining manual step is pasting DATABASE_URL into Netlify (runbook in docs/NETLIFY_PRODUCTION.md)
 - Everything pushed through 5165ba2; CI green on the batch; Netlify autodeploy + workflow results verified below
+
+---
+Task ID: 14 (final — CI/workflow verification record)
+Agent: Super Z (main agent)
+
+Work Log:
+- CI green on every batch commit (quality tsc/eslint/copy-lint, unit 60/60, build, e2e-sqlite, e2e-postgres)
+- Flaky Turbopack next/font/google build failures (CI build on 83ff8a8, production-e2e build on f05cbec) eliminated permanently: fonts self-hosted (Manrope + JetBrains Mono variable woff2, latin subset) via next/font/local — builds no longer touch fonts.googleapis.com
+- production-migrate workflow green (bun install + prisma db push against Supabase from CI)
+- production-e2e workflow GREEN on 7980a73 after three iterations: (1) bun install instead of npm ci, (2) sslmode stripped from SUPA_URL before pg Client (newer pg maps sslmode=require to verify-full → SELF_SIGNED_CERT_IN_CHAIN on runners), (3) curl || echo 000 in the boot wait (bash -e killed the retry loop on first refused connection), (4) DEMO_AUTO_PROGRESS=true on the booted server (sandbox quote/driver sim defaults off in Postgres mode). Final result: full e2e suite + demo walkthrough + 14-check focused probe ALL PASS against the real Supabase cloud DB, with schema reset before and after (production left clean, plugpay's public schema untouched throughout).
+- Netlify finding: the live site is stalled on 10e06f8 (yesterday's build) — it never picked up the last session's final commits nor today's seven pushes. No repo webhooks exist (Netlify-GitHub App side), so this needs a Netlify dashboard check (Deploys tab: failed build / exhausted minutes / disconnected repo). Everything on the GitHub side is green; the live-smoke workflow (every 30 min) will keep flagging the stale deploy until Netlify is fixed — and it will also fail on the missing legal pages until the new batch deploys.
+
+Stage Summary:
+- GitHub side fully green: CI + production-migrate + production-e2e on 7980a73
+- Production DB path proven end-to-end against the real cloud database
+- Two user actions remain: (1) fix/reconnect the Netlify deploy pipeline, (2) paste DATABASE_URL (from the SUPABASE_DATABASE_URL GitHub secret) into Netlify env vars to switch the site from sandbox to multi-user production
