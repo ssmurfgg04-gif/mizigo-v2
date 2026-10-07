@@ -6,7 +6,19 @@ import { Client } from "pg";
 
 const url = process.env.SUPA_URL;
 if (!url) { console.error("SUPA_URL not set"); process.exit(1); }
-const c = new Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+// strip sslmode from the URL — newer pg maps sslmode=require to verify-full,
+// overriding the explicit ssl option below (fails behind proxies with
+// self-signed chains, e.g. GitHub runners). The explicit ssl object wins here.
+const cleanUrl = (() => {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("sslmode");
+    return u.href;
+  } catch {
+    return url;
+  }
+})();
+const c = new Client({ connectionString: cleanUrl, ssl: { rejectUnauthorized: false } });
 await c.connect();
 
 const t = await c.query(
