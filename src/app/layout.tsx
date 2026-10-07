@@ -1,19 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-const appSans = Manrope({
+// Self-hosted variable fonts (from Google Fonts, latin subset) — the build no
+// longer depends on reaching fonts.googleapis.com, which made CI builds flaky
+// (Turbopack next/font/google fetch failures on hosted runners). Same typefaces
+// (Manrope + JetBrains Mono), same weights, deterministic builds.
+const appSans = localFont({
+  src: "./fonts/Manrope-Variable.woff2",
   variable: "--font-app-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: "400 800",
   display: "swap",
 });
 
-const appMono = JetBrains_Mono({
+const appMono = localFont({
+  src: "./fonts/JetBrainsMono-Variable.woff2",
   variable: "--font-app-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: "400 600",
   display: "swap",
 });
 
