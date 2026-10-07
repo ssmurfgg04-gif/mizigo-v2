@@ -1,0 +1,81 @@
+# MIZIGO — full e2e against the production Supabase Postgres (on demand).
+#
+# The CI e2e jobs run against local/SQLite databases; this workflow runs the
+# COMPLETE suites (e2e_test.py + demo_walkthrough.py + supabase_check.py)
+# against the real hosted database using the SUPABASE_DATABASE_URL repo secret.
+# Use it to prove a release on the actual production DB before/after deploys.
+#
+# Order: reset schema → build with the Postgres URL (db-prepare pushes the
+# schema) → boot the standalone server → run all three suites → reset schema
+# (leaves production clean; the next cold start re-seeds demo data).
+
+name: production-e2e
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: production-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e-supabase:
+    name: full suites (Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Reset mizigo schema
+        env:
+          SUPA_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: node scripts/mizigo_schema_reset.mjs
+
+      - name: Build against production Postgres
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          NETLIFY: "1"
+        run: npm run build:netlify
+
+      - name: Boot standalone server
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          NETLIFY: "1"
+          NODE_ENV: production
+        run: |
+          nohup node node_modules/next/dist/bin/next start -p 3100 > server.log 2>&1 &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/api/bootstrap --max-time 120)
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          [ "$code" = "200" ] || { tail -30 server.log; exit 1; }
+          echo "server up on :3100"
+
+      - name: Focused production check
+        env:
+          MIZIGO_BASE: http://localhost:3100
+        run: python3 scripts/supabase_check.py
+
+      - name: Full e2e suite
+        env:
+          MIZIGO_BASE: http://localhost:3100
+        run: python3 scripts/e2e_test.py
+
+      - name: Demo walkthrough
+        env:
+          MIZIGO_BASE: http://localhost:3100
+        run: python3 scripts/demo_walkthrough.py
+
+      - name: Reset schema (leave production clean)
+        if: always()
+        env:
+          SUPA_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: node scripts/mizigo_schema_reset.mjs

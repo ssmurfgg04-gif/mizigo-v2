@@ -217,7 +217,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mizigo_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mizigo_test?schema=mizigo&sslmode=disable
     services:
       postgres:
         image: postgres:16

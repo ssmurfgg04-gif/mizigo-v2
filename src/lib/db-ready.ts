@@ -18,12 +18,23 @@ let ready: Promise<void> | null = null;
 
 async function ensureSchema(): Promise<void> {
   if (IS_POSTGRES) {
+    // mizigo's Postgres tables live in their own schema (default: mizigo) so
+    // the platform can share a Supabase project with other apps — the schema
+    // is mirrored in the URL's ?schema= param (see prisma/schema.postgres.prisma)
+    const schema = (() => {
+      try {
+        return new URL(process.env.DATABASE_URL!).searchParams.get("schema") ?? "public";
+      } catch {
+        return "public";
+      }
+    })();
     const rows = await db.$queryRawUnsafe<{ c: string }[]>(
-      "SELECT COUNT(*)::text AS c FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'Shipment'",
+      "SELECT COUNT(*)::text AS c FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'Shipment'",
+      schema,
     );
     if (!Number(rows[0]?.c)) {
       throw new Error(
-        "Production Postgres has no Mizigo schema. Set DATABASE_URL to the hosted Postgres and deploy again (scripts/db-prepare.mjs runs `prisma db push` during the build).",
+        `Production Postgres has no Mizigo schema (schema "${schema}"). Set DATABASE_URL to the hosted Postgres and deploy again (scripts/db-prepare.mjs runs \`prisma db push\` during the build).`,
       );
     }
     return;

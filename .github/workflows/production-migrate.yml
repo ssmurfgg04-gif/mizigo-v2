@@ -1,0 +1,54 @@
+# MIZIGO — production database migration (Supabase Postgres).
+#
+# Runs `prisma db push` against the SUPABASE_DATABASE_URL repo secret
+# (see docs/NETLIFY_PRODUCTION.md). Idempotent: safe to re-run; fails loudly
+# on destructive changes so nothing is dropped silently.
+#
+# Triggers:
+#   - manual (workflow_dispatch) — for schema changes + fresh environments
+#   - push to main that touches prisma/schema.postgres.prisma (auto-apply)
+#
+# The Netlify build also runs db-prepare (same push) on every deploy, so this
+# workflow is the explicit, auditable path for schema operations.
+
+name: production-migrate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "prisma/schema.postgres.prisma"
+
+concurrency:
+  group: production-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: prisma db push (Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Push schema to Supabase
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: npx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
+
+      - name: Verify Mizigo tables exist
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: |
+          npx prisma db execute --schema prisma/schema.postgres.prisma --stdin <<'SQL'
+          -- verification only: count mizigo core tables (read-only)
+          SELECT count(*) AS mizigo_tables FROM information_schema.tables WHERE table_schema = 'mizigo';
+          SQL

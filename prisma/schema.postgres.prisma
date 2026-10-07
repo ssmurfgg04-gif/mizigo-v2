@@ -12,6 +12,10 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // mizigo's tables live in their own Postgres schema, selected by the
+  // ?schema=mizigo param on DATABASE_URL — coexists safely with other apps
+  // sharing the same Supabase project (e.g. plugpay) and can be split to a
+  // dedicated project later with one db push against a new URL.
 }
 
 // ─── Marketplace configuration ────────────────────────────────────────────

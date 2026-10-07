@@ -3,7 +3,23 @@
 **Maintainer's response to the friends' performance + production-readiness reviews and the 30-day roadmap.**
 Sources: performance review (§-references below), 30-day roadmap, product/security/quality teardowns, Tier 1–3 recommendations.
 
-## Adopted today
+## Adopted today (batch 2 — Uber/Bolt teardown + Kenya market research, Oct 2026)
+
+- **Cancellation economics** (Uber §3.11): 2-min grace after driver-accept, KES 200 fee (admin setting) shown *before* confirming, auto-waiver on no-progress, fee withheld from refund — server-computed (`src/lib/cancellation.ts` + `cancel-quote` action)
+- **Safety centre** (Uber SOS / Bolt Emergency Assist, scoped to a runnable small-platform version): safety-alert/checkin/ack actions, SAFETY_ALERT events, admin notifications + red ops Safety queue with one-tap call + ack, customer SOS sheet, driver SOS, post-alert check-in
+- **Blocking POD handshake**: driver cannot close a delivery without the customer's 4-digit code (was advisory)
+- **Tips after a 4–5★ rating** (Bolt §3.12): 100% to driver, chips + custom, wired into driver earnings + receipts
+- **Driver offer card** (Uber §3.14): full money story (customer pays / commission / your earnings) + cargo spec + real 30 s countdown
+- **Take-rate transparency** (Bolt's angle): earnings screen spells out 15% + KES 100 vs Kenya's 18% cap
+- **Fare breakdown on every tier card + what-can-change-this-price disclosure** (Uber §3.3)
+- **Numeric-ETA copy discipline** (Uber writing guide): "arrives in ~X min" wherever a number exists
+- **Share-trip prompt at driver-accept + 48 h link expiry + live-location hidden 12 h after terminal** (Uber Trusted Contacts timing, Bolt one-ride links)
+- **Receipt upgrades**: POD block, tip + refund/cancellation-fee lines, shareable receipt text
+- **Pricing calibrated to Oct 2026 Nairobi benchmarks** (docs/research/KENYA_MARKET_PLAYBOOK.md): boda category added, pickup/canter/lorry minimums raised 40–60% to broker levels
+- **Legal pages /privacy /terms /refund** — DPA 2019, marketplace contract, refund matrix (hard M-Pesa Daraja requirement)
+- **Supabase production DB**: mizigo schema (isolated from plugpay in the same project), GitHub secrets + production-migrate / production-e2e / live-smoke workflows, 14-check production path probe — all green against the live cloud DB
+
+## Adopted (batch 1)
 
 - **DB indexes (both schemas) + cold-start DDL regen** — from perf review §10
 - **Matching `dispatchScore` + ETA confidence** — from the perf branch (clean cherry-pick)

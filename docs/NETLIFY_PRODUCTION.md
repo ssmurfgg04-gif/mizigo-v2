@@ -1,5 +1,25 @@
 # Mizigo on Netlify — sandbox mode vs production mode
 
+> **Current production setup (October 2026).** The hosted Postgres is a
+> **Supabase** project (session pooler), and mizigo's tables live in their own
+> **`mizigo` schema** — sharing the Supabase project safely with another app
+> (`plugpay`, public schema — untouched, verified by reset script output).
+> The full connection string is stored as the GitHub repo secret
+> **`SUPABASE_DATABASE_URL`** (never in the repo). To flip the live site from
+> sandbox to multi-user production: Netlify → Site configuration →
+> Environment variables → `DATABASE_URL` = that secret's value, then redeploy.
+> Everything else (schema push at build, seed on cold start) is automatic.
+>
+> Repo workflows that use the secret:
+> - **production-migrate** — `prisma db push` against Supabase (manual + on
+>   schema changes to `prisma/schema.postgres.prisma`)
+> - **production-e2e** — resets the schema, builds + runs the FULL test
+>   suites against the real production DB, then resets again (manual)
+> - **live-smoke** — probes mizigo.netlify.app every 30 minutes
+>
+> Scripts: `scripts/mizigo_schema_reset.mjs` (truncate mizigo schema),
+> `scripts/supabase_check.py` (focused 14-check production path probe).
+
 Mizigo runs in two modes on Netlify, decided by a single environment variable:
 
 | | Sandbox mode (default) | Production mode |
