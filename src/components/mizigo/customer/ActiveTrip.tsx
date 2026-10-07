@@ -3,11 +3,12 @@
 // timeline, driver, price locked, share tracking, cancel policy, POD reveal.
 // Chat + help centre wired in (plan §37/§77), stops shown (plan §35).
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ChevronDown, KeyRound, LifeBuoy, MessageCircle, Phone, Share2, ShieldCheck, Star, TriangleAlert, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, KeyRound, LifeBuoy, MessageCircle, Phone, Share2, ShieldCheck, Siren, Star, TriangleAlert, X } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { ShipmentDTO } from "@/lib/types";
+import { CANCEL_REASONS, type CancellationQuote } from "@/lib/cancellation";
 import { useSession } from "@/store/session";
 import { Button, Row, StatusBadge, toneForStatus } from "@/components/mizigo/shared/ui";
 import MapCanvas from "@/components/mizigo/shared/MapCanvas";
@@ -21,13 +22,40 @@ import { useSettings } from "@/components/mizigo/shared/useSettings";
 import { isRateable, RatingSheetHost, useRateNudge } from "./RatingSheet";
 import { SystemNotifications } from "./useSystemNotifications";
 
+// ── share-prompt memory: one prompt per delivery, right after the driver accepts ──
+// localStorage is external state — read via useSyncExternalStore (same pattern
+// as the rating nudge in RatingSheet.tsx; no setState inside effects).
+const SHARE_NUDGE_CHANGED = "mizigo:share-nudge-changed";
+function subscribeShareNudge(cb: () => void) {
+  window.addEventListener(SHARE_NUDGE_CHANGED, cb);
+  return () => window.removeEventListener(SHARE_NUDGE_CHANGED, cb);
+}
+function useShareNudgeOpen(s: ShipmentDTO | undefined): boolean {
+  const offered = useSyncExternalStore(
+    subscribeShareNudge,
+    () => {
+      if (!s || s.status !== "DRIVER_EN_ROUTE") return false;
+      try {
+        return localStorage.getItem(`mizigo:share-nudge:${s.id}`) !== "1";
+      } catch {
+        return true; // private mode — prompt once per session instead
+      }
+    },
+    () => false
+  );
+  return offered;
+}
+
 export default function ActiveTrip() {
   const { focusShipmentId, setBookingStep, setCustomerTab, setTrackToken, setRatingShipment, setChatShipment, chatShipmentId } = useSession();
   const [expanded, setExpanded] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
+  const [sosConfirm, setSosConfirm] = useState(false);
+  const [sosSent, setSosSent] = useState(false);
   const settings = useSettings();
   const [nudgeDismissed, dismissNudge] = useRateNudge(focusShipmentId);
 
@@ -38,6 +66,27 @@ export default function ActiveTrip() {
     refetchInterval: 2000,
   });
   const s = data?.shipment;
+
+  // cancellation fee preview — the fee is always shown BEFORE confirming
+  // (Uber rule); the server computes it, this only renders.
+  const { data: cancelQuoteData } = useQuery({
+    queryKey: ["cancel-quote", focusShipmentId],
+    queryFn: () => post<{ quote: CancellationQuote }>(`/api/shipments/${focusShipmentId}/action`, { action: "cancel-quote" }),
+    enabled: cancelOpen && !!focusShipmentId && !!s && ["MATCHING", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "QUOTED", "PAYMENT_CONFIRMED", "PAYMENT_PENDING"].includes(s.status),
+    staleTime: 10_000,
+  });
+  const cancelQuote = cancelQuoteData?.quote;
+
+  // share prompt at the right moment (Uber pattern): offered once per delivery,
+  // right after the driver accepts — remembered per delivery in localStorage
+  // (same external-store pattern as the rating nudge — no setState-in-effect)
+  const shareNudgeOpen = useShareNudgeOpen(s);
+  const dismissShareNudge = () => {
+    if (s) {
+      try { localStorage.setItem(`mizigo:share-nudge:${s.id}`, "1"); } catch { /* private mode */ }
+      window.dispatchEvent(new Event(SHARE_NUDGE_CHANGED));
+    }
+  };
 
   // terminal states: land on the receipt. Rating is a dismissable nudge banner
   // here and on the receipt — never a forced screen (owner complaint fixed).
@@ -120,6 +169,36 @@ export default function ActiveTrip() {
           <p className="mt-2 rounded-[10px] bg-[var(--surface-2)] px-3.5 py-2 text-[12px] font-semibold text-[var(--ink-2)]">
             Last location received {lastPing} min ago (weak network on the road)
           </p>
+        )}
+
+        {/* open safety alert → check-in prompt (post-SOS follow-up, Uber Ride Check flavour) */}
+        {s.safety?.open && (
+          <div className="mt-3 rounded-[12px] border-2 border-[var(--danger)] bg-[var(--danger-soft)] p-3.5" role="alert">
+            <p className="text-[13.5px] font-extrabold text-[var(--danger)]">We alerted ops — are you OK?</p>
+            <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-2)]">A team member is calling you. Tell us you're safe or ask for more help.</p>
+            <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+              <Button variant="outline" className="h-11 text-[13px]" onClick={async () => {
+                await post(`/api/shipments/${s.id}/action`, { action: "safety-checkin" }).catch(() => null);
+                toast({ title: "Marked safe", description: "Ops has been told you're OK." });
+              }}>I'm safe</Button>
+              <Button variant="danger" className="h-11 text-[13px]" onClick={() => { setSafetyOpen(true); setSosConfirm(true); }}>Still need help</Button>
+            </div>
+          </div>
+        )}
+
+        {/* one-time share prompt — offered right after the driver accepts (Uber Trusted-Contacts timing) */}
+        {shareNudgeOpen && s.status === "DRIVER_EN_ROUTE" && (
+          <div className="mt-3 flex items-center gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] p-3.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand-deep)]"><Share2 size={16} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-extrabold">Let someone follow this delivery</p>
+              <p className="text-[11.5px] font-medium text-[var(--ink-2)]">Share a live tracking link — no account needed. Expires 48 h after the trip.</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button onClick={dismissShareNudge} className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--ink-3)] transition hover:bg-[var(--surface)]" aria-label="Dismiss share prompt"><X size={15} /></button>
+              <Button variant="brand" className="h-9 px-3.5 text-[12.5px]" onClick={() => { dismissShareNudge(); void shareTrackLink(s.id); }}>Share</Button>
+            </div>
+          </div>
         )}
 
         {/* drop-off handshake (plan §13): the code the driver asks for at POD */}
@@ -299,30 +378,69 @@ export default function ActiveTrip() {
         </div>
       )}
 
-      {/* cancel sheet */}
+      {/* cancel sheet — fee always shown before confirming (Uber pattern) */}
       {cancelOpen && (
-        <div className="absolute inset-0 z-30 flex items-end bg-[rgba(23,24,28,0.4)] backdrop-blur-[2px]" onClick={() => setCancelOpen(false)}>
-          <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute inset-0 z-30 flex items-end bg-[rgba(23,24,28,0.4)] backdrop-blur-[2px]" onClick={() => { setCancelOpen(false); setCancelReason(null); }}>
+          <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Cancel delivery">
             <p className="text-[17px] font-extrabold tracking-tight">Cancel this delivery?</p>
-            <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[var(--ink-2)]">
-              {["MATCHING", "DRIVER_ASSIGNED"].includes(s.status)
-                ? "Cancelling now is free. Your M-PESA payment is refunded in full — instantly in this sandbox."
-                : s.status === "DRIVER_EN_ROUTE"
-                  ? "The driver is already on the way. Cancelling now refunds your M-PESA payment in full (sandbox: instant)."
-                  : "The cargo is already being handled. Call support and ops will help you sort it out."}
-            </p>
-            <div className="mt-4 space-y-2.5">
-              <Button variant="danger" className="w-full" onClick={async () => {
-                await post(`/api/shipments/${s.id}/action`, { action: "cancel", reason: "Cancelled by customer" }).catch(() => null);
-                toast({ title: "Delivery cancelled" });
-                setCancelOpen(false);
-                setBookingStep("idle");
-                setCustomerTab("home");
-              }}>
-                Yes, cancel delivery
-              </Button>
-              <Button variant="ghost" className="w-full" onClick={() => setCancelOpen(false)}>Keep my delivery</Button>
-            </div>
+            {!cancelQuote ? (
+              <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[var(--ink-2)]">Checking the cancellation policy for this delivery…</p>
+            ) : (
+              <>
+                {cancelQuote.free ? (
+                  <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[var(--ink-2)]">
+                    {cancelQuote.waived
+                      ? cancelQuote.waiverReason
+                      : cancelQuote.graceRemainingMin != null
+                        ? `Cancelling is free right now — your free window closes in ${cancelQuote.graceRemainingMin} min. Your M-PESA payment of ${kes(cancelQuote.refundKes)} is refunded in full.`
+                        : "Cancelling now is free. Your M-PESA payment is refunded in full."}
+                  </p>
+                ) : (
+                  <div className="mt-3 rounded-[12px] border-2 border-[var(--warn)] bg-[var(--warn-soft)] p-3.5">
+                    <p className="text-[13.5px] font-extrabold text-[var(--warn)]">A KES {cancelQuote.feeKes} cancellation fee applies</p>
+                    <div className="mt-2 space-y-1">
+                      <Row label="Paid" value={kes(s.fare.total)} />
+                      <Row label="Cancellation fee" value={`− ${kes(cancelQuote.feeKes)}`} />
+                      <Row label="Refunded to M-PESA" value={kes(cancelQuote.refundKes)} strong />
+                    </div>
+                    <p className="mt-2 text-[11.5px] font-medium leading-relaxed text-[var(--ink-2)]">No fee if your driver hasn't made progress toward the pickup. This fee never stacks with waiting fees.</p>
+                  </div>
+                )}
+
+                {/* reason picker — feeds dispatch + driver metrics */}
+                <p className="mt-4 text-[12px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Why are you cancelling?</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {CANCEL_REASONS.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setCancelReason(cancelReason === r ? null : r)}
+                      aria-pressed={cancelReason === r}
+                      className={`rounded-full border px-4 py-2 text-[12.5px] font-bold transition active:translate-y-px ${
+                        cancelReason === r ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-2)]"
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 space-y-2.5">
+                  <Button variant="danger" className="w-full" onClick={async () => {
+                    await post(`/api/shipments/${s.id}/action`, { action: "cancel", reason: cancelReason ?? "Cancelled by customer" }).catch(() => null);
+                    toast({
+                      title: "Delivery cancelled",
+                      description: cancelQuote.free ? "Your payment is being refunded in full." : `KES ${cancelQuote.refundKes.toLocaleString()} refunded · KES ${cancelQuote.feeKes} fee withheld.`,
+                    });
+                    setCancelOpen(false);
+                    setBookingStep("idle");
+                    setCustomerTab("home");
+                  }}>
+                    {cancelQuote.free ? "Yes, cancel — free" : `Yes, cancel · fee ${kes(cancelQuote.feeKes)}`}
+                  </Button>
+                  <Button variant="ghost" className="w-full" onClick={() => { setCancelOpen(false); setCancelReason(null); }}>Keep my delivery</Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -331,9 +449,53 @@ export default function ActiveTrip() {
       {safetyOpen && (
         <div className="absolute inset-0 z-30 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => setSafetyOpen(false)}>
           <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Safety centre">
-            <p className="text-[17px] font-extrabold tracking-tight">Safety centre</p>
-            <p className="tnum mt-0.5 text-[12px] font-semibold text-[var(--ink-3)]">Booking {s.code}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[17px] font-extrabold tracking-tight">Safety centre</p>
+              <span className="tnum text-[12px] font-bold text-[var(--ink-3)]">{s.code}</span>
+            </div>
             <div className="mt-4 space-y-2.5">
+              {/* SOS — ops alert + direct call (Uber SOS / Bolt Emergency Assist, scoped to a runnable small-platform version) */}
+              {!sosSent ? (
+                <div className="rounded-[12px] border-2 border-[var(--danger)] bg-[var(--danger-soft)] p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--danger)] text-white"><Siren size={19} /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14.5px] font-extrabold text-[var(--danger)]">Need help now?</p>
+                      <p className="text-[12px] font-medium leading-relaxed text-[var(--ink-2)]">Alerts our ops team with your delivery, location and contacts — they call you back straight away.</p>
+                    </div>
+                  </div>
+                  {!sosConfirm ? (
+                    <Button variant="danger" className="mt-3 w-full" onClick={() => setSosConfirm(true)}>Alert ops · safety emergency</Button>
+                  ) : (
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
+                      <Button variant="ghost" className="border border-[var(--line)]" onClick={() => setSosConfirm(false)}>Back</Button>
+                      <Button variant="danger" onClick={async () => {
+                        await post(`/api/shipments/${s.id}/action`, { action: "safety-alert" }).catch(() => null);
+                        setSosSent(true);
+                        setSosConfirm(false);
+                        toast({ title: "Ops alerted", description: "A team member is calling you now. Stay on this screen for updates." });
+                      }}>Confirm alert</Button>
+                    </div>
+                  )}
+                  <p className="mt-2 text-center text-[11.5px] font-semibold text-[var(--ink-3)]">Life-threatening emergency? Dial 999 or 112 as well.</p>
+                </div>
+              ) : (
+                <div className="rounded-[12px] border-2 border-[var(--danger)] bg-[var(--danger-soft)] p-4">
+                  <p className="text-[14px] font-extrabold text-[var(--danger)]">Ops alerted — expect a call</p>
+                  <p className="mt-0.5 text-[12px] font-medium text-[var(--ink-2)]">A team member is calling you about {s.code}. You can also reach out directly.</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2.5">
+                    <a href={`tel:${settings.supportPhone.replace(/\s/g, "")}`} className="flex h-12 items-center justify-center gap-2 rounded-[12px] bg-[var(--danger)] text-[13.5px] font-extrabold text-white">
+                      <Phone size={15} /> Call ops
+                    </a>
+                    <a
+                      href={`sms:${settings.supportPhone.replace(/\s/g, "")}?body=${encodeURIComponent(`MIZIGO safety · ${s.code} · driver ${s.driver?.name ?? "unknown"} · plate ${s.vehicle?.registration ?? "unknown"}`)}`}
+                      className="flex h-12 items-center justify-center gap-2 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] text-[13.5px] font-extrabold"
+                    >
+                      <MessageCircle size={15} /> SMS ops
+                    </a>
+                  </div>
+                </div>
+              )}
               <div className="flex items-start gap-3.5 rounded-[12px] bg-[var(--surface-2)] px-4 py-3.5">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--warn-soft)] text-[var(--warn)]"><TriangleAlert size={16} /></span>
                 <div className="min-w-0 flex-1">
@@ -368,7 +530,7 @@ export default function ActiveTrip() {
                 </div>
               </div>
             </div>
-            <Button variant="ghost" className="mt-3 w-full" onClick={() => setSafetyOpen(false)}>Close</Button>
+            <Button variant="ghost" className="mt-3 w-full" onClick={() => { setSafetyOpen(false); setSosSent(false); setSosConfirm(false); }}>Close</Button>
           </div>
         </div>
       )}
@@ -377,16 +539,19 @@ export default function ActiveTrip() {
 }
 
 function statusHeadline(s: ShipmentDTO): string {
+  // Copy discipline (Uber base.uber.com "Writing for users"): specific over
+  // vague — a number whenever a number exists, never "soon".
   const first = s.driver?.name.split(" ")[0] ?? "Your driver";
+  const eta = s.live?.etaMin;
   switch (s.status) {
     case "MATCHING": return "Finding your vehicle…";
     case "DRIVER_ASSIGNED": return `${first} is confirming your booking`;
-    case "DRIVER_EN_ROUTE": return `${first} is on the way`;
-    case "DRIVER_ARRIVED": return `${first} has arrived`;
+    case "DRIVER_EN_ROUTE": return eta != null ? `${first} arrives in ~${etaText(eta)}` : `${first} is on the way`;
+    case "DRIVER_ARRIVED": return `${first} has arrived at the pickup`;
     case "LOADING": return "Loading your cargo";
     case "LOADED": return "Cargo loaded and verified";
-    case "IN_TRANSIT": return "Your delivery is on the way";
-    case "ARRIVING": return "Arriving at the destination";
+    case "IN_TRANSIT": return eta != null && eta > 0 ? `Arriving in ~${etaText(eta)}` : "Your delivery is on the way";
+    case "ARRIVING": return eta != null && eta > 0 ? `Arriving in ~${etaText(eta)}` : "Arriving at the destination";
     case "DELIVERED": return "Arrived · unloading";
     case "POD_CONFIRMED": return "Delivery confirmed";
     case "COMPLETED": return "Delivery completed";

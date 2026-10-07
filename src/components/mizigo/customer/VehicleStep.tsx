@@ -129,6 +129,10 @@ export default function VehicleStep() {
                     <span className="font-extrabold">Total · price locked at booking</span>
                     <span className="tnum font-extrabold">{kes(recommended.fare.total)}</span>
                   </div>
+                  {/* Uber pattern: the “i” sheet ends with what can change the price */}
+                  <p className="py-2.5 text-[11.5px] font-medium leading-relaxed text-[var(--ink-3)]">
+                    What can change this price: extra stops, loading help and night moves (19:00–06:00) are priced in before you book — the lines above show exactly what you're paying. Waiting past 20 free minutes costs KES 10/min. Your booked price is locked — it only changes if the job changes.
+                  </p>
                 </div>
               )}
               <Button variant="brand" className="mt-4 w-full" onClick={() => select(recommended.key)}>
@@ -141,24 +145,47 @@ export default function VehicleStep() {
           <p className="px-1 text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Other vehicles</p>
           <div className="space-y-2.5">
             {alternatives.map((a) => (
-              <button
-                key={a.key}
-                onClick={() => select(a.key)}
-                className="flex w-full items-center gap-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition hover:border-[var(--ink-3)] active:translate-y-px"
-              >
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-2)]">
-                  <VehicleAvatar category={a.key} size={44} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-[15px] font-extrabold">{a.name}</span>
-                    {a.oversized && <StatusBadge tone="warn">Too small</StatusBadge>}
-                  </span>
-                  <span className="block text-[12px] font-semibold text-[var(--ink-2)]">Up to {a.capacityKg.toLocaleString()} kg · arrives {etaText(a.etaMin)}</span>
-                  {a.oversized && <span className="block text-[11.5px] font-bold text-[var(--warn)]">Your load may not fit</span>}
-                </span>
-                <span className="tnum text-right text-[16px] font-extrabold">{kes(a.fare.total)}</span>
-              </button>
+              <div key={a.key} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:border-[var(--ink-3)]">
+                <div className="flex items-center gap-4">
+                  <button onClick={() => select(a.key)} className="flex min-w-0 flex-1 items-center gap-4 text-left" aria-label={`Book ${a.name} for ${kes(a.fare.total)}`}>
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-2)]">
+                      <VehicleAvatar category={a.key} size={44} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="text-[15px] font-extrabold">{a.name}</span>
+                        {a.oversized && <StatusBadge tone="warn">Too small</StatusBadge>}
+                      </span>
+                      <span className="block text-[12px] font-semibold text-[var(--ink-2)]">Up to {a.capacityKg.toLocaleString()} kg · arrives {etaText(a.etaMin)}</span>
+                      {a.oversized && <span className="block text-[11.5px] font-bold text-[var(--warn)]">Your load may not fit</span>}
+                    </span>
+                    <span className="tnum text-right text-[16px] font-extrabold">{kes(a.fare.total)}</span>
+                  </button>
+                  {/* same “i” breakdown affordance as the recommended card */}
+                  <button
+                    onClick={() => setBreakdown(breakdown === a.key ? null : a.key)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--ink-3)] transition hover:bg-[var(--surface-2)]"
+                    aria-label={`Price breakdown for ${a.name}`}
+                    aria-expanded={breakdown === a.key}
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--line)] text-[11px] font-extrabold">i</span>
+                  </button>
+                </div>
+                {breakdown === a.key && (
+                  <div className="mt-2 animate-mz-fade-in divide-y divide-[var(--line)] rounded-[10px] border border-[var(--line)] px-4 py-1">
+                    {a.fare.lines.map((l) => (
+                      <div key={l.key} className="flex justify-between py-2 text-[13px]">
+                        <span className="font-medium text-[var(--ink-2)]">{l.label}</span>
+                        <span className="tnum font-bold">{kes(l.amount)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between py-2 text-[14px]">
+                      <span className="font-extrabold">Total · price locked at booking</span>
+                      <span className="tnum font-extrabold">{kes(a.fare.total)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
           <p className="px-1 pb-2 text-center text-[12px] font-medium text-[var(--ink-3)]">

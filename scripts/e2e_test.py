@@ -87,7 +87,7 @@ def driver_sess(driver_id):
 # ═══ 0. bootstrap + logins ═══════════════════════════════════════════════════
 
 b = call("/api/bootstrap")
-check("bootstrap seeded", len(b["categories"]) == 6)
+check("bootstrap seeded", len(b["categories"]) == 7)  # boda..lorry_10t (KES benchmarks, docs/research/KENYA_MARKET_PLAYBOOK.md)
 
 CUST  = login("0712000001")
 BIZ   = login("0722000033")
@@ -169,6 +169,8 @@ r = call(f"/api/shipments/{sid}/action", "POST", {"action": "deliver"}, sess=ass
 check("deliver → DELIVERED", r["shipment"]["status"] == "DELIVERED")
 # drop-off handshake (plan §13): the code is generated at booking, verified at POD
 check("delivery code generated at booking", isinstance(s1["shipment"].get("deliveryCode"), str) and len(s1["shipment"]["deliveryCode"]) == 4, str(s1["shipment"].get("deliveryCode")))
+r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "recipient": "Mary Wanjiru", "photo": True}, sess=assigned)
+check("missing delivery code rejected (blocking POD handshake)", r.get("_status") == 400, r.get("error", "")[:60])
 r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "recipient": "Mary Wanjiru", "otp": "0000", "photo": True}, sess=assigned)
 check("wrong delivery code rejected", r.get("_status") == 400, r.get("error", "")[:60])
 r = call(f"/api/shipments/{sid}/action", "POST", {"action": "pod", "recipient": "Mary Wanjiru", "otp": s1["shipment"]["deliveryCode"], "photo": True}, sess=assigned)
@@ -210,8 +212,41 @@ call("/api/admin/action", "POST", {"action": "pricing-zone", "id": z["id"], "pla
 s3 = call("/api/shipments", "POST", {"draftId": "test-draft-cancel",
     "pickup": {"name": "Gikomba Market", "lat": -1.2841, "lng": 36.8329}, "dropoff": {"name": "Kawangware Market", "lat": -1.2862, "lng": 36.7528},
     "cargo": {"items": [{"name": "Bales", "qty": 3, "weightKg": 45}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk"}, sess=CUST)
+# fee preview before confirming (Uber pattern): free + full refund before the driver accepts
+q3 = call(f"/api/shipments/{s3['shipment']['id']}/action", "POST", {"action": "cancel-quote"}, sess=CUST)
+check("cancel-quote free before acceptance", q3.get("quote", {}).get("free") is True and q3["quote"]["feeKes"] == 0, str(q3.get("quote")))
 r = call(f"/api/shipments/{s3['shipment']['id']}/action", "POST", {"action": "cancel", "reason": "Changed my mind"}, sess=CUST)
 check("cancel before payment ok", r["shipment"]["status"] == "CANCELLED")
+check("no fee charged pre-acceptance", r["shipment"]["payment"]["cancelFeeKes"] == 0)
+
+# ═══ 7b. safety alerts (Uber SOS / Bolt Emergency Assist pattern) ═══════════
+
+s9 = call("/api/shipments", "POST", {"draftId": "test-draft-safety",
+    "pickup": {"name": "Gikomba Market", "lat": -1.2841, "lng": 36.8329}, "dropoff": {"name": "Kawangware Market", "lat": -1.2862, "lng": 36.7528},
+    "cargo": {"items": [{"name": "Bales", "qty": 2, "weightKg": 30}], "load": "SMALL", "helpers": 0}, "categoryKey": "tuktuk", "paymentMethod": "MPESA"}, sess=CUST)
+sid9 = s9["shipment"]["id"]
+call(f"/api/shipments/{sid9}/action", "POST", {"action": "pay"}, sess=CUST)
+call(f"/api/shipments/{sid9}/action", "POST", {"action": "pay-confirm"}, sess=CUST)
+m9 = call(f"/api/shipments/{sid9}/action", "POST", {"action": "request"}, sess=CUST)
+check("safety fixture matched", m9.get("matched") is True, m9.get("reason", ""))
+drv9 = driver_sess(m9["shipment"]["driver"]["id"])
+call(f"/api/shipments/{sid9}/action", "POST", {"action": "driver-accept"}, sess=drv9)
+sa = call(f"/api/shipments/{sid9}/action", "POST", {"action": "safety-alert"}, sess=CUST)
+check("safety alert raised", any(e["type"] == "SAFETY_ALERT" for e in sa["shipment"]["events"]))
+check("alert open in DTO", sa["shipment"]["safety"]["open"] is True and sa["shipment"]["safety"]["acked"] is False)
+adm = call("/api/admin?tab=overview", sess=ADMIN)
+alert_row = next((a for a in adm.get("safetyAlerts", []) if a["shipmentId"] == sid9), None)
+check("alert lands in admin ops queue", alert_row is not None and alert_row["resolved"] is False, str(adm.get("safetyAlerts", []))[:80])
+ck = call(f"/api/shipments/{sid9}/action", "POST", {"action": "safety-ack"}, sess=ADMIN)
+check("ops ack resolves the alert", ck["shipment"]["safety"]["acked"] is True and ck["shipment"]["safety"]["open"] is False)
+ci = call(f"/api/shipments/{sid9}/action", "POST", {"action": "safety-checkin"}, sess=CUST)
+check("safe check-in logged", any(e["type"] == "SAFETY_CHECKIN" for e in ci["shipment"]["events"]))
+# share-link now carries an expiry (Bolt pattern)
+sh = call(f"/api/shipments/{sid9}/action", "POST", {"action": "share-link"}, sess=CUST)
+check("share link has 48h expiry", "expiresAt" in sh and len(sh.get("token", "")) >= 20)
+tr = call(f"/api/track/{sh['token']}")
+check("share link tracks", tr.get("tracking", {}).get("code") == m9["shipment"]["code"])
+call(f"/api/shipments/{sid9}/action", "POST", {"action": "cancel", "reason": "cleanup"}, sess=CUST)
 
 # ═══ 8. promo codes (plan §75) ══════════════════════════════════════════════
 

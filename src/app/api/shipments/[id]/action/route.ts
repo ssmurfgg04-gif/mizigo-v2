@@ -1,12 +1,15 @@
 // POST /api/shipments/[id]/action — unified, server-validated actions.
-// Actions: pay | pay-confirm | pay-timeout | request | cancel | driver-accept |
-// arrive | start-loading | loaded | start-trip | arriving | deliver | pod | complete | rate | dispute |
-// report-mismatch | chat | request-quotes | driver-quote | accept-quote | stop-done | share-link
+// Actions: pay | pay-confirm | pay-timeout | request | cancel | cancel-quote |
+// driver-accept | arrive | start-loading | loaded | start-trip | arriving | deliver |
+// pod | complete | rate | dispute | report-mismatch | chat | request-quotes |
+// driver-quote | accept-quote | stop-done | share-link | safety-alert |
+// safety-checkin | safety-ack
 // All money + state decisions are made here; the client never writes state —
 // and every action is bound to the session identity (customer / assigned driver / admin).
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { applyTransition, getShipmentFull, shipmentDTO } from "@/lib/shipments";
+import { applyTransition, getShipmentFull, shipmentDTO, simulateLive } from "@/lib/shipments";
+import { cancellationQuote } from "@/lib/cancellation";
 import { newShareTokenHashed } from "@/lib/tokens";
 import { matchDriver } from "@/lib/matching";
 import { mpesaRef } from "@/lib/format";
@@ -212,6 +215,31 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     return NextResponse.json({ ok: true, matched: true, match, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
   }
 
+  // ── settings-backed cancellation economics (Uber pattern: fee quoted before cancel) ──
+  async function feeSettings() {
+    const [feeRow, graceRow] = await Promise.all([
+      db.platformSetting.findUnique({ where: { key: "cancellationFeeKes" } }),
+      db.platformSetting.findUnique({ where: { key: "cancelGraceMinutes" } }),
+    ]);
+    return { feeKes: Number(feeRow?.value ?? 200), graceMinutes: Number(graceRow?.value ?? 2) };
+  }
+
+  // ── cancellation fee preview — shown BEFORE the customer confirms (never after) ──
+  if (action === "cancel-quote") {
+    if (!isCustomer && !isDriver && !isAdmin) return NextResponse.json({ error: "You don't have access to this delivery." }, { status: 403 });
+    const q = await (async () => {
+      const { feeKes, graceMinutes } = await feeSettings();
+      const live = simulateLive(s);
+      return cancellationQuote({
+        status: s.status, fareTotal: s.fareTotal, paymentStatus: s.paymentStatus,
+        events: s.events.map((e) => ({ type: e.type, createdAt: e.createdAt })),
+        liveProgress: live && live.leg === "TO_PICKUP" ? live.progress : null,
+        feeKes, graceMinutes,
+      });
+    })();
+    return NextResponse.json({ ok: true, quote: q });
+  }
+
   // ── generic guarded transitions (driver stations + cancel) ──
   const map: Record<string, { action: string; role: "CUSTOMER" | "DRIVER" | "ADMIN"; label?: string }> = {
     arrive: { action: "arrive", role: "DRIVER" },
@@ -233,16 +261,43 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     const meta: { label?: string; reason?: string; cancelledBy?: string; lat?: number; lng?: number } = {};
     if (body.reason) meta.reason = capStr(body.reason, 200);
     if (action === "cancel") meta.cancelledBy = isDriver ? "DRIVER" : isAdmin ? "ADMIN" : "CUSTOMER";
+    // cancellation economics: compute the fee BEFORE the transition applies it
+    let cancelFee = 0;
+    let refundKes = s.fareTotal;
+    if (action === "cancel") {
+      const { feeKes, graceMinutes } = await feeSettings();
+      const live = simulateLive(s);
+      const q = cancellationQuote({
+        status: s.status, fareTotal: s.fareTotal, paymentStatus: s.paymentStatus,
+        events: s.events.map((e) => ({ type: e.type, createdAt: e.createdAt })),
+        liveProgress: live && live.leg === "TO_PICKUP" ? live.progress : null,
+        feeKes, graceMinutes,
+      });
+      cancelFee = q.feeKes;
+      refundKes = q.refundKes;
+      if (q.waived) meta.label = `Delivery cancelled · fee waived — ${q.waiverReason}`;
+      else if (cancelFee > 0) meta.label = `Delivery cancelled · KES ${cancelFee} fee withheld · KES ${refundKes.toLocaleString()} refunded`;
+    }
     if (action === "pod" && body.recipient) {
       meta.label = `Proof of delivery · ${capStr(body.recipient, 60)} · OTP ${body.otp ? "verified" : "captured"}`;
     }
     if (body.photo) meta.label = capStr(body.label, 200);
-    // the drop-off handshake: if the driver typed a code it must match the customer's
-    if (m.action === "pod" && body.otp && s.deliveryCode && String(body.otp) !== s.deliveryCode) {
-      return NextResponse.json({ error: "That delivery code doesn't match. Ask the customer to read it from their app." }, { status: 400 });
+    // the drop-off handshake is BLOCKING: the driver cannot close a delivery
+    // without the customer's 4-digit code (Bolt pickup-code pattern)
+    if (m.action === "pod" && s.deliveryCode) {
+      if (!body.otp) {
+        return NextResponse.json({ error: "Ask the customer for their 4-digit delivery code to complete this delivery." }, { status: 400 });
+      }
+      if (String(body.otp) !== s.deliveryCode) {
+        return NextResponse.json({ error: "That delivery code doesn't match. Ask the customer to read it from their app." }, { status: 400 });
+      }
     }
     const t = await applyTransition(id, m.action, m.role, meta);
     if (!t.ok) return NextResponse.json({ error: t.error }, { status: t.code });
+    // record the withheld fee on the shipment (receipt + trips list show it)
+    if (action === "cancel" && cancelFee > 0) {
+      await db.shipment.update({ where: { id }, data: { cancelFee } });
+    }
     // POD data
     if (action === "pod") {
       await db.shipment.update({
@@ -265,7 +320,16 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     const already = await db.rating.findFirst({ where: { shipmentId: id, byRole: ratingRole } });
     if (already) return NextResponse.json({ error: "This delivery has already been rated." }, { status: 409 });
     const stars = Math.max(1, Math.min(5, Number(body.stars) || 5));
-    await db.rating.create({ data: { shipmentId: id, byRole: ratingRole, stars, tags: JSON.stringify(Array.isArray(body.tags) ? body.tags.slice(0, 6).map((t: unknown) => capStr(t, 40)) : []), comment: body.comment ? capStr(body.comment, 280) : null } });
+    // Bolt pattern: the tip is offered after a 4–5★ rating, 100% to the driver
+    const tip = Math.max(0, Math.min(5_000, clampInt(body.tip, 0, 5_000, 0)));
+    await db.rating.create({ data: { shipmentId: id, byRole: ratingRole, stars, tip: tip > 0 ? tip : null, tags: JSON.stringify(Array.isArray(body.tags) ? body.tags.slice(0, 6).map((t: unknown) => capStr(t, 40)) : []), comment: body.comment ? capStr(body.comment, 280) : null } });
+    if (tip > 0 && ratingRole === "CUSTOMER" && s.driverId) {
+      // the tip rides on top of the locked fare — the driver's wallet derives from driverEarnings
+      await db.shipment.update({ where: { id }, data: { driverEarnings: { increment: tip } } });
+      await db.shipmentEvent.create({ data: { shipmentId: id, type: "TIP_ADDED", label: `Tip · KES ${tip.toLocaleString()} · 100% to the driver`, actor: "CUSTOMER" } });
+      const d = await db.driver.findUnique({ where: { id: s.driverId }, include: { user: true } });
+      if (d?.userId) await db.notification.create({ data: { userId: d.userId, role: "DRIVER", title: "You received a tip", body: `KES ${tip.toLocaleString()} from ${s.code} — asante!`, shipmentCode: s.code } });
+    }
     if (ratingRole !== "DRIVER" && s.driverId) {
       // update driver rating as rolling average
       const d = await db.driver.findUnique({ where: { id: s.driverId } });
@@ -301,14 +365,61 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     return NextResponse.json({ ok: true });
   }
 
+  // ── safety alerts (Uber SOS / Bolt Emergency Assist pattern, scoped to what a
+  // small platform can actually run: ops callback + event trail + admin queue) ──
+  if (action === "safety-alert") {
+    if (!isCustomer && !isDriver && !isAdmin) return NextResponse.json({ error: "You don't have access to this delivery." }, { status: 403 });
+    const reporter = isDriver ? "DRIVER" : "CUSTOMER";
+    const note = body.note ? ` · ${capStr(body.note, 80)}` : "";
+    const livePos = simulateLive(s);
+    await db.shipmentEvent.create({
+      data: { shipmentId: id, type: "SAFETY_ALERT", label: `Safety alert raised by ${reporter.toLowerCase()}${note}`, actor: reporter, lat: body.lat != null ? Number(body.lat) : livePos?.lat ?? null, lng: body.lng != null ? Number(body.lng) : livePos?.lng ?? null },
+    });
+    // every admin gets paged — the ops queue is the ack surface
+    const admins = await db.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+    if (admins.length) {
+      await db.notification.createMany({
+        data: admins.map((a) => ({ userId: a.id, role: "ADMIN", title: "Safety alert", body: `${s.code} · ${reporter === "DRIVER" ? "Driver" : "Customer"} needs help — call back now`, shipmentCode: s.code })),
+      });
+    }
+    // the other party is notified too — they may be the first to help
+    if (reporter === "CUSTOMER" && s.driverId) {
+      const d = await db.driver.findUnique({ where: { id: s.driverId }, include: { user: true } });
+      if (d?.userId) await db.notification.create({ data: { userId: d.userId, role: "DRIVER", title: "Safety alert on your delivery", body: `The customer raised a safety alert on ${s.code}.`, shipmentCode: s.code } });
+    } else if (reporter === "DRIVER") {
+      await db.notification.create({ data: { userId: s.customerId, role: "CUSTOMER", title: "Safety alert on your delivery", body: `The driver raised a safety alert on ${s.code}.`, shipmentCode: s.code } });
+    }
+    return NextResponse.json({ ok: true, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
+  }
+
+  if (action === "safety-checkin") {
+    if (!isCustomer && !isDriver && !isAdmin) return NextResponse.json({ error: "You don't have access to this delivery." }, { status: 403 });
+    const reporter = isDriver ? "DRIVER" : "CUSTOMER";
+    await db.shipmentEvent.create({ data: { shipmentId: id, type: "SAFETY_CHECKIN", label: `${reporter === "DRIVER" ? "Driver" : "Customer"} checked in · safe`, actor: reporter } });
+    return NextResponse.json({ ok: true, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
+  }
+
+  if (action === "safety-ack") {
+    // admin-only: the ops queue ack — tells everyone the alert is being handled
+    if (!isAdmin) return NextResponse.json({ error: "Only ops can acknowledge safety alerts." }, { status: 403 });
+    await db.shipmentEvent.create({ data: { shipmentId: id, type: "SAFETY_ACK", label: `Ops acknowledged the alert · calling ${s.driver ? "both parties" : "the customer"} back`, actor: "ADMIN" } });
+    await db.notification.create({ data: { userId: s.customerId, role: "CUSTOMER", title: "Ops is on it", body: `We received your safety alert on ${s.code}. A team member is calling you now.`, shipmentCode: s.code } });
+    if (s.driverId) {
+      const d = await db.driver.findUnique({ where: { id: s.driverId }, include: { user: true } });
+      if (d?.userId) await db.notification.create({ data: { userId: d.userId, role: "DRIVER", title: "Ops is on it", body: `We received the safety alert on ${s.code}. A team member is calling you now.`, shipmentCode: s.code } });
+    }
+    return NextResponse.json({ ok: true, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
+  }
+
   // ── mint a fresh recipient tracking link (v1 lesson: raw tokens never stored) ──
   if (action === "share-link") {
     const deny = asCustomer("Only the customer can share this delivery.");
     if (deny) return deny;
     // 24 random bytes, base64url — a real capability; only its sha256 is persisted
     const { raw, hash } = await newShareTokenHashed();
-    await db.shipment.update({ where: { id }, data: { shareToken: hash } });
-    return NextResponse.json({ ok: true, token: raw, url: `/?view=track&token=${raw}` });
+    // Bolt pattern: the link is short-lived — 48 h from minting, one delivery
+    await db.shipment.update({ where: { id }, data: { shareToken: hash, shareTokenExpiresAt: new Date(Date.now() + 48 * 3600_000) } });
+    return NextResponse.json({ ok: true, token: raw, url: `/?view=track&token=${raw}`, expiresAt: new Date(Date.now() + 48 * 3600_000).toISOString() });
   }
 
   // ── customer ↔ driver chat (plan §77: quick messages first, numbers masked) ──

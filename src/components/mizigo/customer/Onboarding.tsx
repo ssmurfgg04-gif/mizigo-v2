@@ -215,6 +215,15 @@ export default function Onboarding() {
           </div>
         </div>
       )}
+
+      {/* legal links — Daraja onboarding requires live policy pages on the site */}
+      <div className="mt-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 px-6 pb-5 pt-6 text-[11.5px] font-bold text-[var(--ink-3)]">
+        <a href="/privacy" className="hover:text-[var(--ink-2)]">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <a href="/terms" className="hover:text-[var(--ink-2)]">Terms</a>
+        <span aria-hidden="true">·</span>
+        <a href="/refund" className="hover:text-[var(--ink-2)]">Refunds</a>
+      </div>
     </div>
   );
 }

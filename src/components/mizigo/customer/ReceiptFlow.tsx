@@ -12,7 +12,6 @@ import { useSession } from "@/store/session";
 import { Button, Row } from "@/components/mizigo/shared/ui";
 import { kes, fmtDateTimeEAT, fmtTimeEAT } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
-import { shareTrackLink } from "@/components/mizigo/shared/share";
 import { isRateable, RatingForm, RatingSheetHost, useRateNudge } from "./RatingSheet";
 import { SystemNotifications } from "./useSystemNotifications";
 
@@ -111,9 +110,27 @@ export function ReceiptScreen() {
     toast({ title: "Receipt downloaded", description: `${s.code} · saved to your device.` });
   };
 
-  const share = () => {
-    // v1 lesson: mint a fresh recipient link on demand — raw tokens are never stored
-    void shareTrackLink(s.id);
+  const share = async () => {
+    // share the receipt itself (summary text) — the recipient tracking link is a
+    // separate action from the trip screen; this is the money story (Uber "Resend Receipt")
+    const summary = [
+      `MIZIGO receipt · ${s.code}`,
+      `${s.route.pickup.name} → ${s.route.dropoff.name}`,
+      `${s.category.name} · ${s.cargo.items.reduce((a, i) => a + i.qty, 0)} items`,
+      `Total ${kes(s.fare.total)} · ${s.payment.method === "MPESA" ? "M-PESA" : s.payment.method}${s.payment.ref ? ` · ${s.payment.ref}` : ""}`,
+      s.driver ? `Driver ${s.driver.name.split(" ")[0]} · ${s.vehicle?.registration ?? ""}` : "",
+    ].filter(Boolean).join("\n");
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `MIZIGO receipt ${s.code}`, text: summary }).catch(() => {});
+        toast({ title: "Receipt shared" });
+      } else {
+        await navigator.clipboard?.writeText(summary).catch(() => {});
+        toast({ title: "Receipt copied", description: "Paste it anywhere — WhatsApp, SMS, email." });
+      }
+    } catch {
+      toast({ title: "Could not share", variant: "destructive" });
+    }
   };
 
   const close = () => {
@@ -151,6 +168,7 @@ export function ReceiptScreen() {
           {s.fare.schedule > 0 && <Row label="Planned delivery discount" value={`−${kes(s.fare.schedule)}`} />}
           {s.fare.discount > 0 && <Row label={`Promo ${s.fare.promoCode}`} value={`- ${kes(s.fare.discount)}`} />}
           {s.fare.platform > 0 && <Row label="Platform fee" value={kes(s.fare.platform)} />}
+          {(() => { const r = s.ratings.find((x) => x.byRole === "CUSTOMER"); return r?.tip ? <Row label="Driver tip · 100% to the driver" value={kes(r.tip)} /> : null; })()}
           {isBusiness && <Row label="VAT (16% incl.)" value={kes(vat)} />}
         </div>
         <div className="mt-3 flex items-baseline justify-between border-t-2 border-[var(--ink)] pt-3">
@@ -161,7 +179,23 @@ export function ReceiptScreen() {
           <Row label="Payment" value={s.payment.method === "MPESA" ? "M-PESA" : s.payment.method} />
           {s.payment.ref && <Row label="Receipt" value={s.payment.ref} />}
           <Row label="Status" value={s.payment.status === "CONFIRMED" ? "PAID" : s.payment.status} strong />
+          {s.payment.status === "REFUNDED" && (
+            <>
+              <Row label="Refunded" value={kes(s.payment.refundKes ?? 0)} strong />
+              {(s.payment.cancelFeeKes ?? 0) > 0 && <Row label="Cancellation fee withheld" value={kes(s.payment.cancelFeeKes)} />}
+            </>
+          )}
         </div>
+        {s.pod && (
+          <div className="mt-3 rounded-[10px] border border-[var(--line)] px-4 py-3">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]">Proof of delivery</p>
+            <div className="mt-1">
+              <Row label="Received by" value={s.pod.recipient} />
+              <Row label="Time" value={fmtDateTimeEAT(s.pod.verifiedAt)} />
+              <Row label="Evidence" value={s.pod.photo ? "Photo + GPS + code" : "GPS + delivery code"} />
+            </div>
+          </div>
+        )}
         <p className="mt-3 text-center text-[11px] font-medium text-[var(--ink-3)]">
           {s.customer.business ? "VAT invoice available for business accounts · " : ""}
           Proof of delivery attached to this receipt
@@ -201,8 +235,8 @@ export function ReceiptScreen() {
         <Button variant="outline" onClick={download}>
           <Download size={16} /> Download
         </Button>
-        <Button variant="outline" onClick={share}>
-          Share
+        <Button variant="outline" onClick={() => void share()}>
+          Share receipt
         </Button>
       </div>
       <Button variant="brand" className="mt-3 w-full" onClick={close}>

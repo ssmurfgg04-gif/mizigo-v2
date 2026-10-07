@@ -55,7 +55,7 @@ me = call("/api/auth?action=me", sess=CUST)
 check("login + session", me.get("user", {}).get("phone") == "0712000001")
 
 boot = call("/api/bootstrap")
-check("marketplace loads (6 vehicle classes)", len(boot.get("categories", [])) == 6)
+check("marketplace loads (7 vehicle classes)", len(boot.get("categories", [])) == 7)
 
 q = call("/api/quote", "POST", {
     "pickup": {"name": "Java House, Kimathi Street", "area": "CBD", "lat": -1.2841, "lng": 36.8268},

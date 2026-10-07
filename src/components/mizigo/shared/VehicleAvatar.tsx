@@ -225,7 +225,40 @@ function Lorry10tSide() {
   );
 }
 
+function BodaSide() {
+  return (
+    <g>
+      <Ground x1={16} x2={78} />
+      {/* rear rack + parcel box — the cargo story */}
+      <path d="M22 58 L22 50 L34 50 L34 58 Z" fill={C.ink} />
+      <rect x="20.5" y="48.5" width="15" height="2.6" rx="1.3" fill={C.ink} />
+      <rect x="24" y="52.5" width="8" height="1.8" rx="0.9" fill={C.surface} opacity={0.25} />
+      {/* frame tubes */}
+      <path d="M28 69 L44 60 L64 64 L70 69" fill="none" stroke={C.ink} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M28 69 L48 70.5 L64 64" fill="none" stroke={C.ink} strokeWidth="2.2" strokeLinecap="round" />
+      {/* engine block */}
+      <rect x="42" y="62" width="14" height="9" rx="2.5" fill={C.ink2} />
+      <rect x="44.5" y="64.5" width="9" height="4" rx="1" fill={C.ink} />
+      {/* seat */}
+      <path d="M36 57 Q36 52.5 41 52.5 L52 52.5 Q55 52.5 56 54.5 L56 57 Z" fill={C.brand} />
+      {/* fuel tank */}
+      <path d="M56 56 Q56 51.5 61 51.5 L67 54 L67 58 L56 58 Z" fill={C.brandDeep} opacity={0.9} />
+      {/* front fork + handlebar */}
+      <path d="M70 69 L66 48" stroke={C.ink} strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M66 48 L61 44 M66 48 L72 43" stroke={C.ink} strokeWidth="2.2" strokeLinecap="round" />
+      {/* mirror + headlight */}
+      <circle cx="60" cy="43" r="1.3" fill={C.ink2} />
+      <Headlight x={71.5} y={46.5} />
+      {/* exhaust */}
+      <path d="M44 71 L60 71" stroke={C.ink3} strokeWidth="2" strokeLinecap="round" />
+      <Wheel cx={28} r={7} />
+      <Wheel cx={70} r={7} />
+    </g>
+  );
+}
+
 const SIDE: Record<string, () => React.ReactElement> = {
+  boda: BodaSide,
   tuktuk: TuktukSide,
   van: VanSide,
   pickup: PickupSide,
@@ -237,6 +270,7 @@ const SIDE: Record<string, () => React.ReactElement> = {
 // ── top views (map markers) ─────────────────────────────────────────────────
 
 const TOP: Record<string, { body: string; cab: string; size: [number, number]; detail: "open" | "covered" | "tuktuk" }> = {
+  boda: { body: "M -1.9 -3.2 L 1.9 -3.2 L 2.4 8 L -2.4 8 Z", cab: "M -3.4 -8.4 L 3.4 -8.4 L 1.9 -3.2 L -1.9 -3.2 Z", size: [14, 22], detail: "open" },
   tuktuk: { body: "M -3 -5 A 5.2 5.2 0 0 1 3 -5 L 3.6 3 A 1.4 1.4 0 0 1 2.2 4.4 L -2.2 4.4 A 1.4 1.4 0 0 1 -3.6 3 Z", cab: "M 0 -3.6 A 2.6 2.6 0 0 1 2.2 -1.6 L -2.2 -1.6 A 2.6 2.6 0 0 1 0 -3.6 Z", size: [22, 22], detail: "tuktuk" },
   van: { body: "M -7 -8 L 3.4 -8 L 3.4 8 L -7 8 Z", cab: "M 3.4 -8 L 7 -8 L 7 8 L 3.4 8 Z", size: [26, 26], detail: "covered" },
   pickup: { body: "M -8.5 -6.5 L 0.8 -6.5 L 0.8 6.5 L -8.5 6.5 Z", cab: "M 0.8 -6.5 L 8 -6.5 L 8 6.5 L 0.8 6.5 Z", size: [28, 24], detail: "open" },
@@ -269,6 +303,10 @@ function TopView({ category }: { category: string }) {
         {category === "tuktuk" ? (
           <>
             <circle cx={-2.6} cy={4.6} r={1.5} /><circle cx={2.6} cy={4.6} r={1.5} /><circle cx={0} cy={-5.4} r={1.2} />
+          </>
+        ) : category === "boda" ? (
+          <>
+            <circle cx={0} cy={-7} r={1.4} /><circle cx={0} cy={6.4} r={1.4} />
           </>
         ) : (
           <>
@@ -473,7 +511,27 @@ function Lorry10tTopPlate() {
   );
 }
 
+function BodaTopPlate() {
+  return (
+    <g>
+      {/* handlebar + mirrors */}
+      <rect x="17.8" y="11.6" width="12.4" height="2.2" rx="1.1" fill={C.surface} />
+      <path d="M17 13.8 C19.6 11.2 28.4 11.2 31 13.8" {...glass} />
+      {/* frame spine */}
+      <rect x="21.6" y="13.8" width="4.8" height="16.6" rx="2.2" fill={C.surface} />
+      {/* seat */}
+      <rect x="19.8" y="16.6" width="8.4" height="5.2" rx="2.3" fill={C.surface} />
+      {/* parcel box on the rear rack */}
+      <rect x="19.6" y="26.4" width="8.8" height="8" rx="1.6" fill={C.surface} />
+      <rect x="21.6" y="28.4" width="4.8" height="4" rx="0.9" fill={C.ink} fillOpacity={0.12} />
+      <WheelStub x={22.3} y={8.8} w={3.4} h={3} />
+      <WheelStub x={22.3} y={35.6} w={3.4} h={4.8} />
+    </g>
+  );
+}
+
 const PLATE_ART: Record<string, () => React.ReactElement> = {
+  boda: BodaTopPlate,
   tuktuk: TuktukTopPlate,
   van: VanTopPlate,
   pickup: PickupTopPlate,

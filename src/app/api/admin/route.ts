@@ -83,7 +83,7 @@ async function handle(req: Request): Promise<NextResponse> {
 
   if (tab === "overview") {
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
-    const [active, todayBookings, drivers, vehicleCount, payments, openDisputes, completed, returnLoads] = await Promise.all([
+    const [active, todayBookings, drivers, vehicleCount, payments, openDisputes, completed, returnLoads, alertEvents] = await Promise.all([
       activeShipments(),
       db.shipment.findMany({
         where: { createdAt: { gte: todayStart } },
@@ -97,6 +97,13 @@ async function handle(req: Request): Promise<NextResponse> {
       db.dispute.count({ where: { status: { in: ["OPEN", "RESOLVING"] } } }),
       db.shipment.findMany({ where: { status: "COMPLETED" }, select: { fareTotal: true, farePlatform: true, commission: true, distanceKm: true, driverEarnings: true, createdAt: true, durationMin: true } }),
       db.returnLoad.findMany({ where: { status: "AVAILABLE" }, select: { priceKes: true, normalPriceKes: true } }),
+      db.shipmentEvent.findMany({
+        // ops safety queue: last 24 h of alerts, newest first (Uber/Bolt pattern:
+        // a paged alert channel with an explicit ack — see docs/research/SAFETY_TECH_TEARDOWN.md)
+        where: { type: "SAFETY_ALERT", createdAt: { gte: new Date(Date.now() - 24 * 3600_000) } },
+        orderBy: { createdAt: "desc" }, take: 20,
+        include: { shipment: { include: { customer: true, driver: { include: { user: true } }, events: { orderBy: { createdAt: "asc" } } } } },
+      }),
     ]);
     const paid = todayBookings.filter((b) => b.paymentStatus === "CONFIRMED");
     const onlineDrivers = drivers.filter((d) => d.status === "ONLINE");
@@ -125,6 +132,17 @@ async function handle(req: Request): Promise<NextResponse> {
         registration: d.vehicles[0]?.registration ?? null, category: d.vehicles[0] ? (d.vehicles[0] as { category?: { key: string } }).category?.key ?? null : null,
       })),
       payments,
+      safetyAlerts: alertEvents.map((e) => {
+        const at = e.createdAt.getTime();
+        const resolved = e.shipment.events.some((x) => (x.type === "SAFETY_ACK" || x.type === "SAFETY_CHECKIN") && x.createdAt.getTime() >= at);
+        return {
+          id: e.id, shipmentId: e.shipmentId, code: e.shipment.code, at: e.createdAt.toISOString(),
+          actor: e.actor, label: e.label, lat: e.lat, lng: e.lng, resolved,
+          status: e.shipment.status,
+          customer: { name: e.shipment.customer.name, phone: e.shipment.customer.phone },
+          driver: e.shipment.driver ? { name: e.shipment.driver.user?.name ?? "Driver", phone: e.shipment.driver.user?.phone ?? "" } : null,
+        };
+      }),
     });
   }
 

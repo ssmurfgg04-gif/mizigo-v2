@@ -145,7 +145,8 @@ model Vehicle {
 model Shipment {
   id          String   @id @default(cuid())
   code        String   @unique // MZG-482913
-  shareToken  String   @unique
+  shareToken           String    @unique
+  shareTokenExpiresAt  DateTime? // Bolt-pattern: share links expire (48 h) — null only on legacy seed rows
   customerId  String
   status      String   @default("DRAFT")
   stateEnteredAt DateTime @default(now())
@@ -200,6 +201,7 @@ model Shipment {
   fareTotal    Int
   driverEarnings Int
   commission   Int
+  cancelFee    Int     @default(0) // Uber-pattern: fee withheld from refund on late cancellations
   returnLoadId String? // set when this trip booked a published empty leg
 
   // payment
@@ -315,6 +317,7 @@ model Rating {
   shipmentId String
   byRole     String // CUSTOMER | DRIVER
   stars      Int
+  tip        Int? // KES tip — 100% goes to the driver (Bolt-pattern: offered after a 4–5★ rating)
   tags       String   @default("[]") // JSON
   comment    String?
   createdAt  DateTime @default(now())

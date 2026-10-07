@@ -8,6 +8,8 @@ export interface PlatformSettings {
   advanceBookingDays: number;
   autoDispatch: boolean;
   quoteExpiryMinutes: number;
+  cancellationFeeKes: number;
+  cancelGraceMinutes: number;
 }
 
 const FALLBACK: PlatformSettings = {
@@ -15,6 +17,8 @@ const FALLBACK: PlatformSettings = {
   advanceBookingDays: 14,
   autoDispatch: true,
   quoteExpiryMinutes: 60,
+  cancellationFeeKes: 200,
+  cancelGraceMinutes: 2,
 };
 
 export function useSettings() {

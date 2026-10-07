@@ -41,6 +41,8 @@ async function handle(): Promise<NextResponse> {
       advanceBookingDays: Number(settings.advanceBookingDays ?? 14),
       autoDispatch: settings.autoDispatch !== "false",
       quoteExpiryMinutes: Number(settings.quoteExpiryMinutes ?? 60),
+      cancellationFeeKes: Number(settings.cancellationFeeKes ?? 200),
+      cancelGraceMinutes: Number(settings.cancelGraceMinutes ?? 2),
     },
     demo: {
       customer: { email: "customer@mizigo.demo", phone: "0712 000 001", name: "John Kariuki" },

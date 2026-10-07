@@ -32,14 +32,16 @@ export async function seedAll(): Promise<void> {
     db.returnLoad.deleteMany(),
   ]);
 
-  // ── Vehicle categories (rates are illustrative and admin-editable) ──
+  // ── Vehicle categories (rates calibrated against Oct 2026 Nairobi broker /
+  // listing benchmarks — see docs/research/KENYA_MARKET_PLAYBOOK.md §11; admin-editable) ──
   const catDefs = [
-    { key: "tuktuk", name: "Tuk-tuk", description: "Best for small cargo around town", capacityKg: 300, volumeM3: 1.2, bodyType: "open", lengthM: 1.6, widthM: 1.3, heightM: 1.2, baseFare: 250, perKmRate: 55, perMinRate: 2, minimumFare: 350, loadingFee: 150, extraStopFee: 100, sortOrder: 1, supportedCargo: ["household", "retail", "other"] },
+    { key: "boda", name: "Boda boda", description: "Motorbike courier for parcels and small loads", capacityKg: 60, volumeM3: 0.3, bodyType: "open", lengthM: 1.1, widthM: 0.7, heightM: 0.8, baseFare: 60, perKmRate: 20, perMinRate: 1, minimumFare: 120, loadingFee: 50, extraStopFee: 50, sortOrder: 0, supportedCargo: ["household", "retail", "farm", "other"] },
+    { key: "tuktuk", name: "Tuk-tuk", description: "Best for small cargo around town", capacityKg: 300, volumeM3: 1.2, bodyType: "open", lengthM: 1.6, widthM: 1.3, heightM: 1.2, baseFare: 250, perKmRate: 55, perMinRate: 2, minimumFare: 500, loadingFee: 150, extraStopFee: 100, sortOrder: 1, supportedCargo: ["household", "retail", "other"] },
     { key: "van", name: "Van", description: "Covered van for protected loads", capacityKg: 800, volumeM3: 4.5, bodyType: "covered", lengthM: 2.4, widthM: 1.5, heightM: 1.5, baseFare: 400, perKmRate: 75, perMinRate: 3, minimumFare: 700, loadingFee: 250, extraStopFee: 200, sortOrder: 2, supportedCargo: ["household", "retail", "electronics", "farm", "other"] },
-    { key: "pickup", name: "Pickup", description: "Best for furniture and small business loads", capacityKg: 1000, volumeM3: 5.8, bodyType: "open", lengthM: 2.3, widthM: 1.6, heightM: 0.6, baseFare: 500, perKmRate: 90, perMinRate: 3, minimumFare: 900, loadingFee: 300, extraStopFee: 250, sortOrder: 3, supportedCargo: ["furniture", "appliances", "household", "retail", "construction", "farm", "electronics", "machinery", "other"] },
-    { key: "canter", name: "Canter", description: "3.5T for serious shop and site loads", capacityKg: 3500, volumeM3: 14, bodyType: "open", lengthM: 4.3, widthM: 2.0, heightM: 1.2, baseFare: 1500, perKmRate: 140, perMinRate: 5, minimumFare: 2800, loadingFee: 600, extraStopFee: 500, sortOrder: 4, supportedCargo: ["furniture", "construction", "retail", "farm", "machinery", "other"] },
-    { key: "lorry_7t", name: "7-Tonne Lorry", description: "For bulk commercial cargo", capacityKg: 7000, volumeM3: 26, bodyType: "covered", lengthM: 5.5, widthM: 2.2, heightM: 2.0, baseFare: 2800, perKmRate: 190, perMinRate: 7, minimumFare: 5200, loadingFee: 1000, extraStopFee: 800, sortOrder: 5, supportedCargo: ["construction", "retail", "farm", "machinery", "other"] },
-    { key: "lorry_10t", name: "10-Tonne Lorry", description: "Large commercial and inter-town loads", capacityKg: 10000, volumeM3: 38, bodyType: "covered", lengthM: 6.5, widthM: 2.3, heightM: 2.2, baseFare: 4200, perKmRate: 240, perMinRate: 9, minimumFare: 7800, loadingFee: 1500, extraStopFee: 1200, sortOrder: 6, supportedCargo: ["construction", "retail", "farm", "machinery", "other"] },
+    { key: "pickup", name: "Pickup", description: "Best for furniture and small business loads", capacityKg: 1000, volumeM3: 5.8, bodyType: "open", lengthM: 2.3, widthM: 1.6, heightM: 0.6, baseFare: 500, perKmRate: 90, perMinRate: 3, minimumFare: 2200, loadingFee: 300, extraStopFee: 250, sortOrder: 3, supportedCargo: ["furniture", "appliances", "household", "retail", "construction", "farm", "electronics", "machinery", "other"] },
+    { key: "canter", name: "Canter", description: "3.5T for serious shop and site loads", capacityKg: 3500, volumeM3: 14, bodyType: "open", lengthM: 4.3, widthM: 2.0, heightM: 1.2, baseFare: 1500, perKmRate: 200, perMinRate: 5, minimumFare: 6500, loadingFee: 600, extraStopFee: 500, sortOrder: 4, supportedCargo: ["furniture", "construction", "retail", "farm", "machinery", "other"] },
+    { key: "lorry_7t", name: "7-Tonne Lorry", description: "For bulk commercial cargo", capacityKg: 7000, volumeM3: 26, bodyType: "covered", lengthM: 5.5, widthM: 2.2, heightM: 2.0, baseFare: 2800, perKmRate: 190, perMinRate: 7, minimumFare: 9500, loadingFee: 1000, extraStopFee: 800, sortOrder: 5, supportedCargo: ["construction", "retail", "farm", "machinery", "other"] },
+    { key: "lorry_10t", name: "10-Tonne Lorry", description: "Large commercial and inter-town loads", capacityKg: 10000, volumeM3: 38, bodyType: "covered", lengthM: 6.5, widthM: 2.3, heightM: 2.2, baseFare: 4200, perKmRate: 240, perMinRate: 9, minimumFare: 15000, loadingFee: 1500, extraStopFee: 1200, sortOrder: 6, supportedCargo: ["construction", "retail", "farm", "machinery", "other"] },
   ];
   // Deterministic ids: every serverless instance seeds the SAME ids, so a
   // session cookie minted on one instance validates on any other (sandbox
@@ -68,6 +70,7 @@ export async function seedAll(): Promise<void> {
     { phone: "0755000077", name: "James Mutua", status: "ONLINE", rating: 4.9, tripsCompleted: 502, acceptanceRate: 0.97, onTimePickup: 0.96, onTimeDelivery: 0.97, cancellationRate: 0.01, incidents: 0, lat: -1.3155, lng: 36.8230, vehicle: { make: "Mitsubishi", model: "Fuso 7T", registration: "KBX 567K", category: "lorry_7t", capacityKg: 7000 }, licenceExpiry: ago(-500 * D) },
     { phone: "0766000088", name: "Faith Chebet", status: "ONLINE", rating: 4.6, tripsCompleted: 88, acceptanceRate: 0.88, onTimePickup: 0.9, onTimeDelivery: 0.88, cancellationRate: 0.04, incidents: 0, lat: -1.2613, lng: 36.8027, vehicle: { make: "Nissan", model: "Vanette", registration: "KCF 890L", category: "van", capacityKg: 800 }, licenceExpiry: ago(-150 * D) },
     { phone: "0777000099", email: "samuel@mizigo.demo", name: "Samuel Kiprop", status: "ONLINE", rating: 4.8, tripsCompleted: 341, acceptanceRate: 0.94, onTimePickup: 0.95, onTimeDelivery: 0.96, cancellationRate: 0.015, incidents: 0, lat: -1.2990, lng: 36.8760, vehicle: { make: "Isuzu", model: "FVR 10T", registration: "KCA 234N", category: "lorry_10t", capacityKg: 10000 }, licenceExpiry: ago(-350 * D) },
+    { phone: "0788000010", name: "Evans Ochieng", status: "ONLINE", rating: 4.7, tripsCompleted: 254, acceptanceRate: 0.95, onTimePickup: 0.92, onTimeDelivery: 0.9, cancellationRate: 0.02, incidents: 0, lat: -1.2860, lng: 36.8220, vehicle: { make: "Boxer", model: "Boda 125", registration: "KMD 345P", category: "boda", capacityKg: 60 }, licenceExpiry: ago(-180 * D) },
   ];
   const drivers = await Promise.all(driverDefs.map(async (d, i) => {
     const u = await db.user.create({ data: { id: `seed-user-d${i + 1}`, phone: d.phone, email: d.email, name: d.name, role: "DRIVER", accountType: "PERSONAL", avatarSeed: d.name.split(" ")[0].toLowerCase(), rating: d.rating, verified: true } });
@@ -170,6 +173,8 @@ export async function seedAll(): Promise<void> {
       { key: "autoDispatch", value: "true" },        // false → MATCHING waits for manual dispatch
       { key: "quoteExpiryMinutes", value: "60" },    // quote marketplace expiry
       { key: "supportPhone", value: "0800 724 343" },
+      { key: "cancellationFeeKes", value: "200" },   // Uber pattern: fee after the grace window (docs/UBER_BOLT_TEARDOWN.md §3.11)
+      { key: "cancelGraceMinutes", value: "2" },     // free cancel within 2 min of driver acceptance
     ],
   });
 

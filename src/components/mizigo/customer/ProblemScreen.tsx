@@ -13,6 +13,8 @@ import { toast } from "@/hooks/use-toast";
 
 const TYPES = [
   { key: "CARGO_DAMAGE", label: "Cargo damaged", hint: "Scratches, breaks, water damage" },
+  { key: "CARGO_THEFT", label: "Cargo theft", hint: "Goods missing with signs of theft — safety team first" },
+  { key: "SAFETY", label: "Safety concern", hint: "Threats, unsafe driving, feeling unsafe" },
   { key: "MISSING_ITEM", label: "Missing item", hint: "Something didn't arrive" },
   { key: "WRONG_DELIVERY", label: "Wrong delivery", hint: "Delivered to the wrong place" },
   { key: "LATE", label: "Late delivery", hint: "Much later than promised" },

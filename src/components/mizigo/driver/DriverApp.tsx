@@ -3,13 +3,13 @@
 // Includes quote-marketplace jobs (plan §33), chat (plan §77), stops (plan §35),
 // cargo issue reporting (plan §15) and the documents screen (plan §29).
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, ArrowUpRight, Banknote, BriefcaseBusiness, CheckCircle2, ChevronRight, Clock3,
   FileCheck2, LogOut, MapPin, MessageCircle, Navigation, PackageOpen, Phone, Power, Star,
-  TriangleAlert, Truck, User, Wallet, X,
+  TriangleAlert, Truck, User, Wallet, X, Siren,
 } from "lucide-react";
 import { api, post } from "@/lib/api-client";
 import type { DriverHome, ShipmentDTO } from "@/lib/types";
@@ -23,6 +23,7 @@ import ReturnLoadPublisher from "./ReturnLoadPublisher";
 import { driverReliability } from "@/lib/matching";
 import { kes, etaText, fmtDateEAT, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
+import { SPECIAL_HANDLING } from "@/lib/pricing";
 import { toast } from "@/hooks/use-toast";
 import { post as apiPost, loginWithOtp } from "@/lib/api-client";
 import type { SessionUser } from "@/store/session";
@@ -155,6 +156,37 @@ function DriverHomeScreen({ data, onOpenTrip }: { data: DriverHome; onOpenTrip: 
 }
 
 // ─── Requests (offer + trip flow + quote jobs) ───
+
+/** Uber driver-offer pattern: a visible response window. Cargo gets 30 s
+ *  (ride-hailing pilots run 10–15 s); at zero the job is declined and offered
+ *  to the next driver — the countdown is real, not decorative. */
+function OfferCountdown({ seconds = 30, onExpire }: { seconds?: number; onExpire: () => void }) {
+  const [left, setLeft] = useState(seconds);
+  const fired = useRef(false);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setLeft((v) => (v <= 1 ? 0 : v - 1));
+    }, 1000);
+    return () => clearInterval(iv);
+  }, []);
+  useEffect(() => {
+    if (left === 0 && !fired.current) {
+      fired.current = true;
+      onExpire();
+    }
+  }, [left, onExpire]);
+  const CIRC = 2 * Math.PI * 15.5;
+  return (
+    <span className="flex items-center gap-2" role="timer" aria-label={`${left} seconds to respond`}>
+      <svg width="30" height="30" viewBox="0 0 36 36" className="-rotate-90" aria-hidden="true">
+        <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--line)" strokeWidth="4" />
+        <circle cx="18" cy="18" r="15.5" fill="none" stroke={left <= 10 ? "var(--danger)" : "var(--brand)"} strokeWidth="4" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - left / seconds)} />
+      </svg>
+      <span className="tnum text-[13px] font-extrabold">{left}s</span>
+    </span>
+  );
+}
+
 function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => void }) {
   const s = data.active;
   const [busy, setBusy] = useState(false);
@@ -167,6 +199,8 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
   const [reportKind, setReportKind] = useState<string | null>(null);
   const [reportNote, setReportNote] = useState("");
   const [doneStops, setDoneStops] = useState<number[]>([]);
+  const [sosOpen, setSosOpen] = useState(false);
+  const [sosSent, setSosSent] = useState(false);
   // driver-side navigation: real OSRM road geometry + turn-by-turn + traffic
   // (hook must run before the early return; it accepts a null shipment)
   const nav = useDriverNav(s, doneStops);
@@ -206,7 +240,9 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
         <div className="animate-mz-slide-up flex flex-1 flex-col rounded-t-[18px] bg-[var(--surface)] px-5 pb-5 pt-4 sheet-shadow">
           <div className="flex items-center justify-between">
             <StatusBadge tone="active">New delivery request</StatusBadge>
-            <span className="tnum text-[12px] font-bold text-[var(--ink-3)]">{s.code}</span>
+            {/* Uber driver-offer pattern: a visible response window — cargo gets
+                30 s (ride-hailing uses 10–15 s); at 0 the job goes to the next driver */}
+            <OfferCountdown onExpire={() => void declineOffer()} />
           </div>
           <div className="mt-3 flex items-center gap-3">
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--surface-2)]"><VehicleAvatar category={s.category.key} size={38} /></span>
@@ -218,8 +254,14 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
             </div>
           </div>
           <div className="mt-3 rounded-[12px] bg-[var(--surface-2)] px-4 py-3">
-            <Row label="Cargo" value={`${s.cargo.items.reduce((a, i) => a + i.qty, 0)} items`} />
+            <Row label="Cargo" value={`${s.cargo.items.reduce((a, i) => a + i.qty, 0)} items · ${s.cargo.load.toLowerCase().replace(/_/g, " ")}`} />
+            {s.cargo.special.length > 0 && (
+              <Row label="Care" value={s.cargo.special.slice(0, 3).map((k) => SPECIAL_HANDLING.find((x) => x.key === k)?.label ?? k).join(" · ")} />
+            )}
             {s.cargo.helpers > 0 && <Row label="Loading help" value={`× ${s.cargo.helpers} requested`} />}
+            {/* Bolt-style take-rate transparency: the driver sees the whole money story */}
+            <Row label="Customer pays" value={kes(s.fare.total)} />
+            <Row label="Commission + platform fee" value={`− ${kes(s.fare.commission + s.fare.platform)}`} />
             <Row label="Your earnings" value={kes(s.fare.driverEarnings)} strong />
           </div>
           <div className="mt-auto space-y-2.5 pt-4">
@@ -276,9 +318,15 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
         />
         <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
           <span className="rounded-full bg-[var(--ink)]/85 px-3.5 py-1.5 text-[12px] font-extrabold text-white backdrop-blur">{heading[stage]}</span>
-          {s.live?.etaMin != null && s.live.leg !== "IDLE" && (
-            <span className="tnum rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] font-extrabold text-[var(--ink)] backdrop-blur">{etaText(s.live.etaMin)}</span>
-          )}
+          <div className="flex items-center gap-2">
+            {s.live?.etaMin != null && s.live.leg !== "IDLE" && (
+              <span className="tnum rounded-full bg-white/90 px-3.5 py-1.5 text-[13px] font-extrabold text-[var(--ink)] backdrop-blur">{etaText(s.live.etaMin)}</span>
+            )}
+            {/* driver-side safety alert (Uber SOS pattern — ops callback, not direct police integration) */}
+            <button onClick={() => { setSosOpen(true); setSosSent(false); }} className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--danger)] text-white shadow-lg" aria-label="Safety alert">
+              <Siren size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -473,6 +521,37 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
 
       {/* chat sheet (plan §77) */}
       {chatOpen && s && <ChatSheet shipmentId={s.id} role="DRIVER" onClose={() => setChatOpen(false)} />}
+
+      {/* driver SOS sheet — ops alert + call-back (Uber SOS pattern) */}
+      {sosOpen && s && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => setSosOpen(false)}>
+          <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Safety alert">
+            <p className="text-[17px] font-extrabold tracking-tight">Safety alert</p>
+            <p className="tnum mt-0.5 text-[12px] font-semibold text-[var(--ink-3)]">{s.code} · {s.route.pickup.area} → {s.route.dropoff.area}</p>
+            {!sosSent ? (
+              <>
+                <p className="mt-3 text-[13px] font-medium leading-relaxed text-[var(--ink-2)]">This alerts the MIZIGO ops team with your delivery, live location and the customer's contact — they call you back straight away.</p>
+                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                  <Button variant="ghost" className="border border-[var(--line)]" onClick={() => setSosOpen(false)}>Close</Button>
+                  <Button variant="danger" onClick={async () => {
+                    await post(`/api/shipments/${s.id}/action`, { action: "safety-alert" }).catch(() => null);
+                    setSosSent(true);
+                    toast({ title: "Ops alerted", description: "A team member is calling you now." });
+                  }}>Alert ops</Button>
+                </div>
+                <p className="mt-2 text-center text-[11.5px] font-semibold text-[var(--ink-3)]">Life-threatening emergency? Dial 999 or 112 as well.</p>
+              </>
+            ) : (
+              <>
+                <p className="mt-3 text-[13px] font-bold text-[var(--danger)]">Ops alerted — expect a call.</p>
+                <a href="tel:0800724343" className="mt-3 flex h-12 items-center justify-center gap-2 rounded-[12px] bg-[var(--danger)] text-[13.5px] font-extrabold text-white">
+                  <Phone size={15} /> Call ops now
+                </a>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* cargo issue report (plan §15) */}
       {reportOpen && s && (
@@ -833,6 +912,16 @@ function DriverEarningsScreen({ data }: { data: DriverHome }) {
         <Button variant="brand" className="mt-4 w-full" onClick={() => setWithdraw(true)}>
           <Wallet size={16} /> Withdraw to M-PESA
         </Button>
+      </div>
+
+      {/* take-rate transparency — Bolt's angle: drivers can read exactly what the platform takes */}
+      <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4">
+        <p className="text-[13.5px] font-extrabold">
+          You keep {data.earnings.grossFares > 0 ? Math.round((1 - data.earnings.commission / data.earnings.grossFares) * 100) : 85}% of every fare
+        </p>
+        <p className="mt-1 text-[12px] font-medium leading-relaxed text-[var(--ink-2)]">
+          MIZIGO's commission is 15% plus a KES 100 platform fee per job — under Kenya's 18% commission cap, where most apps charge the full 18%. This month: {kes(data.earnings.grossFares - data.earnings.commission)} earned of {kes(data.earnings.grossFares)} in fares. Cash out to M-PESA any time.
+        </p>
       </div>
 
       {/* chart */}

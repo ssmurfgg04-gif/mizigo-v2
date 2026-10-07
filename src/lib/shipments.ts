@@ -16,7 +16,7 @@ type ShipmentWithRelations = Shipment & {
   customer: User;
   items: { id: string; name: string; qty: number; weightKg: number }[];
   events: { id: string; type: string; label: string; actor: string; lat: number | null; lng: number | null; createdAt: Date }[];
-  ratings: { id: string; byRole: string; stars: number; tags: string; comment: string | null; createdAt: Date }[];
+  ratings: { id: string; byRole: string; stars: number; tip: number | null; tags: string; comment: string | null; createdAt: Date }[];
   quotes?: (Quote & { driver: (Driver & { user: User | null; vehicles: Vehicle[] }) | null })[];
   messages?: { id: string; senderRole: string; body: string; createdAt: Date }[];
 };
@@ -220,7 +220,7 @@ export function shipmentDTO(s: ShipmentWithRelations) {
     customer: { id: s.customer.id, name: s.customer.name, phone: s.customer.phone, rating: s.customer.rating, business: s.customer.accountType === "BUSINESS" ? s.customer.businessName : null },
     fare: { base: s.fareBase, distance: s.fareDistance, duration: s.fareDuration, loading: s.fareLoading, stops: s.fareStops, night: s.fareNight, schedule: s.fareSchedule, platform: s.farePlatform, discount: s.fareDiscount, promoCode: s.promoCode, total: s.fareTotal, driverEarnings: s.driverEarnings, commission: s.commission, returnLoad: !!s.returnLoadId },
     pricingMode: s.pricingMode,
-    payment: { method: s.paymentMethod, status: s.paymentStatus, ref: s.paymentRef, paidAt: s.paidAt?.toISOString() ?? null },
+    payment: { method: s.paymentMethod, status: s.paymentStatus, ref: s.paymentRef, paidAt: s.paidAt?.toISOString() ?? null, refundKes: s.paymentStatus === "REFUNDED" ? Math.max(0, s.fareTotal - s.cancelFee) : null, cancelFeeKes: s.cancelFee },
     deliveryCode: s.deliveryCode, // drop-off handshake (sandbox: shared DTO for demo simplicity)
     pod: s.podVerifiedAt ? { recipient: s.podRecipient, verifiedAt: s.podVerifiedAt.toISOString(), lat: s.podLat, lng: s.podLng, photo: s.podPhotoTaken } : null,
     cancelledBy: s.cancelledBy, cancelReason: s.cancelReason,
@@ -230,7 +230,15 @@ export function shipmentDTO(s: ShipmentWithRelations) {
       return { id: q.id, driverId: q.driverId, amount: q.amount, etaText: q.etaText, message: q.message, status: q.status, expiresAt: q.expiresAt.toISOString(), driver: q.driver?.user ? { name: q.driver.user.name, rating: q.driver.rating, trips: q.driver.tripsCompleted } : null, vehicle: v ? { make: v.make, model: v.model, registration: v.registration } : null };
     }) ?? [],
     messages: s.messages?.map((m) => ({ id: m.id, senderRole: m.senderRole, body: m.body, at: m.createdAt.toISOString() })) ?? [],
-    ratings: s.ratings.map((r) => ({ byRole: r.byRole, stars: r.stars, tags: JSON.parse(r.tags || "[]"), comment: r.comment })),
+    ratings: s.ratings.map((r) => ({ byRole: r.byRole, stars: r.stars, tip: r.tip, tags: JSON.parse(r.tags || "[]"), comment: r.comment })),
+    // derived safety state: the last alert stands until an ack or a safe check-in lands
+    safety: (() => {
+      const alert = [...s.events].reverse().find((e) => e.type === "SAFETY_ALERT");
+      if (!alert) return { lastAlertAt: null, acked: false, open: false };
+      const at = new Date(alert.createdAt).getTime();
+      const resolved = s.events.some((e) => (e.type === "SAFETY_ACK" || e.type === "SAFETY_CHECKIN") && new Date(e.createdAt).getTime() >= at);
+      return { lastAlertAt: alert.createdAt.toISOString(), acked: resolved, open: !resolved };
+    })(),
     live,
   };
 }

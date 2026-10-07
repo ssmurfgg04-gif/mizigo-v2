@@ -70,15 +70,18 @@ export function RatingForm({
   onRated,
 }: {
   shipment: ShipmentDTO;
-  onRated: (r: { alreadyRated: boolean; driverRating: number | null }) => void;
+  onRated: (r: { alreadyRated: boolean; driverRating: number | null; tip: number | null }) => void;
 }) {
   const { lang } = useSession();
   const qc = useQueryClient();
   const [stars, setStars] = useState(5); // default 5 — one tap to submit a happy rating
   const [tags, setTags] = useState<string[]>([]);
   const [comment, setComment] = useState("");
+  const [tip, setTip] = useState<number | null>(null); // Bolt pattern: offered after a 4–5★ rating
+  const [tipCustom, setTipCustom] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const TIP_CHIPS = [50, 100, 200];
 
   const canRate = isRateable(shipment);
 
@@ -91,16 +94,18 @@ export function RatingForm({
         action: "rate",
         stars,
         tags,
+        tip: stars >= 4 ? (tip ?? (Number(tipCustom) > 0 ? Math.round(Number(tipCustom)) : 0)) : 0,
         comment: comment.trim() || null,
       });
       void qc.invalidateQueries({ queryKey: ["customer-home"] });
-      onRated({ alreadyRated: false, driverRating: res.shipment?.driver?.rating ?? null });
+      const sentTip = stars >= 4 ? (tip ?? (Number(tipCustom) > 0 ? Math.round(Number(tipCustom)) : 0)) : 0;
+      onRated({ alreadyRated: false, driverRating: res.shipment?.driver?.rating ?? null, tip: sentTip });
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         // rated already (another tab / earlier attempt) — not an error for the customer
         void qc.invalidateQueries({ queryKey: ["shipment", shipment.id] });
         void qc.invalidateQueries({ queryKey: ["customer-home"] });
-        onRated({ alreadyRated: true, driverRating: shipment.driver?.rating ?? null });
+        onRated({ alreadyRated: true, driverRating: shipment.driver?.rating ?? null, tip: null });
         return;
       }
       setError(e instanceof Error && e.message ? e.message : "Couldn't send your rating. Check your connection and try again.");
@@ -144,6 +149,40 @@ export function RatingForm({
         ))}
       </div>
 
+      {/* tip — only offered after a 4–5★ rating (Bolt pattern), 100% to the driver */}
+      {stars >= 4 && (
+        <div className="mt-4 rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] p-3.5">
+          <p className="text-center text-[13.5px] font-extrabold">Add a tip for {shipment.driver?.name.split(" ")[0] ?? "your driver"}?</p>
+          <p className="mt-0.5 text-center text-[11.5px] font-semibold text-[var(--ink-3)]">100% goes to your driver — MIZIGO takes nothing.</p>
+          <div className="mt-2.5 flex items-center justify-center gap-2">
+            {TIP_CHIPS.map((amount) => (
+              <button
+                key={amount}
+                type="button"
+                onClick={() => { setTip(tip === amount ? null : amount); setTipCustom(""); }}
+                aria-pressed={tip === amount}
+                className={`tnum rounded-full border px-4 py-2 text-[12.5px] font-extrabold transition active:translate-y-px ${
+                  tip === amount
+                    ? "border-[var(--brand)] bg-[var(--brand)] text-white"
+                    : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-2)]"
+                }`}
+              >
+                KES {amount}
+              </button>
+            ))}
+            <label className="sr-only" htmlFor={`tip-custom-${shipment.id}`}>Custom tip in KES</label>
+            <input
+              id={`tip-custom-${shipment.id}`}
+              inputMode="numeric"
+              value={tipCustom}
+              onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 4); setTipCustom(v); setTip(null); }}
+              placeholder="Other"
+              className="tnum w-20 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3.5 py-2 text-center text-[12.5px] font-bold outline-none transition focus:border-[var(--brand)]"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="mt-3.5">
         <label htmlFor={`rating-comment-${shipment.id}`} className="sr-only">Comment (optional)</label>
         <textarea
@@ -177,7 +216,7 @@ export function RatingForm({
 // ── the bottom sheet ──
 export function RatingSheet({ shipmentId, onClose }: { shipmentId: string; onClose: () => void }) {
   const { setFocusShipment, setBookingStep } = useSession();
-  const [done, setDone] = useState<{ driverRating: number | null } | null>(null);
+  const [done, setDone] = useState<{ driverRating: number | null; tip: number | null } | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["shipment", shipmentId],
@@ -247,6 +286,9 @@ export function RatingSheet({ shipmentId, onClose }: { shipmentId: string; onClo
                   {s.driver.name.split(" ")[0]} is now rated <span className="tnum font-extrabold text-[var(--ink)]">★ {done.driverRating.toFixed(1)}</span> on the network
                 </p>
               )}
+              {done.tip != null && done.tip > 0 && (
+                <p className="mt-1 text-[13px] font-bold text-[var(--brand-deep)]">Tip sent · KES {done.tip.toLocaleString()} — 100% to {s.driver?.name.split(" ")[0] ?? "your driver"}</p>
+              )}
               <div className="mt-5 w-full space-y-2.5">
                 <Button variant="brand" className="w-full" onClick={viewReceipt}>View receipt</Button>
                 <Button variant="ghost" className="w-full" onClick={onClose}>Close</Button>
@@ -258,6 +300,9 @@ export function RatingSheet({ shipmentId, onClose }: { shipmentId: string; onClo
               <div className="mt-4 flex flex-col items-center rounded-[12px] bg-[var(--surface-2)] px-4 py-4 text-center">
                 <span className="text-[11px] font-extrabold uppercase tracking-widest text-[var(--success)]">Rated</span>
                 <Stars value={rated.stars} size={20} className="mt-1.5" />
+                {rated.tip != null && rated.tip > 0 && (
+                  <p className="mt-2 text-[12.5px] font-bold text-[var(--brand-deep)]">Tip · KES {rated.tip.toLocaleString()} — 100% to the driver</p>
+                )}
                 {rated.tags?.length > 0 && (
                   <div className="mt-3 flex flex-wrap justify-center gap-1.5">
                     {rated.tags.map((tag) => (
@@ -283,7 +328,7 @@ export function RatingSheet({ shipmentId, onClose }: { shipmentId: string; onClo
                       void refetch(); // the query will flip the sheet to the read-only view
                       return;
                     }
-                    setDone({ driverRating: r.driverRating });
+                    setDone({ driverRating: r.driverRating, tip: r.tip });
                   }}
                 />
               </div>

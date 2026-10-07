@@ -48,14 +48,15 @@ export interface ShipmentDTO {
   customer: { id: string; name: string; phone: string; rating: number; business: string | null };
   fare: { base: number; distance: number; duration: number; loading: number; stops: number; night: number; schedule: number; platform: number; discount: number; promoCode: string | null; total: number; driverEarnings: number; commission: number; returnLoad: boolean };
   pricingMode: string;
-  payment: { method: string; status: string; ref: string | null; paidAt: string | null };
+  payment: { method: string; status: string; ref: string | null; paidAt: string | null; refundKes: number | null; cancelFeeKes: number };
   deliveryCode: string | null; // drop-off handshake shown to the customer
   pod: { recipient: string; verifiedAt: string; lat: number | null; lng: number | null; photo: boolean } | null;
   cancelledBy: string | null; cancelReason: string | null;
   events: { id: string; type: string; label: string; actor: string; lat: number | null; lng: number | null; at: string }[];
   quotes: { id: string; driverId: string; amount: number; etaText: string; message: string | null; status: string; expiresAt: string; driver: { name: string; rating: number; trips: number } | null; vehicle: { make: string; model: string; registration: string } | null }[];
   messages: { id: string; senderRole: string; body: string; at: string }[];
-  ratings: { byRole: string; stars: number; tags: string[]; comment: string | null }[];
+  ratings: { byRole: string; stars: number; tip: number | null; tags: string[]; comment: string | null }[];
+  safety: { lastAlertAt: string | null; acked: boolean; open: boolean };
   live: LivePosition | null;
 }
 
@@ -118,6 +119,7 @@ export interface AdminOverview {
     returnLoadsLive: number; returnLoadsAvgDiscount: number;
   };
   live: ShipmentDTO[];
+  safetyAlerts: { id: string; shipmentId: string; code: string; at: string; actor: string; label: string; lat: number | null; lng: number | null; resolved: boolean; status: string; customer: { name: string; phone: string }; driver: { name: string; phone: string } | null }[];
   drivers: { id: string; name: string; status: string; rating: number; trips: number; verification: string; lat: number; lng: number; vehicle: string | null; registration: string | null; category: string | null }[];
   payments: { id: string; checkoutReqId: string; method: string; amount: number; status: string; mpesaReceipt: string | null; createdAt: string }[];
 }

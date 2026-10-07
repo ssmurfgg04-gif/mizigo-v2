@@ -166,6 +166,9 @@ function OverviewTab() {
         <StatusBadge tone="active"><Activity size={12} /> Live · updates every 4s</StatusBadge>
       </header>
 
+      {/* safety queue — open alerts first, acked below (Uber/Bolt ops pattern) */}
+      {data?.safetyAlerts && data.safetyAlerts.length > 0 && <SafetyQueue alerts={data.safetyAlerts} />}
+
       {/* KPIs */}
       <div className="mt-5 grid grid-cols-3 gap-3 lg:grid-cols-5">
         {kpis.map((x) => (
@@ -228,6 +231,71 @@ function OverviewTab() {
 }
 
 // ─── Live map ───
+/** Ops safety queue — every SAFETY_ALERT in the last 24 h, open ones first.
+ *  Ack flow: an ops tap tells the reporter + driver a callback is coming and
+ *  marks the alert handled (the event trail keeps the full story). */
+function SafetyQueue({ alerts }: { alerts: NonNullable<AdminOverview["safetyAlerts"]> }) {
+  const qc = useQueryClient();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const sorted = [...alerts].sort((a, b) => Number(a.resolved) - Number(b.resolved) || new Date(b.at).getTime() - new Date(a.at).getTime());
+  const openCount = alerts.filter((a) => !a.resolved).length;
+
+  const ack = async (a: { shipmentId: string; id: string }) => {
+    setBusyId(a.id);
+    try {
+      await post(`/api/shipments/${a.shipmentId}/action`, { action: "safety-ack" });
+      await qc.invalidateQueries({ queryKey: ["admin-overview"] });
+      toast({ title: "Alert acknowledged", description: "The reporter has been told a team member is calling." });
+    } catch (e) {
+      toast({ title: "Couldn't acknowledge", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section className={`mt-4 overflow-hidden rounded-[14px] border-2 ${openCount ? "border-[var(--danger)]" : "border-[var(--line)]"} bg-[var(--surface)]`} aria-label="Safety alerts">
+      <div className={`flex items-center gap-2.5 px-4 py-3 ${openCount ? "bg-[var(--danger-soft)]" : "bg-[var(--surface-2)]"}`}>
+        <LifeBuoy size={16} className={openCount ? "text-[var(--danger)]" : "text-[var(--ink-3)]"} />
+        <p className="text-[14px] font-extrabold tracking-tight">
+          Safety alerts {openCount > 0 && <span className="tnum text-[var(--danger)]">· {openCount} open</span>}
+        </p>
+        {openCount > 0 && <span className="ml-auto flex h-2.5 w-2.5 animate-ping rounded-full bg-[var(--danger)]" aria-hidden="true" />}
+      </div>
+      <div className="divide-y divide-[var(--line)]">
+        {sorted.map((a) => (
+          <div key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-2 text-[13.5px] font-extrabold">
+                <span className="tnum">{a.code}</span>
+                <StatusBadge tone={a.resolved ? "success" : "danger"}>{a.resolved ? "Handled" : "Open"}</StatusBadge>
+              </p>
+              <p className="mt-0.5 text-[12.5px] font-medium text-[var(--ink-2)]">
+                {a.label} · {relTimeEAT(a.at)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-[12px] font-bold">
+              <a href={`tel:${a.customer.phone}`} className="rounded-[8px] border border-[var(--line)] px-3 py-2 hover:bg-[var(--surface-2)]">
+                Call customer · {fmtPhone(a.customer.phone)}
+              </a>
+              {a.driver && (
+                <a href={`tel:${a.driver.phone}`} className="rounded-[8px] border border-[var(--line)] px-3 py-2 hover:bg-[var(--surface-2)]">
+                  Call driver · {a.driver.name.split(" ")[0]}
+                </a>
+              )}
+            </div>
+            {!a.resolved && (
+              <Button variant="brand" className="h-9 text-[12.5px]" loading={busyId === a.id} onClick={() => void ack(a)}>
+                Acknowledge · calling back
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function LiveTab() {
   const [filter, setFilter] = useState<"ALL" | "AVAILABLE" | "BUSY" | "DELIVERIES">("ALL");
   const { data } = useQuery({
