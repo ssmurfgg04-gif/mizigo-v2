@@ -15,6 +15,7 @@ import { matchDriverRing } from "@/lib/matching";
 import { ringFetcher } from "@/lib/dispatch";
 import { mpesaRef } from "@/lib/format";
 import { startCustomerPayment, confirmCustomerPayment, initiatePodPayout, refundShipmentPayment } from "@/lib/payments";
+import { GPS_MISMATCH_METERS, gpsMismatchMeters } from "@/lib/geo";
 import { ensureDB } from "@/lib/db-ready";
 import { requireSession, isResponse, rateLimit, clampInt, capStr } from "@/lib/security";
 import { invalidatePrefix } from "@/lib/query-cache";
@@ -105,7 +106,12 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     const deny = asCustomer("Only the customer can confirm this payment.");
     if (deny) return deny;
     const res = await confirmCustomerPayment(id, action === "pay-verify" ? "pay-verify" : "pay-confirm");
-    if (!res.ok && !res.alreadyPaid) return NextResponse.json({ error: res.error }, { status: res.code ?? 400 });
+    if (!res.ok && !res.alreadyPaid) {
+      // 202 = the provider is still processing (e.g. a live Daraja STK push the
+      // customer hasn't PIN'd yet) — a pollable state, not an error
+      if (res.code === 202) return NextResponse.json({ ok: false, pending: true, error: res.error }, { status: 202 });
+      return NextResponse.json({ error: res.error }, { status: res.code ?? 400 });
+    }
     return NextResponse.json({
       ok: true, ...(res.alreadyPaid ? { alreadyPaid: true } : { receipt: res.receipt }),
       ...(res.shipment ? { shipment: res.shipment } : { shipment: shipmentDTO((await getShipmentFull({ id }))!) }),
@@ -256,6 +262,32 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     const meta: { label?: string; reason?: string; cancelledBy?: string; lat?: number; lng?: number } = {};
     if (body.reason) meta.reason = capStr(body.reason, 200);
     if (action === "cancel") meta.cancelledBy = isDriver ? "DRIVER" : isAdmin ? "ADMIN" : "CUSTOMER";
+    // ── GPS-mismatch arrival gate (Bolt Driver pattern — the server refuses
+    // an arrive/deliver claim when the driver's fresh app-GPS sits far from
+    // the target point; the driver app answers the 409 with an explicit
+    // confirm, which lands here as gpsMismatchConfirmed and is recorded on
+    // the timeline. Null distance (no/stale GPS — every sandbox/demo flow)
+    // never blocks.)
+    if (action === "arrive" || action === "deliver") {
+      const d = s.driverId
+        ? await db.driver.findUnique({ where: { id: s.driverId }, select: { lat: true, lng: true, gpsReportedAt: true } })
+        : null;
+      const target = action === "arrive"
+        ? { lat: s.pickupLat, lng: s.pickupLng }
+        : { lat: s.dropoffLat, lng: s.dropoffLng };
+      const dist = gpsMismatchMeters(d, target);
+      if (dist != null && dist > GPS_MISMATCH_METERS && body.gpsMismatchConfirmed !== true) {
+        return NextResponse.json({
+          error: `Your GPS looks about ${dist}m from the ${action === "arrive" ? "pickup point" : "drop-off point"}. Confirm you're at the right place before continuing.`,
+          code: "GPS_MISMATCH",
+          distanceM: dist,
+          thresholdM: GPS_MISMATCH_METERS,
+        }, { status: 409 });
+      }
+      if (dist != null && dist > GPS_MISMATCH_METERS) {
+        meta.label = `${action === "arrive" ? "Driver arrived" : "Arrived at destination"} · GPS ${dist}m away (confirmed)`;
+      }
+    }
     // cancellation economics: compute the fee BEFORE the transition applies it
     let cancelFee = 0;
     let refundKes = s.fareTotal;

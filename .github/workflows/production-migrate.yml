@@ -57,6 +57,14 @@ jobs:
           PAYSTACK_PUBLIC_KEY: ${{ secrets.PAYSTACK_PUBLIC_KEY }}
         run: node scripts/paystack_provision.mjs
 
+      # Supabase Vault (the primary secrets source — docs/NETLIFY_PRODUCTION.md
+      # §Secrets): provider keys fetched at runtime by the API functions. This
+      # proves the app's own DB role can read them (names only, never values).
+      - name: Vault read-check (app role)
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+        run: node scripts/vault_read_check.mjs
+
       - name: Verify Mizigo tables exist
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}

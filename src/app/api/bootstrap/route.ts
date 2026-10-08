@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
 import { dbIsPostgres, isDemoAutoProgress } from "@/lib/feature-flags";
+import { resolvePaymentProvider } from "@/lib/payments";
 import { record, logEvent } from "@/lib/telemetry";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,11 @@ async function handle(): Promise<NextResponse> {
     db.platformSetting.findMany(),
   ]);
   const settings = Object.fromEntries(settingRows.map((s) => [s.key, s.value]));
+  // which money rail is live on this instance (PAYSTACK | DARAJA | MOCK) —
+  // the switch itself lives in Netlify env + the Supabase Vault; exposing
+  // the resolved name (never any key) makes go-live verification a one-URL
+  // check: /api/bootstrap → payments.provider
+  const provider = await resolvePaymentProvider().catch(() => "MOCK" as const);
   // sandbox = SQLite OR the explicit CI/demo override on Postgres (SEED_DEMO)
   const sandbox = !dbIsPostgres() || (process.env.SEED_DEMO ?? "").trim().toLowerCase() === "true";
   return NextResponse.json({
@@ -62,5 +68,6 @@ async function handle(): Promise<NextResponse> {
       demo: isDemoAutoProgress(),
       sandbox,
     },
+    payments: { provider },
   });
 }

@@ -23,7 +23,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ensureDB } from "@/lib/db-ready";
-import { applyTransition } from "@/lib/shipments";
+import { confirmCustomerPayment, failPendingPayment } from "@/lib/payments";
 import { clearCheckout, getPendingCheckout } from "@/lib/integrations";
 
 export const dynamic = "force-dynamic";
@@ -103,43 +103,28 @@ export async function POST(req: Request) {
 
   try {
     if (resultCode === 0) {
-      // ── payment succeeded: same server-side transition as pay-confirm ──
-      // atomic claim on the PENDING PaymentEvent (exactly one winner; a
-      // replayed callback or a racing pay-confirm sees count 0 → idempotent)
-      const claimed = await db.paymentEvent.updateMany({
-        where: { checkoutReqId: checkoutId, status: "PENDING" },
-        data: { status: "CONFIRMED", mpesaReceipt: receipt ?? null },
+      // ── payment succeeded: funnel through the ONE confirmation path
+      // (lib/payments) — atomic claim + amount integrity + the same
+      // server-side transition every other source uses
+      const res = await confirmCustomerPayment(shipmentId, "callback", {
+        ...(receipt ? { receipt } : {}),
+        ...(amount != null && !Number.isNaN(Number(amount)) ? { amountKes: Number(amount) } : {}),
       });
-      if (!claimed.count) {
-        console.log(`[mpesa-callback] ${checkoutId} already confirmed (idempotent replay) — acknowledged`);
-        clearCheckout(checkoutId);
-        return NextResponse.json(ACK);
-      }
-      await db.shipment.update({
-        where: { id: shipmentId },
-        data: { paymentStatus: "CONFIRMED", paymentRef: receipt ?? null, paidAt: new Date() },
-      });
-      const t = await applyTransition(shipmentId, "payment-confirmed", "SYSTEM", {
-        label: `Payment confirmed · M-PESA ${receipt ?? checkoutId}`,
-      });
-      if (!t.ok) {
-        // e.g. the customer cancelled while the PIN dialog was open — the
-        // money conversation continues off-band; never fail the ack.
-        console.error(`[mpesa-callback] ${checkoutId} confirmed but transition rejected: ${t.error}`);
-      } else {
+      if (res.ok) {
         console.log(`[mpesa-callback] ${checkoutId} → shipment ${shipmentId} CONFIRMED · receipt ${receipt ?? "—"} · KES ${amount ?? "?"} · ${phone ?? ""}`);
+      } else if (res.alreadyPaid) {
+        console.log(`[mpesa-callback] ${checkoutId} already confirmed (idempotent replay) — acknowledged`);
+      } else {
+        console.error(`[mpesa-callback] ${checkoutId} callback rejected: ${res.error}`);
       }
       clearCheckout(checkoutId);
       return NextResponse.json(ACK);
     }
 
     // ── customer cancelled / wrong PIN / timeout: mark the attempt FAILED ──
-    const failed = await db.paymentEvent.updateMany({
-      where: { checkoutReqId: checkoutId, status: "PENDING" },
-      data: { status: "FAILED" },
-    });
+    const failed = await failPendingPayment(checkoutId, `ResultCode ${resultCode}: ${resultDesc}`);
     console.log(
-      `[mpesa-callback] ${checkoutId} FAILED (ResultCode ${resultCode}: ${resultDesc}) · shipment ${shipmentId} · marked ${failed.count ? "FAILED" : "already terminal"}`
+      `[mpesa-callback] ${checkoutId} FAILED (ResultCode ${resultCode}: ${resultDesc}) · shipment ${shipmentId} · marked ${failed ? "FAILED" : "already terminal"}`
     );
     clearCheckout(checkoutId);
     return NextResponse.json(ACK);

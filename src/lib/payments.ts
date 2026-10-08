@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import { getShipmentFull, applyTransition, shipmentDTO } from "@/lib/shipments";
 import { mpesaRef } from "@/lib/format";
 import { isDarajaEnabled, initiateMpesaPayment } from "@/lib/integrations";
+import { hydrateRuntimeSecrets } from "@/lib/runtime-secrets";
 import {
   resolvePaystackSecret, resolveWebhookSecret, initializeTransaction, verifyTransaction, createTransfer,
   createTransferRecipient, paystackTxReference, paystackTransferReference,
@@ -30,6 +31,9 @@ export type ProviderName = "PAYSTACK" | "DARAJA" | "MOCK";
 /** PAYSTACK (secret resolvable) → DARAJA (keys set) → MOCK (sandbox). */
 export async function resolvePaymentProvider(): Promise<ProviderName> {
   if (await resolvePaystackSecret()) return "PAYSTACK";
+  // Daraja keys may live in the Supabase Vault too (runtime-secrets) — make
+  // them visible before the enabled check
+  await hydrateRuntimeSecrets();
   if (isDarajaEnabled()) return "DARAJA";
   return "MOCK";
 }
@@ -42,6 +46,39 @@ export interface StartPaymentOutcome {
   mode: "REDIRECT" | "STK" | "SIMULATED";
   authorizationUrl?: string;     // Paystack checkout (REDIRECT)
   prompt: string;                // customer-facing next step
+}
+
+/**
+ * Daraja STK start (shared by the DARAJA-primary path and the Paystack
+ * backup-channel fallback). `fallbackReason` records why we fell back.
+ */
+async function startDarajaStk(
+  s: Awaited<ReturnType<typeof getShipmentFull>>,
+  fallbackReason?: string,
+): Promise<{ ok: true; outcome: StartPaymentOutcome } | { ok: false; error: string }> {
+  const phone = s!.pickupPhone ?? s!.customer?.phone ?? "";
+  const init = await initiateMpesaPayment({ id: s!.id, code: s!.code }, phone, s!.fareTotal);
+  if (init.mode === "LIVE" && !init.ok) {
+    return { ok: false, error: `Payment could not start (${init.error}). Try again.` };
+  }
+  const checkoutReqId = init.mode === "LIVE" && init.ok ? init.CheckoutRequestID : `ws_CO_${s!.code}_${Date.now()}`;
+  await db.paymentEvent.create({
+    data: {
+      shipmentId: s!.id, checkoutReqId, provider: "DARAJA", method: "MPESA",
+      amount: s!.fareTotal, status: "PENDING",
+      ...(fallbackReason ? { providerMeta: JSON.stringify({ fallbackFrom: "PAYSTACK", reason: fallbackReason.slice(0, 200) }) } : {}),
+    },
+  });
+  await db.shipment.update({ where: { id: s!.id }, data: { paymentStatus: "PENDING", checkoutReqId, status: "PAYMENT_PENDING", stateEnteredAt: new Date() } });
+  return {
+    ok: true,
+    outcome: {
+      provider: "DARAJA", checkoutReqId, mode: init.mode === "LIVE" ? "STK" : "SIMULATED",
+      prompt: init.mode === "LIVE"
+        ? "Check your phone — we've sent an M-PESA request. Enter your PIN to pay."
+        : "Check your phone to complete payment.",
+    },
+  };
 }
 
 export async function startCustomerPayment(
@@ -69,7 +106,18 @@ export async function startCustomerPayment(
         custom_fields: [{ display_name: "Delivery", variable_name: "delivery", value: s.code }],
       },
     });
-    if (!init.ok) return { ok: false, error: `Payment could not start (${init.error}). Try again.` };
+    if (!init.ok) {
+      // ── BACKUP CHANNEL: Paystack is down/unreachable → Daraja STK push if
+      // the Safaricom keys are configured (marketplace resilience: one rail
+      // failing must not block collections). Logged for reconciliation.
+      if (isDarajaEnabled() && s.paymentMethod === "MPESA") {
+        console.warn(`[payments] Paystack initialize failed (${init.error}) — falling back to Daraja STK for ${s.code}`);
+        const fb = await startDarajaStk(s, init.error);
+        if (fb.ok) return fb;
+        return { ok: false, error: `Payment could not start (Paystack: ${init.error}; Daraja: ${fb.error}). Try again.` };
+      }
+      return { ok: false, error: `Payment could not start (${init.error}). Try again.` };
+    }
     await db.paymentEvent.create({
       data: {
         shipmentId: s.id, checkoutReqId: reference, provider: "PAYSTACK", method: s.paymentMethod,
@@ -89,14 +137,7 @@ export async function startCustomerPayment(
   }
 
   if (provider === "DARAJA" && s.paymentMethod === "MPESA") {
-    const phone = s.pickupPhone ?? s.customer?.phone ?? "";
-    const init = await initiateMpesaPayment({ id: s.id, code: s.code }, phone, s.fareTotal);
-    const checkoutReqId = init.mode === "LIVE" && init.ok ? init.CheckoutRequestID : `ws_CO_${s.code}_${Date.now()}`;
-    await db.paymentEvent.create({
-      data: { shipmentId: s.id, checkoutReqId, provider: "DARAJA", method: "MPESA", amount: s.fareTotal, status: "PENDING" },
-    });
-    await db.shipment.update({ where: { id: s.id }, data: { paymentStatus: "PENDING", checkoutReqId, status: "PAYMENT_PENDING", stateEnteredAt: new Date() } });
-    return { ok: true, outcome: { provider, checkoutReqId, mode: init.mode === "LIVE" ? "STK" : "SIMULATED", prompt: "Check your phone to complete payment." } };
+    return startDarajaStk(s);
   }
 
   // MOCK — byte-identical sandbox flow (e2e contract)
@@ -112,6 +153,13 @@ export async function startCustomerPayment(
 
 export type ConfirmSource = "pay-confirm" | "pay-verify" | "webhook" | "callback";
 
+/** Provider-side facts a callback source may supply (Daraja STK results). */
+export interface ConfirmDetail {
+  receipt?: string;      // M-PESA receipt number (Safaricom)
+  amountKes?: number;    // whole KES the customer actually paid
+  providerTxId?: string;
+}
+
 export interface ConfirmOutcome {
   ok: boolean;
   alreadyPaid?: boolean;
@@ -123,13 +171,21 @@ export interface ConfirmOutcome {
 
 /**
  * Confirm a shipment's PENDING payment. Callers: the pay-confirm action
- * (sandbox PIN flow), the pay-verify action (Paystack callback page), and the
- * charge.success webhook (source of truth). All race safely — the atomic
+ * (sandbox PIN flow), the pay-verify action (Paystack callback page), the
+ * charge.success webhook (source of truth) and the Daraja STK callback
+ * (source of truth for Safaricom-push payments). All race safely — the atomic
  * PENDING→CONFIRMED claim lets exactly one caller through; the rest receive
  * alreadyPaid. PAYSTACK mode verifies server-to-server and enforces the exact
- * amount before claiming; MOCK keeps the simulated PIN semantics.
+ * amount before claiming; DARAJA payments can ONLY be confirmed by the
+ * Safaricom callback (with amount integrity) — a client action must never be
+ * able to confirm an unpaid live STK push; MOCK keeps the simulated PIN
+ * semantics.
  */
-export async function confirmCustomerPayment(shipmentId: string, source: ConfirmSource): Promise<ConfirmOutcome> {
+export async function confirmCustomerPayment(
+  shipmentId: string,
+  source: ConfirmSource,
+  detail?: ConfirmDetail,
+): Promise<ConfirmOutcome> {
   const s = await getShipmentFull({ id: shipmentId });
   if (!s) return { ok: false, error: "Not found", code: 404 };
 
@@ -174,6 +230,23 @@ export async function confirmCustomerPayment(shipmentId: string, source: Confirm
     feesCharged = data.fees ?? null;
   }
 
+  if (pending.provider === "DARAJA") {
+    // a live Safaricom STK push: only the Daraja callback (which carries the
+    // network's own result) may confirm — never a client action
+    if (source !== "callback") {
+      return { ok: false, error: "Payment not completed yet. If you paid, we'll confirm automatically.", code: 202 };
+    }
+    // amount integrity (§g.5): Safaricom reports whole KES
+    if (detail?.amountKes != null && detail.amountKes !== s.fareTotal) {
+      await db.paymentEvent.update({ where: { id: pending.id }, data: { status: "FAILED" } });
+      await pageAdmins("Payment amount mismatch", `${s.code}: Safaricom reports KES ${detail.amountKes.toLocaleString()} but the fare is KES ${s.fareTotal.toLocaleString()} — payment NOT confirmed. Review before any manual fix.`, s.code);
+      return { ok: false, error: "Payment amount mismatch — support has been notified.", code: 409 };
+    }
+    receipt = detail?.receipt ?? receipt;
+    providerTxId = detail?.providerTxId ?? null;
+    channel = "mpesa";
+  }
+
   const claimed = await db.paymentEvent.updateMany({
     where: { id: pending.id, status: "PENDING" },
     data: { status: "CONFIRMED", mpesaReceipt: receipt, providerTxId, channel, feesCharged, verifiedAt: new Date() },
@@ -189,6 +262,21 @@ export async function confirmCustomerPayment(shipmentId: string, source: Confirm
 }
 
 // ─── driver payout destination (once per driver) ────────────────────────────
+
+/**
+ * Mark a PENDING payment attempt FAILED (e.g. Daraja ResultCode != 0: customer
+ * cancelled the PIN dialog, wrong PIN, or the push timed out). Idempotent —
+ * a terminal row stays untouched. Returns true when this call flipped it.
+ */
+export async function failPendingPayment(checkoutReqId: string, reason: string): Promise<boolean> {
+  const r = await db.paymentEvent.updateMany({
+    where: { checkoutReqId, status: "PENDING" },
+    data: { status: "FAILED" },
+  });
+  if (r.count) console.warn(`[payments] payment attempt ${checkoutReqId} FAILED — ${reason}`);
+  return r.count > 0;
+}
+
 
 export async function setupDriverPayout(
   driverId: string,

@@ -610,3 +610,460 @@ tone reference from above.
 - Bolt language splits (config.<lang>.apk) are worth decoding separately
   (en-GB adds ~1,900 strings); Uber localizes almost entirely server-side,
   so base strings are all you get.
+
+---
+
+## Deep Dive 2 (October 2026, round 2)
+
+Task ID: 19-a · RE deep-mining subagent. Same clean-room rules as §0/§8: no
+code/assets/string tables copied into mizigo; short microcopy below is quoted
+only as labelled **tone references**; all binaries stay in `research-apk/`
+(gitignored). Evidence paths are relative to `research-apk/work/<app>/`.
+
+### 0. What was re-acquired (round 2)
+
+| App | Version re-acquired | Round-1 version | Notes |
+|---|---|---|---|
+| Bolt Driver | **DA.151.0** (900) | DA.151.0 | identical build, re-downloaded |
+| Bolt Rider | **CA.228.0** (4370) | CA.228.0 | identical |
+| Uber Driver | **4.600.10000** (313129) | 4.599.10004 | one patch newer; uistate registry now v20 |
+| Uber Rider | **4.651.10003** (316108) | 4.651.10003 | identical |
+
+Acquisition recipe from §1.1/§9 still works unchanged (apkcombo `/<slug>/<pkg>/download/apk`
+page → extract `<a href="/r2?u=…">` → fetch with desktop UA + Referer; all four
+XAPKs downloaded in ~1 min each; ~900 MB total). One new operational fact:
+**background/detached processes are reaped when a tool call ends** in this
+sandbox — jadx per-dex runs MUST be foreground with a 600 s timeout (round 1's
+6–8 min/dex estimate still fits). Disk after all work: 3.3 GB in
+`research-apk/`, 4.1 GB still free.
+
+Decompiled this round (Bolt Driver base, unobfuscated → readable):
+`work/bolt-driver/src12/` (classes12: active-order interactors, earnings/v3
+Compose screens, order/v2 screens, network/order models) and
+`work/bolt-driver/src13/` (classes13: arrived/finish/pickup_code/cancel/report_pickup
+fragments + price-safety ViewModels). Resources-only jadx passes
+(`--no-src`) for all four apps; strings-scans of all remaining dex files.
+
+---
+
+### 1. Bolt Driver GPS-mismatch pickup confirmation (PRIORITY — exact flow, copy, architecture)
+
+#### 1.1 The microcopy (tone references; resource keys from
+`work/bolt-driver/resout/resources/res/values/strings.xml`)
+
+| Key | Text (tone ref) |
+|---|---|
+| `confirm_pickup_title` | "Arrived to pickup?" |
+| `confirm_pickup_title_parcel` | "Arrived at pickup?" |
+| `confirmation_pickup_message` | "Your GPS location is far from the pickup pin." |
+| `confirmation_pickup_message_parcel` | "Your GPS location doesn't match the pickup spot" |
+| `confirm_pickup_confirm_parcel` | "Confirm arrival" |
+| `confirm_pickup_cancel_parcel` | "Not there yet" |
+
+The same pattern mirrors on the **destination side** (same file):
+
+| Key | Text (tone ref) |
+|---|---|
+| `confirm_destination_arrival_title` | "Arrived at destination?" |
+| `confirm_destination_arrival_message` | "Your GPS location doesn't match the destination address" |
+| `confirm_destination_arrival_confirm` / `_cancel` | "Confirm arrival" / "Not there yet" |
+| `confirm_end_ride_md_title` / `_message` | "End trip here?" / "You are far from the planned final destination." |
+| `confirm_start_ride_title` / `_message` | "Forgot to Start Ride?" / "You have moved %s from the pin." |
+
+So Bolt runs **three** GPS-fence confirmations in the driver flow: pickup,
+start-ride (moved-from-pin after pickup), and destination/end-trip.
+
+#### 1.2 The architecture (decompiled evidence — the important discovery)
+
+There is **no client-side meter threshold**. The arrival gate is a
+**server-driven state machine**; the client renders what the backend pushes:
+
+- `src12/.../ui/interactor/order/automatic_arrival/a.java` =
+  `AutomaticArrivalManager` — listens for a **`DriverInformationMessage.AutomaticArrival`**
+  push (backend geofence detects the driver near the pin and pushes the
+  arrival prompt), then calls `confirmAutomaticArrival` when the driver
+  confirms.
+- `src12/.../ui/interactor/order/active/a.java` = `ArrivalIssue(attemptsLeft:
+  Int, errorData)` — the arrival-confirm dialog tracks **server-counted
+  retry attempts**.
+- `src12/.../network/client/order/PickupConfirmationCodeStatus.java` — enum
+  `DISABLED / OPTIONAL / REQUIRED / CONFIRMED` shipped per-order inside
+  `DriverPickupSafetyData` → the PIN-at-pickup requirement is a **per-order
+  server field**, exactly like our POD PIN toggle.
+- `src12/.../interactor/order/active/ValidatePickupCodeUseCase.java` — its
+  result is `Args(arrivalBlocked: Boolean, code: String?)`: a wrong PIN
+  returns `arrivalBlocked=true`, i.e. **wrong code blocks the arrival
+  transition**, not just an error toast.
+- `PickupCodeStateManager` (`src13/.../ui/screens/pickup_code/`) + screens
+  `pickup_code_skip_rationale`, `pickup_code_bluetooth_permission` — the PIN
+  can be auto-verified over **BLE** ("Confirms the ride without manual input")
+  and skipped for saved/favourite pickups (`SetSkipPickupConfirmationUseCase`,
+  classes4) with a **rationale screen** before skipping.
+- Rider-side, the driver app also bundles `ee.mtakso.client.core` (rider core)
+  with `GetIsConfirmPickupNeededUseCase` + `ConfirmPickupRequiredException`
+  (classes11) — the *rider's* "confirm your pickup before ordering" gate.
+- Preference layer (classes3 strings): `/driver/getPickupDistanceConfig` →
+  `GetPickupDistanceConfigResponse(items, PickupDistanceConfig(title…, DriverSliderItem))`
+  — a **server-configured slider** ("flight distance") letting the driver cap
+  how far they'll drive to a pickup. `FlightDistancePreferenceViewModel.savePickUpDistance`
+  persists it. Remote flags `dev/prod_is_redesigned_driver_pickup_distance_screen_enabled`
+  gate the redesigned screen.
+- Airport-style queues: `/driver/matchWithPin` + `eu.bolt.driver.fifo.*`
+  (`MatchWithPinUseCase`, `MatchWithPinRibViewModel`) — FIFO queue joined by
+  pin.
+
+**Implication for mizigo (implementation now):** copy the *shape*, not a
+number: on `AT_PICKUP` arrival intent, compute `geo.ts` distance
+driver→pickup; if beyond **our own** threshold (pick 150 m for Nairobi cargo —
+labelled ours, not theirs), show title + one plain sentence + two buttons
+("Confirm arrival" / "Not there yet" in our voice). Add `attemptsLeft` on the
+action response, a per-shipment `pinStatus: disabled|optional|required|confirmed`
+server field mirroring `PickupConfirmationCodeStatus`, and wrong-PIN → blocked
+arrival. Distance bands, like everything else here, should be server-config
+(`feature-flags.ts`), which is exactly how both apps do it.
+
+### 2. Bolt Driver decline-confirm + counter-offer (full flow)
+
+Strings (`work/bolt-driver/resout/.../strings.xml`):
+
+- **Decline has a confirm step but NO reason picker.** `confirm_decline_order_title`
+  "Decline the request?" / `confirm_decline_order_message` "Are you sure you
+  want to decline the request?" — that's the entire decline flow. (Reasons
+  exist only on *cancel*, not decline.)
+- **Counter-offer sheet** (`offer_details_*`): buttons "Accept" /
+  "Accept %1$s" (amount on the accept button) / "Decline" / **"Change price"**;
+  steppers `offer_details_increase_price_btn_text` "+ %1$s" /
+  `offer_details_decrease_price_btn_text` "− %1$s"; submit carries the amount:
+  `offer_details_submit_btn_text_format` "Submit %1$s". Every action has its
+  own error line ("Couldn't accept/decline/submit the offer. Please try again.").
+- Pending state: `counter_offer_waiting_for_reply_btn_txt` "Awaiting rider
+  reply" (v2 "Waiting for reply") — the button itself becomes the status.
+- **Auto-accept filters** (`auto_accept_*`, `price_bidding_prefs_*`): setting
+  is "Price per km" with subtitle "Auto-accept rides that pay at least this
+  much per km" (a min-ppkm filter), 4 description variants of the same rule:
+  auto-accept on unless the ride is *optional* (unsafe areas, outside radius);
+  **auto-accept switches off when you decline, cancel or miss a request**;
+  "No filters set" warns "all rides will be automatically accepted. These may
+  include long or low-value rides." Confirm-changes dialog on save.
+- Offer list empty states: "Waiting for offers" / "Waiting for more offers —
+  You'll see more offers here when they are available". Push title "New ride
+  request"; auto-accepted push: "Request was auto-accepted — Passenger is
+  waiting for you to arrive."
+- Swipe UX: tooltip "Swipe to accept or decline — • Swipe left to decline a
+  ride • Swipe right to accept a ride" (+ RTL variant).
+- Layout evidence (`resout/.../layout/delegate_item_offer_v2.xml`,
+  `content_offer_button.xml`): offer card = MaterialCardView, 16 dp corner
+  radius, 16 dp horizontal margin / 4 dp vertical, layered background,
+  `colorSpecialNulled` bg; "Change price" is a `BoltMainButton` style
+  `secondary`, size `L`.
+
+### 3. Fee-transparency copy law (Bolt Rider + Uber Rider + Bolt Driver payout)
+
+The consistent sentence anatomy across all three surfaces is
+**[trigger condition] + [amount] + plain sentence, shown BEFORE the Confirm
+button**, with a typed explainer available per fee cause.
+
+- **Bolt Rider cancellation** (en-GB split confirms identical copy):
+  "Your driver has been en route for %1$s minutes. A cancel fee of %2$s will
+  apply if you cancel." In-progress hedge: "You might be partially charged
+  for the ride since it is already in progress." No-show receipt line:
+  "Cancel fee of %1$s has been charged for driver waiting time."
+- **Bolt Rider wait-time consent**: "Please get ready in %1$d minutes or less
+  after driver's arrival. Every additional minute of waiting increases your
+  fare by %2$s" (title "Don't keep your driver waiting!").
+- **Bolt surge**: three tiers — "Prices are higher than usual due to high
+  demand" / "…temporarily higher…" (no multiplier shown) / driver-side
+  `warning_high_surge` "The prices are currently %s higher than usual…" (% =
+  percentage, not multiplier).
+- **Bolt re-price**: "Confirm new price / New price is %1$s / Price was
+  adjusted due to change of pick-up location".
+- **Uber Rider cancellation** (hedged, softer than Bolt): "You may be charged
+  a small fee since your driver is already on the way." + the marketed
+  waiver: "Automatically waiving your cancellation fee when a driver isn't
+  making progress toward you."
+- **Uber wait-time**: constant threshold in copy — "When a driver waits more
+  than **2 minutes** after arriving at your pickup location, a wait time fee
+  will be added…" + tooltip "This includes a %s wait time fee."
+- **Uber surge confirm**: "Confirm your %1$sx fare — Fares are higher because
+  it's busy." Mid-trip destination change: "If you update your destination
+  your fare may change. The new fare will include a %s surge pricing charge."
+- **Uber fare-breakdown explainer system** (`ub__trip_fare_breakdown_*`): a
+  typed modal per fee cause — `arrears / credits / promos / toll / waittime /
+  ufP_not_honored` ("trip duration or distance different than estimated") —
+  each ending with the SAME reassurance footer: "If you have any questions or
+  concerns, please still pay your driver. You can contact support after the
+  trip and we'll get back to you shortly." (Tone reference for our
+  ReceiptFlow explainers.)
+- **Bolt Driver payout** (`payout_*`): "Review and Confirm" → "Bolt will pay
+  you %1$s" + **"The Early Cashout fee is %1$s"** (fee as its own row) →
+  "Confirm cashout"; history statuses Sent/Processing/Declined/"Your transfer
+  failed."; "Problem with payout?" → Help.
+- **Composition anatomy** (Bolt Rider layouts): fee sheets compose from
+  `info_bottom_sheet_row_{key_value,badge,divider,bullet,icon,asset,inline_notification}`
+  primitives; `DesignKeyValueView` renders key→value rows with
+  `design_divider="dots"` (**dotted leaders**, receipt-style) and
+  `bolt_font="body_m"`; skeleton loading exists for the order sheet
+  (`design_order_sheet_skeleton_view.xml`).
+
+### 4. Empty-state system (Bolt UIKit — the actual layout contract)
+
+`work/bolt-rider/resout/resources/res/layout/trips_empty_state.xml` (and its
+siblings) define the pattern precisely:
+
+```
+[DesignImageView — Lottie illustration, autoPlay, loop=false]
+        ↓ 16dp
+[title: bolt_typography=heading_xs_accent, color=?attr/colorContentPrimary,
+ center gravity, 24dp side margins]
+        ↓ 8dp
+[description: body_m_regular, ?attr/colorContentSecondary, centered]
+        ↓ 12dp
+[action: body_m_regular, ?attr/colorContentLinkPrimary — a LINK, not a button]
+```
+…all in a packed vertical ConstraintLayout chain (vertically centered).
+
+**Error state** (`error_state_layout.xml`) differs in exactly two ways:
+title is `heading_s_accent`, body is `body_l_regular`, and the action IS a
+button — full-width `DesignButton` `button_style="secondary"` "Try again"
+with `big_side_margin` insets.
+
+Copy rules observed: every empty state names the future ("Your promotions
+**will appear here**", "Accepted requests **will be shown here**", "Your
+earnings will appear here once your account is activated and you've completed
+your first rides"); errors lead with reassurance ("Your balance is currently
+unavailable. Please try again later."; Uber: "Don't worry, you'll still earn
+for your trips."); driver-side compliments empty state even coaches ("Keep
+driving well and passengers will share their appreciation here!"). In the
+earnings v3 DTOs (§6) empty/error/placeholder are first-class *server data*
+(`BarChartEmptyState`, `BarChartErrorState`, `BarChartPlaceholderData`).
+
+### 5. Bolt UIKit design tokens — how they compose in real layouts
+
+- **Typography histogram** (1,058 usages across 501 Bolt Rider layouts):
+  25 distinct tokens in use; top 3 (`body_m_regular` 292, `body_s_regular`
+  190, `heading_s_accent` 96) ≈ 55%; the long tail is `compact` variants
+  (dense rows) and `caps_*` (4–8 uses). Exactly **2 font weights** back all
+  of it (Inter Regular + Semibold).
+- **Tabular numerals are money-only**: `body_tabular_m_regular` etc. appear
+  in just 8 layouts — `bolt_label_value_item`, `design_selected_payment_view`,
+  `item_category_selection`, `view_price_breakdown_main_item/subitem`,
+  `addon_configurator_list_item`, live-offer view. Price-breakdown row =
+  label `body_m_regular` start-aligned + value `body_tabular_m_regular`
+  end-aligned, 16dp gap (`view_price_breakdown_main_item.xml`).
+- **Semantic color layers in real use**: `?attr/colorContentPrimary` /
+  `Secondary` / `LinkPrimary`, `?attr/colorSpecialScrim`, and the offer card
+  uses `?attr/colorSpecialNulled` as its background (a "nulled/neutralized
+  special" layer for chrome-less cards).
+- **Component vocabulary**: `eu.bolt.uikit.components.text.BoltTextView`
+  (`app:bolt_typography`), `eu.bolt.uikit.components.button.BoltMainButton`
+  (`app:button_bolt_style` = primary|secondary, `app:button_size` = L…),
+  `eu.bolt.client.design.button.DesignButton`, `DesignKeyValueView`,
+  `DesignImageView` (Lottie-aware). UIKit is shared driver↔rider (the driver
+  APK ships the same `eu.bolt.uikit.*` packages).
+- **4dp grid evidence**: 16dp card side-margins, 4dp card-to-card gaps,
+  16dp card padding, 12dp button top-gaps, 8dp text gaps — every number in
+  the layouts is a multiple of 4.
+- **Uber parallel**: `ui__spacing_unit_Nx` (8dp base) confirmed again; also
+  every Uber marker layout carries an embedded `uber:analyticsId` **UUID**
+  (`area_marker_earnings_forecast_hex.xml`) — analytics identity lives in the
+  layout itself.
+
+### 6. Bolt Driver earnings v3 — the screens round 1 didn't open
+
+**The headline: earnings v3 is a server-driven UI.** The client ships typed
+screen models, not hardcoded screens (all names from `classes3.dex` strings;
+`eu.bolt.driver.earnings.network.*`):
+`EarningLandingScreenV4`, `BalanceScreen` + `BalanceScreenHeaderItem` +
+`BalanceHistory{,Section,SectionItem,Tab}`, `EarningBreakdownScreenV3`
+(+ `BottomSectionV2`, `PayoutSection`, `Intervals`),
+`EarningPayoutExplanationResponse` (the payout *explanation* screen is a
+server response), `EarningPieChartItem`, `EarningsActivityTile`,
+`BarChartData`/`Bar`/`BarSegment` (+ **EmptyState/ErrorState/PlaceholderData
+variants**), `PeriodSelector`/`PeriodMode`/`PeriodData`,
+`EarningsGoal{,ExpenseCategory,Period}`, `LandingGraphRestoreState`.
+Endpoints: `/driver/v2/getBalanceScreen`, `/driver/v2/getBalanceHistory`,
+`/driver/getEarningBarChartData`, `/driver/getDriverEarningsGoal` +
+`/driver/setDriverEarningsGoal`. The landing page is Compose inside a
+ViewPager2 (`NestedScrollableHost.java`, `src12/.../earnings/v3/landing/`).
+
+Also confirmed (copy, driver strings file): balance disclaimer
+("Balance does not include %1$s you received in cash payments."), NET/GROSS
+`commissions_disclaimer`, `compensated_cash_discounts` line item,
+`earnings_island_error_fetching` ("Couldn't load earnings. Try again." — the
+home widget has its own error state), weekly landing ("Current Week
+Earnings", "Current week", "Weekly Activity"), goals ("Earnings Target",
+"Weekly Target", "Fill the weekly target field", "Delete your earnings
+target?"), campaigns ("Choose a bonus campaign", "This week's bonuses",
+"Bonuses are paid out together with earnings", "Expected bonus %s").
+
+**Driver-side price dispute (new — feeds our dispute flow):** the *arrived*
+screen ships "Problem with price?" (link "Report") →
+`choose_problem_reason` = `ChoosePriceReviewDialog` over a
+`PriceReviewReason` DTO whose fields are `code`, `name`,
+**`driver_allow_comment`** and **`driver_allow_set_price`** (booleans!) — the
+SERVER decides per-reason whether the driver may comment and/or set a price
+(`src12/.../network/client/price/PriceReviewReason.java`). Reason tiles
+(strings): "Ride did not happen" (confirm-only), "Client did not pay"
+(confirm-only), "Client paid less" → "Set amount client paid in cash"
+("Amount client paid"), "Price is inaccurate", "Additional fees problem",
+"Other problem" ("What went wrong?" comment hint). Guard: "A problem with
+the price for this trip has already been reported…". The manual-price editor
+itself is server-configured via `PriceModificationConfig(currencyGravity,
+currencySymbol, priceModificationStep, method)` where method ∈
+`FREE_INPUT_SHIFTING / FREE_INPUT / STEP / DISABLED`
+(`src13/.../arrived/PriceModificationConfig.java`) — i.e. even the input
+interaction is a server decision, and the taximeter hint is "Enter the price
+indicated on the taximeter".
+
+### 7. Uber Driver — forecast, hex markers, uistate registry
+
+- **uistate registry** (`base/assets/uistate/uistate_mapping_rule.json`,
+  registry v20, hash-pinned): 117 rules → **115 unique state names** (two
+  states are listed twice with different scenes/min_versions). Each rule:
+  `state_name, priority, min_version, scene[], sub_state{}`. New states
+  round 1 didn't name: `agenda_map_{online,offline,ontrip}` + trip-planner
+  agenda variants, `driver_offers_job_board`, `offers_dispatch`,
+  `overflow_job_v2`, `tr_offers_card`, `preference_area` (driver home-area
+  preference), `preference_rider_rating` (min-rider-rating filter!),
+  `planning_hub_actions_sections`, `speed_intervention_settings`,
+  `rider_checks_settings`, `follow_my_ride_later`, `night_mode_picker`,
+  `starpower_search_screen`. Human typos ship in prod data
+  (`navigation_settinngs`, `unifoed_account_manager`) — it really is data.
+- **Earnings-forecast surface** (`market_preview_*`, `peak_earnings_*`):
+  header "Hourly Trends: %1s" / "Today's earnings forecast", a "Now" chip,
+  "See all areas"; list "Areas near you" with "%.1f km" rows + "Current
+  area" + footer "View on Trip Planner". Education modal states the
+  methodology: "These trends are calculated daily for this area using data
+  from the last 4 weeks; they're not a guarantee of future earnings." +
+  disclaimer "This graph is for illustrative purposes and does not represent
+  or guarantee earnings." (Tone reference for our demand-heatmap copy.)
+- **Hex markers**: `com.ubercab.carbon.marker_management.marker.HexAreaMarkerView`
+  wraps a shared `carbon_area_marker` include — a horizontal pill
+  (`mapMarkerPrimary` style, inverse color) with title + icon and a
+  **clustered chevron** when markers overlap. The marker family:
+  `area_marker_{,area_preferences,boost,driver_surge,driver_surge_hex,
+  earnings_forecast_hex,high_demand,paid_movement,surge,empty}` — one pill
+  system, ten skins, three of them hex (H3).
+- **Uber has NO GPS-mismatch dialog.** Arrival is a navigation-state machine:
+  `on_job_status_assistant_*` copy ("Heading to pickup", "Picking up %1$s",
+  "You've arrived", "Dropping off %1$s") per nav state per product
+  (borrow/delivery/errands/package_delivery). Pickup safety = **PIN
+  verification** instead: "Customer PIN Required", "Customer will provide
+  PIN", "PIN required at dropoff" (Connect/dropoff PIN).
+- Card verification UX (penny-auth): 2-step "authorization holds" flow with
+  "Your card won't actually be charged." — reusable shape for verifying a
+  driver's M-Pesa/payout number.
+
+### 8. Payment failure / retry / stuck UX
+
+- **Bolt rider paywall (end-of-ride blocking)**: failure title "That payment
+  didn't work" / body "You weren't charged. Wait a moment and try again, or
+  choose a different payment method." / action "Pay another way". You cannot
+  dismiss it: discard attempt → "You haven't paid yet — Complete payment to
+  end your ride." (Tone reference for our M-Pesa-stuck sheet.)
+- Pre-auth retry: "Don't worry, you'll only be charged once you complete a
+  ride. For now, we just need to authenticate your payment details with your
+  bank." Debt repayment failure: "Something went wrong. Please try again
+  later or contact your payment provider…". Account-level: "Your account has
+  a pending payment. Please choose another payment method to request a
+  ride."; auto-cancel honesty: "Due to failed payment, the order has been
+  automatically cancelled."
+- **Uber checkout/collect failure**: "Payment failed — Try again or switch to
+  a different payment method" (repeated verbatim across checkout, in-person
+  collect, and arrears settlement — one pattern, everywhere).
+- **QR cash-collection fallback** (Uber Driver): QR tab ("Valid until %s",
+  "Secure transaction") + banner "Have an issue? Switch to cash instead." +
+  connectivity fallback "Try again or switch to cash" — a graceful
+  degradation ladder digital → retry → **cash**.
+- Driver app POS-terminal pending state: "Waiting for card… Ask the rider to
+  tap or insert their card into the POS terminal now".
+- **No literal "M-Pesa" strings in any of the four binaries** — mobile money
+  is a server-side payment-method concern (Uber deep-links
+  `payment-providers.uber.com`; localization happens server-side too). Our
+  M-Pesa surfaces are free to be first-class, no pattern to inherit here
+  beyond the retry/fallback ladder above.
+
+### 9. Other discoveries worth keeping
+
+- **Driver Score (Bolt)** — a full quality-score surface: tooltip "Driver
+  score is calculated based on the last **100 trips**… On the progress bar you
+  can also see how close you are to the **retraining or blocking
+  thresholds**"; "Positive/Negative signals" lists ("In the list below, you
+  can see what exactly affected you"); push "Your Driver Score has dropped
+  %s — Find out what reduced your score."; endpoints `/driver/getScore`,
+  `/driver/getScoreOverview`, `/driver/getScoreExplanation`. Rating-the-app
+  taxonomy (`rateme_*`): Account / Pricing-Earnings / Map-Navigation / Ride
+  safety / Technical / Other, with items like "I'm not receiving requests",
+  "Bad Rider behaviour", "Slow responses from Customer Support".
+- **Fatigue limits are server-parameterized**: the shipped copy hardcodes
+  "12-hour maximum driving limit" but a `_placeholder` twin exists: "Bolt
+  places a %d hour(s) maximum driving limit from when you go online." +
+  "When you reach your %d hour(s) online limit, you'll only be able to
+  receive new orders after a %d hour(s) offline compulsory break." The
+  driver can pre-empt it: "Need a break?" → "Going to a break means that
+  after completing your last accepted trip, you'll get new requests" →
+  offline seamlessly (break_mode screen).
+- **Notification-channel taxonomy** (Bolt Driver, 14 channels): awake/online
+  status, new ride requests, status notifications, push, silent, route-change
+  requests ("Heads-up when the rider asks to change pickup or drop-off"),
+  emergency assistance, in-app calls, audio recording ("This ride is being
+  recorded"), active ride, rider shared location, live activities per
+  product. Online status persistent notif: "You're online / Waiting for ride
+  requests".
+- **Full Bolt Driver endpoint inventory** (classes3 strings) — notable
+  beyond §6: `/driver/getHomeScreenCards` (**home cards are server-driven**),
+  `/driver/getDriverNavBarBadges`, `/driver/boltClub/*` (loyalty),
+  `/driver/getReferralsListScreen`, `/driver/safety/settingsItems`,
+  `/driver/dashcam/{form,list,set,remove}` (dashcam product!),
+  `/driver/getPricePolling`, `/driver/getPastOrderDetails`.
+- Uber Driver ships `assets/geojson/` country boundary polygons
+  (california/china/india/japan/south_korea, +`_approximate` twins) and
+  Lottie equalizer/loading animations; `analytics_filter_prod_all_apps.json`
+  + `bool_parameters_hash.txt` (remote-config hash pinning) confirmed again
+  in 4.600.
+- `rider_location_pager…`: Uber markets the no-progress auto-waiver as an
+  onboarding selling point — regulatory-flavored disclosures exist too
+  ("This price was set by an algorithm using your personal data…" for NY).
+  Relevant precedent for Nairobi (ODPC) when we add dynamic pricing.
+
+### 10. Round-2 MIZIGO copy-list (prioritized, mapped)
+
+Clean-room as ever — we build the pattern in our own words and numbers.
+
+| # | What to build | Evidence → | MIZIGO file(s) + guidance |
+|---|---|---|---|
+| 1 | **GPS-mismatch arrival confirm** (NOW): distance gate → title + one sentence + "Confirm arrival"/"Not there yet"; per-shipment `pinStatus` enum (disabled/optional/required/confirmed); wrong-POD blocks arrival; attemptsLeft on failure; config-driven threshold (150 m, ours) | §1 | `driver/DriverApp.tsx` (AT_PICKUP step) + `src/lib/geo.ts` distance + server action in `src/app/api/driver/…`; add `pinStatus` + `arrivalAttemptsLeft` to shipment state |
+| 2 | **Decline-confirm + counter-offer**: confirm-decline dialog (no reason picker — Bolt has none); counter-offer sheet with ± steppers (server step), amount echoed on buttons ("Submit KSh X", "Accept KSh X"), button-becomes-status ("Waiting for customer reply"), per-action error lines; auto-offer disable-after-decline rule | §2 | `driver/DriverApp.tsx` offer card + new `CounterOfferSheet.tsx`; offer state in `src/lib/state-machine.ts` |
+| 3 | **Fare-breakdown explainer system**: typed modal per fee cause (wait-time / tolls / arrears / price-adjust / distance-variance) sharing one reassurance footer; line-item tooltips | §3 | `customer/ReceiptFlow.tsx` + `ReviewStep.tsx`; content map in `src/lib/pricing.ts` |
+| 4 | **Blocking paywall for unpaid/failed payment**: "payment didn't work" + "Pay another way" + cannot-dismiss body + cash fallback ladder (retry → alternate → cash) | §8 | `customer/PaymentStep.tsx` + `ReceiptFlow.tsx`; M-Pesa stuck state uses the same ladder |
+| 5 | **EmptyState/ErrorState components** to the Bolt contract: illustration (ours) + `heading` title + `body` description + link-action (empty) vs button-action (error, "Try again"); future-tense copy rule + reassurance rule | §4 | `shared/ui.tsx` (`<EmptyState>`, `<ErrorState>`) then sweep list screens (`EarningsTab`, `NotificationsSheet`, history lists) |
+| 6 | **Money rows: dotted-leader key-value + tabular numerals only on money**; money row = label regular + value tabular end-aligned | §5 | `shared/ui.tsx` `Money` + new `<KVRow divider="dots">`; use in receipts, quote market, earnings |
+| 7 | **Driver price-dispute flow**: reason list where each reason is flagged (comment allowed? price-set allowed?); interaction mode per market (free input vs stepper vs disabled); calculated-vs-expected price display; already-reported guard | §6 | `customer/ProblemScreen.tsx` + new `src/lib/price-adjust.ts` (sibling of `cancellation.ts`); later a driver-side variant |
+| 8 | **Earnings v3 completion**: payout review screen with fee row + explicit confirm + status history (Sent/Processing/Declined/Failed) + "Problem with payout?" help entry; balance-history tabs (weekly/daily) | §6 | `driver/EarningsTab.tsx` + `driver/DriverPayoutDetails.tsx` |
+| 9 | **Driver Score card**: progress bar with retraining/blocking thresholds, positive/negative signals list, "score dropped" alert; formula = trailing-100-trips (our own weighting) | §9 | new `driver/DriverScoreCard.tsx` inside `DriverApp.tsx` sidebar; data from existing ratings/shipment history |
+| 10 | **Auto-accept filters**: min price-per-km filter + optional-ride exclusions + "no filters set" warning + auto-disable on decline/cancel/miss | §2 | `driver/DriverApp.tsx` offer settings + `src/lib/feature-flags.ts` config |
+| 11 | **Trip-relevant alerts channel taxonomy** (route-change heads-up, auto-accepted, "you're online" persistent status, recording-in-progress) | §9 | `driver/DriverApp.tsx` + `customer/NotificationsSheet.tsx` naming scheme |
+| 12 | **Fatigue/shift limit with server-parameterized copy**: "%d-hour limit + %d-hour compulsory break" placeholders; "Need a break?" pause that finishes the last accepted job first | §9 | `driver/DriverApp.tsx` shift gating; constants in `feature-flags.ts` (our numbers, e.g. 10h/8h for boda) |
+| 13 | **Demand/forecast copy pattern**: methodology disclosure ("calculated from the last 4 weeks… not a guarantee") + "Now" chip + "Areas near you" list + km distances | §7 | `admin/OpsTab.tsx` heatmap + future driver demand card |
+| 14 | **Server-driven cards**: home cards + earnings screens as typed data (screen registry v2) — extend our state-machine with a `ScreenModel` layer rather than hardcoding layouts | §6, §7 | `src/lib/state-machine.ts` + `src/lib/feature-flags.ts` |
+| 15 | **Offer-card visual spec**: 16dp-radius card, 4dp gaps, layered neutral bg, secondary button for "Change price"; swipe-to-accept with tooltip | §2, §5 | `driver/DriverApp.tsx` offer card |
+
+### 11. Contradictions / corrections to round 1
+
+1. Round 1 §4.3 implied a client-side GPS threshold on the pickup confirm —
+   **wrong**: the arrival gate is server-driven (info-message push +
+   per-order status enum); no meter constant exists in the binary. Our
+   implementation should read the threshold from config, not copy a number
+   (there is none to copy).
+2. Round 1 said "117 named UI states" — precisely **117 rules / 115 unique
+   state names** (duplicates carry different scenes/min_versions).
+3. Round 1 §4.4's "12-hour maximum driving limit" is the *hardcoded default*;
+   a `%d`-parameterized twin ships alongside it (the limit is per-market
+   server config).
+4. Round-1 item 14 sketched decline "reason chips" — Bolt ships **no
+   decline-reason picker** (only a confirm). Reasons exist for cancel and
+   price-dispute only. Our planned reason chips would exceed Bolt's pattern;
+   keep or drop, but know it's ours.
+5. Uber Driver 4.600 (round 2) still has **no GPS-mismatch dialog** — PIN
+   verification + nav-state status copy instead; don't look to Uber for the
+   pickup-distance pattern.

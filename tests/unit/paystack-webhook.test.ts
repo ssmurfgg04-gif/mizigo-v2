@@ -74,7 +74,7 @@ async function makeShipment(fareTotal: number): Promise<{ id: string; ref: strin
       distanceKm: 5, durationMin: 20, cargoCategory: "retail",
       categoryId: cat!.id,
       fareBase: 500, fareDistance: 450, fareDuration: 60, fareLoading: 0, fareStops: 0,
-      farePlatform: 100, fareTotal, driverEarnings: Math.round(fareTotal * 0.86) - 100, commission: Math.round(fareTotal * 0.12),
+      farePlatform: 100, fareTotal, driverEarnings: Math.round(fareTotal * 0.85) - 100, commission: Math.round(fareTotal * 0.15),
       paymentMethod: "MPESA", paymentStatus: "PENDING",
     },
   });

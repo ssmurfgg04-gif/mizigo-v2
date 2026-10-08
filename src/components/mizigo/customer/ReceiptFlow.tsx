@@ -159,17 +159,17 @@ export function ReceiptScreen() {
           {s.driver && <Row label="Driver" value={`${s.driver.name.split(" ")[0]} ${s.driver.name.split(" ")[1]?.[0]}.`} />}
         </div>
         <div className="mt-3 border-t border-dashed border-[var(--line)] pt-3">
-          {s.fare.base > 0 && <Row label="Transport" value={kes(s.fare.base)} />}
-          {s.fare.distance > 0 && <Row label={`Distance · ${s.route.distanceKm.toFixed(1)} km`} value={kes(s.fare.distance)} />}
-          {s.fare.duration > 0 && <Row label="Time on road" value={kes(s.fare.duration)} />}
-          {s.fare.loading > 0 && <Row label="Loading assistance" value={kes(s.fare.loading)} />}
-          {s.fare.stops > 0 && <Row label="Extra stops" value={kes(s.fare.stops)} />}
-          {s.fare.night > 0 && <Row label="Night transport" value={kes(s.fare.night)} />}
-          {s.fare.schedule > 0 && <Row label="Planned delivery discount" value={`−${kes(s.fare.schedule)}`} />}
-          {s.fare.discount > 0 && <Row label={`Promo ${s.fare.promoCode}`} value={`- ${kes(s.fare.discount)}`} />}
-          {s.fare.platform > 0 && <Row label="Platform fee" value={kes(s.fare.platform)} />}
+          {s.fare.base > 0 && <Row leader label="Transport" value={kes(s.fare.base)} />}
+          {s.fare.distance > 0 && <Row leader label={`Distance · ${s.route.distanceKm.toFixed(1)} km`} value={kes(s.fare.distance)} />}
+          {s.fare.duration > 0 && <Row leader label="Time on road" value={kes(s.fare.duration)} />}
+          {s.fare.loading > 0 && <Row leader label="Loading assistance" value={kes(s.fare.loading)} />}
+          {s.fare.stops > 0 && <Row leader label="Extra stops" value={kes(s.fare.stops)} />}
+          {s.fare.night > 0 && <Row leader label="Night transport" value={kes(s.fare.night)} />}
+          {s.fare.schedule > 0 && <Row leader label="Planned delivery discount" value={`−${kes(s.fare.schedule)}`} />}
+          {s.fare.discount > 0 && <Row leader label={`Promo ${s.fare.promoCode}`} value={`−${kes(s.fare.discount)}`} />}
+          {s.fare.platform > 0 && <Row leader label="Platform fee" value={kes(s.fare.platform)} />}
           {(() => { const r = s.ratings.find((x) => x.byRole === "CUSTOMER"); return r?.tip ? <Row label="Driver tip · 100% to the driver" value={kes(r.tip)} /> : null; })()}
-          {isBusiness && <Row label="VAT (16% incl.)" value={kes(vat)} />}
+          {isBusiness && <Row leader label="VAT (16% incl.)" value={kes(vat)} />}
         </div>
         <div className="mt-3 flex items-baseline justify-between border-t-2 border-[var(--ink)] pt-3">
           <span className="text-[15px] font-extrabold">TOTAL</span>

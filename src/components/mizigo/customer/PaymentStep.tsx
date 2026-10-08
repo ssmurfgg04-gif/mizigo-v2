@@ -5,7 +5,7 @@
 // Quote-marketplace bookings arrive here with the shipment already created
 // and the fare locked to the accepted quote.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Smartphone } from "lucide-react";
 import { post, api } from "@/lib/api-client";
@@ -17,7 +17,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function PaymentStep() {
   const { draft, user, setBookingStep, setFocusShipment, focusShipmentId } = useSession();
-  const [phase, setPhase] = useState<"review" | "stk" | "pin" | "confirming" | "done">("review");
+  const [phase, setPhase] = useState<"review" | "stk" | "live-stk" | "pin" | "confirming" | "done">("review");
   const [shipment, setShipment] = useState<ShipmentDTO | null>(null);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,7 +67,10 @@ export default function PaymentStep() {
         window.location.href = payRes.authorizationUrl;
         return;
       }
-      setPhase("stk");
+      // real Safaricom STK push (Daraja — primary or the Paystack backup
+      // channel): the phone gets the actual M-PESA prompt, so we wait and
+      // poll — the PIN simulator is for the sandbox only
+      setPhase(payRes.mode === "STK" ? "live-stk" : "stk");
     } catch (e) {
       toast({ title: "Couldn't start payment", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -76,6 +79,66 @@ export default function PaymentStep() {
   };
 
   const openPin = () => setPhase("pin");
+
+  // ── live Safaricom STK (Daraja primary or Paystack backup channel): the
+  // real M-PESA prompt is on the customer's phone — poll the server-side
+  // funnel until the Safaricom callback confirms (Bolt pattern: blocking
+  // paywall with an explicit check + retry, never a fake PIN sheet) ──
+  const manualCheckBusy = useRef(false);
+  const verifyLivePayment = async (): Promise<"pending" | "done"> => {
+    const r = await post<{ pending?: boolean; receipt?: string; alreadyPaid?: boolean }>(
+      `/api/shipments/${shipment!.id}/action`, { action: "pay-verify" },
+    );
+    return r.pending ? "pending" : "done";
+  };
+
+  useEffect(() => {
+    if (phase !== "live-stk" || !shipment) return;
+    let tries = 0;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      if (!alive) return;
+      try {
+        const r = await verifyLivePayment();
+        if (!alive) return;
+        if (r === "done") {
+          setPhase("done");
+          toast({ title: "Payment confirmed", description: "M-PESA receipt received." });
+          setTimeout(() => setBookingStep("matching"), 2500);
+          return;
+        }
+      } catch {
+        // the attempt failed/expired server-side — stop polling; the
+        // customer lands back on review to retry or switch method
+        if (alive) setPhase("review");
+        return;
+      }
+      if (alive && ++tries < 30) timer = setTimeout(tick, 6000);
+    };
+    timer = setTimeout(tick, 6000);
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [phase, shipment]);
+
+  const checkNow = async () => {
+    if (manualCheckBusy.current || !shipment) return;
+    manualCheckBusy.current = true;
+    try {
+      const r = await verifyLivePayment();
+      if (r === "done") {
+        setPhase("done");
+        toast({ title: "Payment confirmed", description: "M-PESA receipt received." });
+        setTimeout(() => setBookingStep("matching"), 2500);
+      } else {
+        toast({ title: "Still waiting", description: "Enter your M-PESA PIN on your phone, then check again." });
+      }
+    } catch (e) {
+      setPhase("review");
+      toast({ title: "Payment not completed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      manualCheckBusy.current = false;
+    }
+  };
 
   const confirmPin = async () => {
     if (pin.replace(/\D/g, "").length !== 4) {
@@ -118,7 +181,7 @@ export default function PaymentStep() {
         </div>
       )}
 
-      {(phase === "stk" || phase === "pin" || phase === "confirming") && shipment && (
+      {(phase === "stk" || phase === "live-stk" || phase === "pin" || phase === "confirming") && shipment && (
         <div className="flex flex-1 flex-col items-center justify-center gap-6 py-10 text-center">
           <div className="relative">
             <span className="absolute inset-0 animate-mz-radar rounded-full bg-[var(--brand)] opacity-20" />
@@ -141,6 +204,23 @@ export default function PaymentStep() {
               </Button>
               <button onClick={() => setPhase("review")} className="mt-2.5 w-full text-[12.5px] font-bold text-[var(--ink-3)] underline underline-offset-4">
                 Back — pay another way
+              </button>
+            </div>
+          )}
+
+          {phase === "live-stk" && (
+            <div className="w-full max-w-[300px]">
+              {/* real Safaricom push — the prompt is on the customer's phone;
+                  we wait on the server-side confirmation instead of simulating */}
+              <p className="text-[12.5px] font-semibold leading-relaxed text-[var(--ink-2)]">
+                We've sent the request to your phone. Enter your M-PESA PIN to pay{" "}
+                <span className="tnum font-bold text-[var(--ink)]">{kes(shipment.fare.total)}</span>. This page updates automatically.
+              </p>
+              <Button variant="brand" className="mt-4 w-full" onClick={checkNow}>
+                I've entered my PIN — check status
+              </Button>
+              <button onClick={() => setPhase("review")} className="mt-2.5 w-full text-[12.5px] font-bold text-[var(--ink-3)] underline underline-offset-4">
+                Payment not working? Try again
               </button>
             </div>
           )}

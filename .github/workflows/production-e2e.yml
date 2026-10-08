@@ -53,6 +53,9 @@ jobs:
           SEED_DEMO: "true"
           # lets the e2e webhook checks exercise the signature gate while pay stays MOCK
           PAYSTACK_WEBHOOK_SECRET: "ci-webhook-secret"
+          # the vault + PlatformSetting hold LIVE provider keys on this DB —
+          # the test suites must stay on the simulated money path
+          MIZIGO_PAYMENTS: "simulated"
           NETLIFY: "1"
           NODE_ENV: production
         run: |

@@ -41,7 +41,9 @@ export async function POST(req: Request) {
     // 401: session-bound driver missing = stale session (sandbox instance churn)
     const d = await db.driver.findUnique({ where: { id: driverId }, select: { id: true } });
     if (!d) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
-    await db.driver.update({ where: { id: driverId }, data: { lat: c.lat, lng: c.lng, h3Cell: cellOf(c.lat, c.lng), lastPingAt: new Date() } });
+    // gpsReportedAt marks REAL app-GPS reports (the seed/simulation never set
+    // it) — the arrive/deliver GPS-mismatch gate arms on this freshness signal
+    await db.driver.update({ where: { id: driverId }, data: { lat: c.lat, lng: c.lng, h3Cell: cellOf(c.lat, c.lng), lastPingAt: new Date(), gpsReportedAt: new Date() } });
     return NextResponse.json({ ok: true, lat: c.lat, lng: c.lng });
   }
 

@@ -57,7 +57,7 @@ export default function DriverPayoutDetails({ data }: { data: DriverHome }) {
     }
     setBusy(true);
     try {
-      const r = await post<{ note: string }>("/api/driver", {
+      const r = await post<{ note: string }>("/api/driver/action", {
         action: "payout-setup",
         type: kind,
         accountNumber: kind === "mobile_money" ? normalizeKePhone(trimmed) : trimmed.replace(/\s/g, ""),

@@ -114,6 +114,9 @@ model Driver {
   // the pickup cell instead of scanning every driver (docs/ROADMAP_DISPATCH_INTEL.md)
   h3Cell         String?
   lastPingAt     DateTime @default(now())
+  // set ONLY by real driver-app GPS pings (the seed never sets it) — the
+  // arrive/deliver GPS-mismatch gate arms on this, never on seeded positions
+  gpsReportedAt  DateTime?
   onlineMinutes  Int      @default(0)
   // payout destination (marketplace hold-then-payout — created once via
   // Paystack /transferrecipient; see docs/research/PAYSTACK_WIRING_BLUEPRINT.md §c.2)

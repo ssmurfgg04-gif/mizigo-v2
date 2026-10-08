@@ -32,6 +32,39 @@ export function haversineKm(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// ── GPS-mismatch arrival gate (Bolt Driver pattern — DECOMPILE_FINDINGS §Deep Dive 2) ──
+// When the driver's fresh app-GPS sits farther than GPS_MISMATCH_METERS from
+// the point they claim to have reached, the arrive/deliver action demands an
+// explicit confirmation (server-enforced 409, mirroring Bolt's server-driven
+// AutomaticArrival prompt; their binary ships NO client threshold — 150 m is
+// ours, tuned for Nairobi cargo: pickups happen at bays/gates a short walk
+// from the pinned point).
+export const GPS_MISMATCH_METERS = 150;
+/** A GPS report older than this can't be trusted to judge "where are you now". */
+export const GPS_FRESH_WINDOW_MS = 10 * 60_000;
+
+export interface GpsPositionLike {
+  lat: number | null;
+  lng: number | null;
+  gpsReportedAt: Date | null;
+}
+
+/**
+ * Distance in METERS between the driver's last app-GPS report and `target`,
+ * or null when we cannot judge (no report, no coords, stale report — the
+ * gate stays open rather than blocking on missing data; the seed never sets
+ * gpsReportedAt, so sandbox/demo flows are never gated).
+ */
+export function gpsMismatchMeters(
+  driver: GpsPositionLike | null,
+  target: LatLng,
+  now: Date = new Date(),
+): number | null {
+  if (!driver || driver.lat == null || driver.lng == null || !driver.gpsReportedAt) return null;
+  if (now.getTime() - driver.gpsReportedAt.getTime() > GPS_FRESH_WINDOW_MS) return null;
+  return Math.round(haversineKm({ lat: driver.lat, lng: driver.lng }, target) * 1000);
+}
+
 // ── Location catalog (Kenyan places, estates, landmarks) ────────────────────
 export const PLACES: NaiPlace[] = [
   { name: "CBD · Kenyatta Avenue", area: "Nairobi CBD", category: "landmark", lat: -1.2841, lng: 36.8265, popular: true },

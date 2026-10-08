@@ -9,13 +9,18 @@
 //   * 10s AbortController timeout on every call
 //   * structured console logs, secrets never logged
 //
-// Key resolution order (§g.2): env PAYSTACK_SECRET_KEY → AES-256-GCM-encrypted
-// PlatformSetting row (`paystack.secret.live` / `.test`), decrypted with
-// PAYSTACK_MASTER_KEY (env only, never in the DB). PAYSTACK_MODE=live|test
-// picks which pair loads (default live — the account is live-only today).
+// Key resolution order (§g.2 + runtime-secrets): env PAYSTACK_SECRET_KEY →
+// Supabase Vault (hydrated into env by lib/runtime-secrets — the
+// "serverless + encrypted storage" pattern, no master key needed) →
+// AES-256-GCM-encrypted PlatformSetting row (`paystack.secret.live` /
+// `.test`), decrypted with PAYSTACK_MASTER_KEY (env only, never in the DB).
+// PAYSTACK_MODE=live|test picks which pair loads (default live — the account
+// is live-only today). MIZIGO_PAYMENTS=simulated forces the sandbox money
+// path regardless of keys (CI/e2e safety valve).
 
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
+import { hydrateRuntimeSecrets, paymentsSimulated } from "@/lib/runtime-secrets";
 
 const API = "https://api.paystack.co";
 const TIMEOUT_MS = 10_000;
@@ -61,6 +66,12 @@ export function decryptSecret(blob: string, masterKey: string): string {
  * DB row. Cached 60s per instance. Null = Paystack not configured (inert).
  */
 export async function resolvePaystackSecret(): Promise<string | null> {
+  // CI/e2e safety valve: never let a provisioned vault/DB key turn a test
+  // boot onto the live provider
+  if (paymentsSimulated()) return null;
+  // Supabase Vault path: fills PAYSTACK_SECRET_KEY(_TEST) from the vault
+  // (no-op outside Postgres mode / when no secret is provisioned)
+  await hydrateRuntimeSecrets();
   const env = envSecret();
   if (env) return env;
   if (dbKeyCache && Date.now() - dbKeyCache.at < DB_KEY_TTL_MS) return dbKeyCache.secret;

@@ -20,8 +20,9 @@ Citations: `[D:<slug>]` = official Paystack doc page (fetched today, list in §1
 `commission = Math.round(total * zone.commissionRate)` and
 `driverEarnings = total − platformFee − commission`. The Prisma schema defaults
 `PricingZone.commissionRate = 0.15` and the sandbox seed (C: src/lib/seed.ts:54) sets Nairobi to
-**0.15 (15%)**; the owner's current intent is **12%** — see "Surprises" in §11: the live DB zone
-must be confirmed/updated to 0.12 and /terms copy (currently "15% plus KES 100") kept in sync.
+**0.15 (15%) + KES 100 platform fee**. *(Update 2026-10-08: the owner briefly moved to 12%, then
+confirmed 15% + KES 100 as the starting sweet spot — seed, /terms and this doc are aligned on
+15% + 100.)*
 Rust/WASM core mirrors this bit-exactly. Tip (Rating.tip) is added to `driverEarnings` post-POD.
 
 **Payment lifecycle (C: src/app/api/shipments/[id]/action/route.ts).**
@@ -472,22 +473,22 @@ Sep 28, 2026), plus LIVE fee evidence from the account's own transactions [L].
 | 〃 | KES 50,001–999,999 | KES 140 |
 | Limits | M-Pesa wallet: min KES 10 / max KES 250,000 per transfer; bank max KES 50,000,000 | [D:support-transfers] |
 
-**Unit economics — KES 3,000 job, 12% commission, KES 100 platform fee (nairobi zone maths,
-payout via M-Pesa wallet):**
+**Unit economics — KES 3,000 job, 15% commission, KES 100 platform fee (nairobi zone maths,
+payout via M-Pesa wallet — updated 2026-10-08 to the owner-confirmed 15% + 100):**
 ```
 Customer pays (checkout, M-Pesa)              KES 3,000.00
 Paystack collection fee 1.5%                    −   45.00   → settled to balance  2,955.00
-Driver share = 3000 − 100(platform) − 360(comm)  2,540.00
+Driver share = 3000 − 100(platform) − 450(comm)  2,450.00
 M-Pesa B2C transfer fee (1,501–20,000 band)      −   40.00
 ────────────────────────────────────────────────────────────
-Platform net on the job                          KES  375.00
-  (= commission 360 + platform fee 100 − Paystack 85 = 375)
-Bank payout instead (KES 80 band ≤10,000): platform net = KES 335.00
+Platform net on the job                          KES  505.00
+  (= commission 450 + platform fee 100 − Paystack 85 = 505)
+Bank payout instead (KES 80 band ≤10,000): platform net = KES 465.00
 Effective all-in Paystack cost: 2.83% of job value (M-Pesa payout) / 4.17% (bank payout)
 ```
-Same numbers for a KES 10,000 job (12%): commission 1,200 + platform 100 − fees (150 collect
-+ 40 payout) = **net KES 1,110** (M-Pesa payout). Margin scales fine; small jobs (KES 900
-minimum fare) net ≈ 900×12%+100 − 13.5 − 20 ≈ KES 174.
+Same numbers for a KES 10,000 job (15%): commission 1,500 + platform 100 − fees (150 collect
++ 40 payout) = **net KES 1,410** (M-Pesa payout). Margin scales fine; small jobs (KES 900
+minimum fare) net ≈ 900×15%+100 − 13.5 − 20 ≈ KES 212.
 Implication: **driver payouts should default to M-Pesa wallets** (KES 40 beats bank KES 80/120
 for typical job sizes) — bank payout offered as an option.
 

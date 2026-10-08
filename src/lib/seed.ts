@@ -68,10 +68,10 @@ export async function seedReference(): Promise<void> {
   const cats = await Promise.all(catDefs.map(({ supportedCargo, ...c }) => db.vehicleCategory.create({ data: { id: `seed-cat-${c.key}`, ...c, supportedCargo: JSON.stringify(supportedCargo) } })));
   const CAT = Object.fromEntries(cats.map((c) => [c.key, c]));
 
-  // ── Pricing zone (commissionRate 0.12 — owner intent, aligns receipts,
-  // payouts and the /terms copy; blueprint surprise #4) ──
+  // ── Pricing zone (commissionRate 0.15 + KES 100 platform fee — the owner's
+  // confirmed starting sweet spot; aligns receipts, payouts and /terms) ──
   await db.pricingZone.create({
-    data: { id: "seed-zone-nairobi", key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, nightMultiplier: 1.12, scheduledDiscount: 0.05, platformFee: 100, commissionRate: 0.12, active: true },
+    data: { id: "seed-zone-nairobi", key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, nightMultiplier: 1.12, scheduledDiscount: 0.05, platformFee: 100, commissionRate: 0.15, active: true },
   });
 
   // ── Places ──

@@ -59,6 +59,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isDarajaEnabled, stkPush, toMsisdn, type StkPushResult } from "./daraja";
+import { hydrateRuntimeSecrets } from "@/lib/runtime-secrets";
 
 export { isDarajaEnabled, stkPush, stkQuery, darajaConfig, toMsisdn } from "./daraja";
 export { isAtEnabled, sendSMS } from "./africastalking";
@@ -140,6 +141,9 @@ export async function initiateMpesaPayment(
   phone: string,
   amount: number
 ): Promise<MpesaInitResult> {
+  // the DARAJA_* keys may live in the Supabase Vault rather than Netlify env
+  // (runtime-secrets pattern) — make them visible before the enabled check
+  await hydrateRuntimeSecrets();
   if (!isDarajaEnabled()) {
     return { mode: "INERT", reason: "daraja-not-configured" };
   }

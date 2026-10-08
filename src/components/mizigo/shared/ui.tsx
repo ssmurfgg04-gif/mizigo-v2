@@ -108,7 +108,18 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
   );
 }
 
-export function Row({ label, value, strong }: { label: ReactNode; value: ReactNode; strong?: boolean }) {
+export function Row({ label, value, strong, leader }: { label: ReactNode; value: ReactNode; strong?: boolean; leader?: boolean }) {
+  if (leader) {
+    // Bolt UIKit DesignKeyValueView pattern (DECOMPILE_FINDINGS §Deep Dive 2):
+    // receipt-style rows — label ……… value, dotted leader between, tabular money
+    return (
+      <div className="flex items-baseline gap-2 py-1.5">
+        <span className={cx("whitespace-nowrap text-[13.5px]", strong ? "font-bold text-[var(--ink)]" : "font-medium text-[var(--ink-2)]")}>{label}</span>
+        <span className="min-w-3 flex-1 -translate-y-[3px] border-b-2 border-dotted border-[var(--line)]" aria-hidden="true" />
+        <span className={cx("whitespace-nowrap text-[13.5px] tnum", strong ? "font-extrabold text-[var(--ink)]" : "font-semibold text-[var(--ink)]")}>{value}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center justify-between py-1.5">
       <span className={cx("text-[13.5px]", strong ? "font-bold text-[var(--ink)]" : "font-medium text-[var(--ink-2)]")}>{label}</span>

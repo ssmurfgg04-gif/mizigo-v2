@@ -8,10 +8,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, ArrowUpRight, Banknote, BriefcaseBusiness, CheckCircle2, ChevronRight, Clock3,
-  FileCheck2, LogOut, MapPin, MessageCircle, Navigation, PackageOpen, Phone, Power, Star,
+  FileCheck2, LogOut, MapPin, MapPinOff, MessageCircle, Navigation, PackageOpen, Phone, Power, Star,
   TriangleAlert, Truck, User, Wallet, X, Siren,
 } from "lucide-react";
-import { api, post } from "@/lib/api-client";
+import { api, post, ApiError } from "@/lib/api-client";
 import type { DriverHome, ShipmentDTO } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button, EmptyState, ErrorState, ListSkeleton, Row, SectionTitle, StatusBadge, toneForStatus, AvatarInitials } from "@/components/mizigo/shared/ui";
@@ -200,6 +200,8 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
   const [reportOpen, setReportOpen] = useState(false);
   const [reportKind, setReportKind] = useState<string | null>(null);
   const [reportNote, setReportNote] = useState("");
+  const [gpsMismatch, setGpsMismatch] = useState<{ action: "arrive" | "deliver"; distanceM: number } | null>(null);
+  const [declineConfirm, setDeclineConfirm] = useState(false);
   const [doneStops, setDoneStops] = useState<number[]>([]);
   const [sosOpen, setSosOpen] = useState(false);
   const [sosSent, setSosSent] = useState(false);
@@ -216,14 +218,48 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
       const r = await post<{ shipment: ShipmentDTO }>(`/api/shipments/${s.id}/action`, { action, actor: "DRIVER", ...extra });
       if (["COMPLETED", "CANCELLED"].includes(r.shipment.status)) onDone();
     } catch (e) {
-      toast({ title: "Action failed", description: (e as Error).message, variant: "destructive" });
+      const err = e instanceof ApiError ? e : null;
+      // Bolt GPS-mismatch confirm (DECOMPILE_FINDINGS §Deep Dive 2): the
+      // server refuses an arrival claim while fresh app-GPS sits far from
+      // the target point — surface the explicit confirm instead of an error
+      if (err && err.status === 409 && err.data?.code === "GPS_MISMATCH" && (action === "arrive" || action === "deliver")) {
+        setGpsMismatch({ action, distanceM: Number(err.data.distanceM ?? 0) });
+      } else {
+        toast({ title: "Action failed", description: (e as Error).message, variant: "destructive" });
+      }
     } finally {
       setBusy(false);
     }
   };
 
+  // one-shot fresh GPS right before an arrival claim, so the server gate
+  // judges the CURRENT position rather than the last watch ping; silent on
+  // denial/unavailability (the gate simply stays open — Bolt behaviour)
+  const pingGps = () =>
+    new Promise<void>((resolve) => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) return resolve();
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          void post("/api/driver/action", { action: "ping", lat: p.coords.latitude, lng: p.coords.longitude })
+            .catch(() => null)
+            .then(() => resolve());
+        },
+        () => resolve(),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 4000 },
+      );
+    });
+  const arriveWithGps = async (action: "arrive" | "deliver") => {
+    setBusy(true);
+    await pingGps();
+    setBusy(false);
+    await act(action);
+  };
+
   const acceptOffer = () => act("driver-accept");
   const declineOffer = async () => {
+    // Bolt pattern (DECOMPILE_FINDINGS §Deep Dive 2): declining asks for an
+    // explicit confirm first — no reason picker, the job simply moves on
+    setDeclineConfirm(false);
     await act("decline");
     toast({ title: "Offer declined", description: "Searching for the next driver." });
     onDone();
@@ -268,9 +304,25 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
           </div>
           <div className="mt-auto space-y-2.5 pt-4">
             <Button variant="brand" className="w-full" onClick={acceptOffer} loading={busy}>Accept · {kes(s.fare.driverEarnings)}</Button>
-            <Button variant="outline" className="w-full h-12" onClick={declineOffer}>Decline</Button>
+            <Button variant="outline" className="w-full h-12" onClick={() => setDeclineConfirm(true)}>Decline</Button>
           </div>
         </div>
+
+        {/* decline confirm (Bolt pattern — explicit confirm, no reason picker) */}
+        {declineConfirm && (
+          <div className="fixed inset-0 z-50 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => setDeclineConfirm(false)}>
+            <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()}>
+              <p className="text-[17px] font-extrabold tracking-tight">Decline this delivery?</p>
+              <p className="mt-1 text-[12.5px] font-medium leading-relaxed text-[var(--ink-2)]">
+                The job goes straight to the next driver. Frequent declines can lower how often we offer you jobs.
+              </p>
+              <div className="mt-4 space-y-2.5">
+                <Button variant="brand" className="w-full" onClick={() => setDeclineConfirm(false)}>Keep the job</Button>
+                <Button variant="outline" className="w-full h-12" onClick={() => void declineOffer()}>Decline</Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -388,7 +440,7 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
               <Button variant="outline" className="w-full" onClick={() => window.open(nav?.gmapsUrl ?? `https://www.google.com/maps/dir/?api=1&destination=${s.route.pickup.lat},${s.route.pickup.lng}&travelmode=driving`, "_blank", "noopener")}>
                 <Navigation size={16} /> Navigate to pickup
               </Button>
-              <Button variant="brand" className="w-full" onClick={() => act("arrive")} loading={busy}>I've arrived</Button>
+              <Button variant="brand" className="w-full" onClick={() => arriveWithGps("arrive")} loading={busy}>I've arrived</Button>
             </>
           )}
 
@@ -455,7 +507,7 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
                 <Navigation size={16} /> Navigate to drop-off
               </Button>
               {s.status === "ARRIVING" && (
-                <Button variant="brand" className="w-full" onClick={() => act("deliver")} loading={busy}>I've arrived at the destination</Button>
+                <Button variant="brand" className="w-full" onClick={() => arriveWithGps("deliver")} loading={busy}>I've arrived at the destination</Button>
               )}
               {s.status === "IN_TRANSIT" && (
                 <Button variant="brand" className="w-full" onClick={() => act("arriving")} loading={busy}>Approaching destination</Button>
@@ -598,6 +650,40 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
           </div>
         </div>
       )}
+
+      {/* GPS-mismatch arrival confirm (Bolt Driver pattern): the server
+          refused the arrival claim — explicit confirm or go back */}
+      {gpsMismatch && (
+        <div className="fixed inset-0 z-50 flex items-end bg-[rgba(23,24,28,0.45)]" onClick={() => setGpsMismatch(null)}>
+          <div className="w-full animate-mz-slide-up rounded-t-[18px] bg-[var(--surface)] px-5 pb-6 pt-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--warn-soft)] text-[var(--warn)]"><MapPinOff size={22} /></span>
+              <div>
+                <p className="text-[17px] font-extrabold tracking-tight">{gpsMismatch.action === "arrive" ? "Arrived at pickup?" : "Arrived at destination?"}</p>
+                <p className="mt-0.5 text-[12.5px] font-medium leading-relaxed text-[var(--ink-2)]">
+                  Your GPS location doesn&apos;t match the {gpsMismatch.action === "arrive" ? "pickup spot" : "destination address"} — it looks about <span className="tnum font-bold text-[var(--ink)]">{gpsMismatch.distanceM}m</span> away. {gpsMismatch.action === "arrive" ? "Make sure you&apos;re at the right place before loading." : "Check the address before completing the delivery."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-2.5">
+              <Button
+                variant="brand" className="w-full" loading={busy}
+                onClick={() => {
+                  const pending = gpsMismatch;
+                  setGpsMismatch(null);
+                  void act(pending.action, { gpsMismatchConfirmed: true });
+                }}
+              >
+                Confirm — I&apos;m at the right place
+              </Button>
+              <Button variant="outline" className="w-full h-12" onClick={() => setGpsMismatch(null)}>
+                Not there yet
+              </Button>
+            </div>
+            <p className="mt-2.5 text-center text-[11px] font-semibold text-[var(--ink-3)]">Confirmed off-location arrivals are recorded on the delivery timeline.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -605,6 +691,31 @@ function DriverTripScreen({ data, onDone }: { data: DriverHome; onDone: () => vo
 }
 
 // ─── Navigation (driver-side directions + traffic) ──────────────────────────
+
+/**
+ * Real device GPS feed (the driver app IS the location source — Bolt/Uber
+ * pattern). While online, watchPosition pings the server at most every ~25s:
+ * feeds H3 supply cells, the demand map, tracking, and the arrive/deliver
+ * GPS-mismatch gate (lib/runtime gpsReportedAt). Silent on permission denial.
+ */
+function useDriverGps(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled || typeof navigator === "undefined" || !navigator.geolocation) return;
+    let last = 0;
+    const id = navigator.geolocation.watchPosition(
+      (p) => {
+        const now = Date.now();
+        if (now - last < 25_000) return;
+        last = now;
+        void post("/api/driver/action", { action: "ping", lat: p.coords.latitude, lng: p.coords.longitude }).catch(() => null);
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 20_000, timeout: 15_000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [enabled]);
+}
+
 
 interface NavRouteResponse {
   distanceKm: number;
@@ -1248,6 +1359,10 @@ export default function DriverApp() {
     retry: 1,
     refetchInterval: (q) => (q.state.data?.active ? 2500 : 12000),
   });
+
+  // real device GPS feed while online (supply cells + demand map + the
+  // arrive/deliver GPS-mismatch gate) — no-op on desktops/permission denial
+  useDriverGps(!!data?.driver && data.driver.status === "ONLINE");
 
   if (!driverId) return <DriverLogin />;
 

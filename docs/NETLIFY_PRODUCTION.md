@@ -107,7 +107,8 @@ The app now runs the **marketplace money model** (hold-then-payout on POD):
   keeps the simulated flow — zero-risk default.
 - **Payouts**: after proof of delivery the driver's share moves by Paystack
   Transfer to their saved M-Pesa/bank recipient (auto-default: the driver's
-  own phone as M-Pesa). Commission is **12%** + KES 100 platform fee.
+  own phone as M-Pesa). Commission is **15%** + KES 100 platform fee (the
+  owner-confirmed starting sweet spot, October 2026).
 - **Real data only**: production Postgres never seeds demo users/drivers/
   shipments — reference data (tariffs, zone, places, settings) self-seeds on
   first boot. Demo logins + the demo dataset exist only in the SQLite sandbox
@@ -118,34 +119,93 @@ The app now runs the **marketplace money model** (hold-then-payout on POD):
 | Variable | Value | Required |
 |---|---|---|
 | `DATABASE_URL` | the `SUPABASE_DATABASE_URL` GitHub secret's value | yes |
-| `PAYSTACK_MASTER_KEY` | the `PAYSTACK_MASTER_KEY` GitHub secret's value | for marketplace |
 | `MIZIGO_SESSION_SECRET` | long random string | recommended |
 | `AFRICASTALKING_API_KEY` + `AT_USERNAME` (+ `AT_SENDER_ID`) | Africa's Talking SMS credentials | for real OTP SMS (without them the login code shows in-app) |
+| `MIZIGO_PAYMENTS` | set to `simulated` to force the sandbox money path on a production DB (CI uses this) | optional safety valve |
 
-The Paystack **secret key itself never goes to Netlify** — it is stored
-AES-256-GCM-encrypted in the database (`PlatformSetting.paystack.secret.live`,
-written by `scripts/paystack_provision.mjs`, run from the
-**production-migrate** workflow) and decrypted at runtime with
-`PAYSTACK_MASTER_KEY`. Rotating keys = update the GitHub secrets + re-run the
-workflow. (A plain `PAYSTACK_SECRET_KEY` env var still wins if ever set.)
+That's the whole set — **provider keys never go to Netlify** (see below).
+
+### Secrets: Supabase Vault + runtime fetch (the marketplace key store)
+
+Provider secrets live in the Supabase project's **Vault** (encrypted at rest
+with pgsodium, readable only through the database connection itself). The
+Netlify API functions fetch them at runtime and hydrate them into the
+process environment (`src/lib/runtime-secrets.ts`) — one vault query per
+instance per 10 minutes, values never logged, explicit Netlify env vars
+always win.
+
+Resolution order for any provider key (Paystack example):
+1. **env** (`PAYSTACK_SECRET_KEY` in Netlify UI / CI) — wins if set
+2. **Supabase Vault** secret `paystack.secret.live` (hydrated into env)
+3. AES-256-GCM `PlatformSetting.paystack.secret.live` row decrypted with
+   `PAYSTACK_MASTER_KEY` (the original path — kept as fallback; the master
+   key is **no longer needed on Netlify** when the vault is provisioned, it
+   stays a GitHub secret for the CI provisioning path)
+
+**So where does the Paystack master key go?** Nowhere on Netlify — with the
+vault provisioned, `DATABASE_URL` is the only root secret the functions hold
+(the DB credential gates the vault). The master key remains in GitHub
+Secrets (`PAYSTACK_MASTER_KEY`) for `scripts/paystack_provision.mjs`.
+
+Provisioning (idempotent, values from env only — never CLI args):
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_… SUPABASE_PROJECT_REF=xycmzhpkuzyhmgucwqys \
+PAYSTACK_SECRET_KEY=sk_live_… [DARAJA_* when they arrive] \
+python3 scripts/vault_provision.py          # stores + verifies by name only
+python3 scripts/vault_provision.py --list   # names only, never values
+```
+
+Known vault names: `paystack.secret.live|test`, `paystack.public.live`,
+`daraja.consumer-key|consumer-secret|shortcode|passkey|callback-url|env`
+(ready for the moment Daraja keys arrive), plus a generic escape hatch — any
+vault secret named `env.<UPPER_SNAKE>` hydrates that env var (e.g.
+`env.AFRICASTALKING_API_KEY`). The **production-migrate** workflow runs
+`scripts/vault_read_check.mjs` after every migrate: it proves the app's own
+DB role can read the vault (names only).
+
+Current state (October 2026): `paystack.secret.live` +
+`paystack.public.live` are provisioned; `MIZIGO_PAYMENTS=simulated` keeps
+CI/e2e boots off the live provider regardless.
+
+### Daraja backup channel + GPS-mismatch arrival confirm (October 2026)
+
+- **Backup channel**: Paystack stays the primary collection rail; if
+  `transaction/initialize` fails (outage/timeout), `startCustomerPayment`
+  automatically falls back to a **Daraja STK push** when the Safaricom keys
+  are configured (vault or env). The fallback is recorded on the
+  PaymentEvent (`providerMeta.fallbackFrom`) for reconciliation. Live
+  Daraja payments can ONLY be confirmed by the Safaricom callback
+  (`/api/mpesa/callback` → the same atomic-claim funnel, with amount
+  integrity) — a client action can never confirm an unpaid STK push. The
+  customer app polls (`I've entered my PIN — check status`) instead of
+  showing the sandbox PIN simulator.
+- **GPS-mismatch confirm** (Bolt Driver pattern, DECOMPILE_FINDINGS §Deep
+  Dive 2): the driver app feeds real GPS (`/api/driver/action` ping — also
+  refreshes the H3 supply cell). When the driver claims arrival
+  (`arrive`/`deliver`) with fresh GPS **> 150 m** from the target point,
+  the server answers `409 GPS_MISMATCH` with the distance; the driver app
+  shows an explicit confirm ("Arrived at pickup? … doesn't match the pickup
+  spot") and the confirmed off-location arrival is recorded on the delivery
+  timeline. No/stale GPS (every sandbox/demo flow) never gates.
 
 ### Paystack dashboard checklist (one-time)
 
-1. **Webhook URL** → set to `https://mizigo.netlify.app/api/paystack/webhook`
-   (direct — recommended). Alternative: the Supabase forwarder
-   `https://xycmzhpkuzyhmgucwqys.supabase.co/functions/v1/paystack-webhook`
+1. **Webhook URL** → `https://mizigo.netlify.app/api/paystack/webhook`
+   (direct — recommended; ✅ set October 2026). Alternative: the Supabase
+   forwarder `https://xycmzhpkuzyhmgucwqys.supabase.co/functions/v1/paystack-webhook`
    (already deployed; forwards raw body + signature to the same route).
-   The currently-configured `https://fnlyuabpiqwqaohztdbn.supabase.co/...`
-   points at a project with no such function — **must be changed**.
 2. **Transfers OTP**: Settings → Preferences → uncheck "Confirm transfers
    before sending" so POD payouts are fully automatic. (If left ON, payouts
    park in PROCESSING with an "Awaiting OTP" note and ops finalizes them from
    the admin Payouts tab — the app handles both.)
-3. Live callback URL may stay `https://mizigo.netlify.app` — the per-transaction
-   `callback_url` overrides it anyway.
+3. Live callback URL `https://mizigo.netlify.app` — ✅ set; the
+   per-transaction `callback_url` overrides it anyway.
 
-### First live smoke (after the env vars are set)
+### First live smoke (after `DATABASE_URL` is pasted into Netlify)
 
+0. `GET /api/bootstrap` → `payments.provider` should read `"PAYSTACK"` and
+   `build.mode` `"postgres"` — that single URL proves the switch flipped.
 1. Book a small delivery (KES 10–50) with your own phone → confirm the M-PESA
    STK push arrives via Paystack → pay → the delivery flips to confirmed.
 2. Check the Paystack dashboard: transaction shows, fee = 1.5%.

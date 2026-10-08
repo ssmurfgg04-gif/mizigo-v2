@@ -2,9 +2,12 @@
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** the server's structured payload (e.g. { code: "GPS_MISMATCH", distanceM: 340 }) */
+  data: Record<string, unknown>;
+  constructor(message: string, status: number, data: Record<string, unknown> = {}) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -24,7 +27,7 @@ export async function api<T = unknown>(path: string, init?: RequestInit): Promis
     if (res.status === 401 && !path.startsWith("/api/auth")) {
       if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_EVENT));
     }
-    throw new ApiError(data.error ?? "Something went wrong. Please try again.", res.status);
+    throw new ApiError(data.error ?? "Something went wrong. Please try again.", res.status, typeof data === "object" && data !== null ? data : {});
   }
   return data as T;
 }
