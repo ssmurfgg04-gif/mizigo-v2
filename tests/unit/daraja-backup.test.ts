@@ -5,6 +5,14 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 
+// OWN sandbox DB: vitest runs test files in PARALLEL worker processes — every
+// DB-backed suite that shares the /tmp/mizigo.db default races the cold-start
+// seed (unique-constraint collisions on a fresh runner). A per-suite file
+// keeps this suite self-contained.
+vi.hoisted(() => {
+  process.env.DATABASE_URL = `file:/tmp/mizigo-test-daraja-${process.pid}-${Date.now() % 100000}.db`;
+});
+
 const TEST_SECRET = "sk_test_" + randomBytes(16).toString("hex");
 let initFails = true; // the fake Paystack initialize is down for these tests
 
