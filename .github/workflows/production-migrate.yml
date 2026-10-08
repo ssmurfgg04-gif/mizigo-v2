@@ -40,7 +40,11 @@ jobs:
       - name: Push schema to Supabase
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
-        run: npx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
+        # --accept-data-loss: prisma warns on ANY unique-constraint addition
+        # (Payout.reference here — NULL for legacy rows, which Postgres allows
+        # multiply under UNIQUE). The 2026-10 batch is fully additive; the
+        # warning is precautionary, not an actual data loss.
+        run: npx prisma db push --schema prisma/schema.postgres.prisma --skip-generate --accept-data-loss
 
       # marketplace keys: AES-256-GCM encrypted into PlatformSetting — the app
       # decrypts at runtime with PAYSTACK_MASTER_KEY (Netlify env). Skipped
