@@ -613,3 +613,19 @@ Stage Summary:
 - mizigo is a real marketplace: M-Pesa collections via Paystack checkout, ledger-backed confirmations, POD-triggered driver payouts with auto M-Pesa fallback, refunds on cancellation — sandbox behavior byte-identical when no keys are set
 - H3 dispatch + Uber-pattern earnings tab are live; all suites green locally
 - Remaining owner actions (documented in docs/NETLIFY_PRODUCTION.md): paste DATABASE_URL + PAYSTACK_MASTER_KEY into Netlify env, repoint the Paystack webhook URL, optionally disable transfers OTP
+
+---
+Task ID: 18 (final — CI green + production provisioned + live verified)
+Agent: Super Z (main agent)
+
+Work Log:
+- production-migrate GREEN on 2788540/74eaf16 after two fixes: postgres schema regenerated without the per-model @@schema attributes (restored the ?schema= URL-param form of 83ff8a8) and --accept-data-loss for the additive batch (Payout.reference unique, NULL-tolerant)
+- Provision step verified in CI logs: paystack.secret.live (v1:4-part encrypted blob) + paystack.public.live + provisionedAt written to the production mizigo schema
+- CI on 74eaf16 ALL GREEN (quality / unit 106 / build / e2e-sqlite / e2e-postgres) after: PAYSTACK_WEBHOOK_SECRET on the sqlite e2e boot, bootstrap demo-block honors SEED_DEMO (CI postgres is a seeded environment), e2e check clarified
+- Netlify caught up after the owner's plan upgrade: live site runs 74eaf16 (bootstrap build.sha verified live) — /pay/callback 200, /api/paystack/banks 401 (auth-gated), /api/paystack/webhook responds (sandbox no-keys behavior), manifest + legal pages 200
+- Supabase edge function forwarder live: POST unsigned → forwards to the app route (200 in current no-keys state; 401 once keys activate)
+- Owner checklist finalized in docs/NETLIFY_PRODUCTION.md §"Going LIVE for real users"
+
+Stage Summary:
+- Everything pushed and verified: GitHub CI green, production Supabase schema + encrypted Paystack keys provisioned, Netlify live on the latest commit
+- The single remaining switch to flip production money ON: paste DATABASE_URL + PAYSTACK_MASTER_KEY into Netlify env (then repoint the Paystack webhook + decide on transfers OTP)
