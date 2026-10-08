@@ -48,6 +48,9 @@ jobs:
           # the suites exercise the sandbox quote/driver simulation — it
           # defaults off in Postgres mode, exactly like the CI postgres job
           DEMO_AUTO_PROGRESS: "true"
+          # CI runs against the cloud DB but still needs the demo dataset
+          # (production boot would seed reference data only)
+          SEED_DEMO: "true"
           NETLIFY: "1"
           NODE_ENV: production
         run: |

@@ -37,7 +37,7 @@ export default function TermsPage() {
 
       <H2>Transporters</H2>
       <p>
-        Drivers on MIZIGO are independent contractors. They must hold a valid driving licence for their vehicle class, current insurance and a roadworthy vehicle, and pass our document checks. Commission is 15% plus a KES 100 platform fee per completed job. Payouts go to the driver's M-PESA.
+        Drivers on MIZIGO are independent contractors. They must hold a valid driving licence for their vehicle class, current insurance and a roadworthy vehicle, and pass our document checks. Commission is 12% plus a KES 100 platform fee per completed job. Payouts are sent to the driver's saved M-PESA or bank account after proof of delivery.
       </p>
 
       <H2>Prohibited items</H2>

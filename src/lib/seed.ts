@@ -1,8 +1,14 @@
-// MIZIGO — Seed. Believable Kenyan demo data: drivers, vehicles, categories,
-// zones, places, historical shipments with event chains, ratings, payouts.
+// MIZIGO — Seed. Two layers:
+//   seedReference() — the REAL operating dataset: vehicle categories (calibrated
+//     Nairobi tariffs), the nairobi pricing zone, 75 places, platform settings.
+//     Runs on production Postgres when the DB is empty (real users/drivers/loads
+//     arrive via signup — never seeded).
+//   seedAll() — seedReference + demo people/drivers/vehicles/history (SQLite
+//     sandbox + CI only; Postgres CI opts in with SEED_DEMO=true).
 // Idempotent: skips if already seeded.
 
 import { db } from "./db";
+import { dbIsPostgres } from "./feature-flags";
 import { PLACES } from "./geo";
 import { shareToken, shipmentCode, mpesaRef } from "./format";
 import { hashToken } from "./tokens";
@@ -17,14 +23,26 @@ export async function isSeeded(): Promise<boolean> {
 
 export async function ensureSeed(): Promise<void> {
   if (await isSeeded()) return;
-  await seedAll();
+  const demoOk = (process.env.SEED_DEMO ?? "").trim().toLowerCase() === "true";
+  // sandbox (SQLite) and CI Postgres (SEED_DEMO=true) get the full demo dataset;
+  // production Postgres gets ONLY reference data — real users sign up for real
+  if (!dbIsPostgres() || demoOk) {
+    await seedAll();
+    return;
+  }
+  if ((await db.user.count()) > 0) {
+    // categories missing but real users exist → do NOT wipe anything; surface it
+    console.error("[seed] production DB has users but no vehicle categories — skipping auto-seed (ops: check prisma db push)");
+    return;
+  }
+  await seedReference();
 }
 
-export async function seedAll(): Promise<void> {
-  // wipe (dev convenience)
+export async function seedReference(): Promise<void> {
+  // wipe (dev convenience / fresh production boot only — ensureSeed guards this)
   await db.$transaction([
     db.shipmentEvent.deleteMany(), db.shipmentItem.deleteMany(), db.quote.deleteMany(), db.chatMessage.deleteMany(),
-    db.paymentEvent.deleteMany(), db.rating.deleteMany(), db.dispute.deleteMany(),
+    db.paymentEvent.deleteMany(), db.paystackEvent.deleteMany(), db.rating.deleteMany(), db.dispute.deleteMany(),
     db.payout.deleteMany(), db.notification.deleteMany(), db.savedPlace.deleteMany(),
     db.auditLog.deleteMany(), db.shipment.deleteMany(), db.vehicle.deleteMany(),
     db.driver.deleteMany(), db.user.deleteMany(), db.vehicleCategory.deleteMany(),
@@ -49,15 +67,34 @@ export async function seedAll(): Promise<void> {
   const cats = await Promise.all(catDefs.map(({ supportedCargo, ...c }) => db.vehicleCategory.create({ data: { id: `seed-cat-${c.key}`, ...c, supportedCargo: JSON.stringify(supportedCargo) } })));
   const CAT = Object.fromEntries(cats.map((c) => [c.key, c]));
 
-  // ── Pricing zone ──
+  // ── Pricing zone (commissionRate 0.12 — owner intent, aligns receipts,
+  // payouts and the /terms copy; blueprint surprise #4) ──
   await db.pricingZone.create({
-    data: { id: "seed-zone-nairobi", key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, nightMultiplier: 1.12, scheduledDiscount: 0.05, platformFee: 100, commissionRate: 0.15, active: true },
+    data: { id: "seed-zone-nairobi", key: "nairobi", name: "Nairobi", basePrice: 500, pricePerKm: 90, pricePerMin: 3, minimumPrice: 900, waitingRateMin: 10, loadingFee: 300, extraStopFee: 250, peakMultiplier: 1.25, nightMultiplier: 1.12, scheduledDiscount: 0.05, platformFee: 100, commissionRate: 0.12, active: true },
   });
 
   // ── Places ──
   await db.place.createMany({ data: PLACES.map(({ name, area, category, lat, lng, popular }) => ({ name, area, category, lat, lng, popular: !!popular })) });
 
-  // ── People ──
+  // ── Platform settings (admin-editable, plan §34/§41) ──
+  await db.platformSetting.createMany({
+    data: [
+      { key: "advanceBookingDays", value: "14" },   // how far ahead scheduled bookings are allowed
+      { key: "autoDispatch", value: "true" },        // false → MATCHING waits for manual dispatch
+      { key: "quoteExpiryMinutes", value: "60" },    // quote marketplace expiry
+      { key: "supportPhone", value: "0800 724 343" },
+      { key: "cancellationFeeKes", value: "200" },   // Uber pattern: fee after the grace window (docs/UBER_BOLT_TEARDOWN.md §3.11)
+      { key: "cancelGraceMinutes", value: "2" },     // free cancel within 2 min of driver acceptance
+    ],
+  });
+}
+
+export async function seedAll(): Promise<void> {
+  await seedReference();
+  const cats = await db.vehicleCategory.findMany();
+  const CAT = Object.fromEntries(cats.map((c) => [c.key, c]));
+
+  // ── People (demo) ──
   const customer = await db.user.create({ data: { id: "seed-user-john", phone: "0712000001", email: "customer@mizigo.demo", name: "John Kariuki", role: "CUSTOMER", accountType: "PERSONAL", avatarSeed: "john", rating: 4.9, verified: true } });
   const bizUser = await db.user.create({ data: { id: "seed-user-zainab", phone: "0722000033", email: "business@mizigo.demo", name: "Zainab Mabuyu", role: "CUSTOMER", accountType: "BUSINESS", businessName: "ABC Traders Ltd", avatarSeed: "zainab", rating: 4.8, verified: true } });
   const admin = await db.user.create({ data: { id: "seed-user-ops", phone: "0733000011", email: "admin@mizigo.demo", name: "Ops Control", role: "ADMIN", accountType: "PERSONAL", avatarSeed: "ops", verified: true } });
@@ -81,9 +118,6 @@ export async function seedAll(): Promise<void> {
   const vehicles = await Promise.all(driverDefs.map((d, i) =>
     db.vehicle.create({ data: { id: `seed-vehicle-d${i + 1}`, driverId: drivers[i].id, categoryId: CAT[d.vehicle.category].id, make: d.vehicle.make, model: d.vehicle.model, registration: d.vehicle.registration, bodyType: CAT[d.vehicle.category].bodyType, capacityKg: d.vehicle.capacityKg, docRegistration: "VERIFIED", docInsurance: "VERIFIED", docInspection: "VERIFIED", insuranceExpiry: ago(-90 * D), inspectionExpiry: ago(-180 * D), active: true } })
   ));
-
-  // Peter's second vehicle? no — one per driver is fine.
-  const peter = drivers[0];
 
   // ── Saved places for the demo customer ──
   await db.savedPlace.createMany({
@@ -166,18 +200,6 @@ export async function seedAll(): Promise<void> {
     }
   }
 
-  // ── Platform settings (admin-editable, plan §34/§41) ──
-  await db.platformSetting.createMany({
-    data: [
-      { key: "advanceBookingDays", value: "14" },   // how far ahead scheduled bookings are allowed
-      { key: "autoDispatch", value: "true" },        // false → MATCHING waits for manual dispatch
-      { key: "quoteExpiryMinutes", value: "60" },    // quote marketplace expiry
-      { key: "supportPhone", value: "0800 724 343" },
-      { key: "cancellationFeeKes", value: "200" },   // Uber pattern: fee after the grace window (docs/UBER_BOLT_TEARDOWN.md §3.11)
-      { key: "cancelGraceMinutes", value: "2" },     // free cancel within 2 min of driver acceptance
-    ],
-  });
-
   // ── Demo promo codes (plan §75) ──
   await db.promoCode.createMany({
     data: [
@@ -189,6 +211,7 @@ export async function seedAll(): Promise<void> {
   });
 
   // ── Driver payouts (withdrawal history) ──
+  const peter = drivers[0];
   await db.payout.createMany({
     data: [
       { driverId: peter.id, amount: 4200, method: "MPESA", status: "PAID", ref: mpesaRef(), createdAt: ago(2 * D) },

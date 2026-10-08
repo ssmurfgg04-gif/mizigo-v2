@@ -270,6 +270,7 @@ jobs:
           PORT=3999 HOSTNAME=127.0.0.1 \
             MIZIGO_SESSION_SECRET=ci-session-secret \
             DEMO_AUTO_PROGRESS=true \
+            SEED_DEMO=true \
             nohup node server.js > server.log 2>&1 &
           echo $! > "$GITHUB_WORKSPACE/server.pid"
 
