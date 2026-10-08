@@ -675,3 +675,17 @@ Stage Summary:
 - Everything the owner asked for is wired and verified locally: 15%+100 commission everywhere, Daraja as a per-transaction backup rail with callback-only confirmation, Bolt-pattern GPS-mismatch arrival confirmation (server-enforced, 150m, real driver GPS feed), and the Supabase Vault as the encrypted secrets store (live keys provisioned; Netlify needs ONLY DATABASE_URL; MIZIGO_PAYMENTS=simulated safety valve)
 - Live Paystack keys are in the Vault and PlatformSetting; webhook + callback URLs correctly set on the dashboard; the single remaining owner action to go live: paste DATABASE_URL into Netlify env (then /api/bootstrap must show payments.provider=PAYSTACK)
 - Remaining deep-dive-2 copy-list items (counter-offer sheet, fare explainer modals, paywall ladder, driver score card, payout review history, empty-state sweep) documented in DECOMPILE_FINDINGS.md §Deep Dive 2.10 for the next batch
+
+---
+Task ID: 19 (final — CI green, live verified, vault proven)
+Agent: Super Z (main agent)
+
+Work Log:
+- Pushed 8c69287 → CI unit job failed: the two DB-backed suites (paystack-webhook + new daraja-backup) both bootstrap the SHARED /tmp/mizigo.db default and raced the cold-start seed on the fresh CI runner (unique-constraint on vehicleCategory.key). Fix (9f8e60e): each DB suite now sets its own sqlite via vi.hoisted env before imports; verified with two consecutive fresh /tmp runs locally → CI GREEN
+- production-migrate GREEN on 8c69287: schema push added Driver.gpsReportedAt to production, paystack keys re-provisioned, and the NEW vault read-check step PROVED the app's own DB role reads the vault ("2 secret(s) readable by the app role: paystack.public.live, paystack.secret.live") — the runtime-secrets pattern is verified end-to-end against the real cloud DB
+- live-smoke had been failing on stale probe expectations (not a site fault): /api/locations now returns "results", and unknown-track is 404-only via the manual check. Fixed the workflow (2d1467e), dispatched it → SUCCESS against the live site
+- Netlify live verified at 2d1467e: /api/bootstrap → payments.provider=MOCK (correct while DATABASE_URL is unset), zone commissionRate 0.15 + platformFee 100, /terms + legal pages 200, banks route auth-gated 401
+
+Stage Summary:
+- All five GitHub workflows green on the final commit (CI / production-migrate / live-smoke); mizigo.netlify.app live on 2d1467e with the full batch: 15%+100 commission, Daraja backup channel, GPS-mismatch arrival confirm, Vault-backed secrets
+- Single remaining owner action to turn production money ON: paste DATABASE_URL (the SUPABASE_DATABASE_URL GitHub secret's value) into Netlify env → redeploy → verify /api/bootstrap shows payments.provider=PAYSTACK, then run the first live smoke (KES 10–50 delivery)
