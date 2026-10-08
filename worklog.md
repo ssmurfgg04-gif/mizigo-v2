@@ -594,3 +594,22 @@ Work Log:
 
 Stage Summary:
 - H3 expanding-ring dispatch live on the request/reassign path (ring telemetry recorded), earnings statement live for drivers; tsc clean, 84/84 unit green; full e2e run pending after Paystack wiring
+
+---
+Task ID: 17 (RE learnings → implementation + go-live hardening)
+Agent: Super Z (main agent)
+
+Work Log:
+- Research landed (tasks 15-a/15-b): DECOMPILE_FINDINGS.md (all 4 APKs decompiled — Uber Driver 4.599, Bolt Rider CA.228, Bolt Driver DA.151, Uber Rider 4.651; 15-item copy-list) + PAYSTACK_WIRING_BLUEPRINT.md (668 lines, live read-only API verified: M-Pesa collection live at 1.5%, recipient RCP exists, KE banks are type kepss, MPESA=mobile_money)
+- Implemented from the decompile findings: driver Earnings tab (Uber 5-screen spine + Bolt NET/GROSS toggle w/ standing commission disclaimer + cash-reconciliation line + payout statuses + earnings goal), phone-input live formatting (the one-line glitch), PWA install (Android prompt + iOS sheet), sandbox-only demo login
+- H3 hex matching (specced in UBER_BOLT_ARCHITECTURE.md §1): res-8 cells on Driver, expanding rings k=0..3 + full-scan fallback, wired into request/reassign; ringFetcher lives in server-only lib/dispatch.ts (matching.ts is client-imported — a node:fs bundle error taught us that)
+- Paystack marketplace: lib/payments.ts single money funnel (startCustomerPayment / confirmCustomerPayment atomic-claim / initiatePodPayout hold-then-pay / executePayout with auto-fallback to the driver's own M-Pesa / webhook dispatch with HMAC-SHA512+timingSafeEqual, PaystackEvent idempotency ledger, provider guard, subunit amount integrity), webhook + banks routes, /pay/callback page (verify + auto-request), driver payout-setup + UI, admin payout release, cancel refunds
+- Real data: seed split reference/demo (production Postgres never seeds demo identities; SEED_DEMO=true for CI), commission 0.15→0.12 aligned across zone + /terms + seed history, bootstrap hides demo credentials in production
+- Fixed during verification: transfer-reference 15→16-char floor (caught by test), vi.mock internal-call gotcha, stale zombie next-server on :3100 serving old code, e2e leftover PENDING payouts in the persistent dev DB (root cause: initiatePodPayout early-return bypassing the auto-fallback executePayout)
+- Gates: tsc 0, eslint 0 (research dirs ignored), 106/106 unit (14 paystack + 8 webhook-integration + 13 H3 + earnings-week), copy-lint clean, FULL e2e ALL PASS (incl. new 16b earnings a–i + 16c paystack sections), demo walkthrough PASS
+- Production: GitHub secrets PAYSTACK_SECRET_KEY/PUBLIC_KEY/MASTER_KEY set (libsodium sealed); production-migrate workflow now also provisions encrypted keys into PlatformSetting; Supabase edge function paystack-webhook deployed (verified forwarding); Netlify runbook rewritten for the marketplace set (DATABASE_URL + PAYSTACK_MASTER_KEY + webhook/OTP checklist)
+
+Stage Summary:
+- mizigo is a real marketplace: M-Pesa collections via Paystack checkout, ledger-backed confirmations, POD-triggered driver payouts with auto M-Pesa fallback, refunds on cancellation — sandbox behavior byte-identical when no keys are set
+- H3 dispatch + Uber-pattern earnings tab are live; all suites green locally
+- Remaining owner actions (documented in docs/NETLIFY_PRODUCTION.md): paste DATABASE_URL + PAYSTACK_MASTER_KEY into Netlify env, repoint the Paystack webhook URL, optionally disable transfers OTP
