@@ -558,7 +558,7 @@ check("withdrawal with zero wallet blocked", r.get("_status") == 400 and "wallet
 # — the live Paystack branch is covered by unit/integration tests with the
 # REST layer mocked; here we pin the sandbox contract
 bs = call("/api/bootstrap")
-check("sandbox bootstrap hides demo identities only in postgres (this run: sqlite)", "demo" in bs or bs["build"]["mode"] == "sqlite")
+check("bootstrap serves demo identities to sandbox/CI runs", "demo" in bs and "settings" in bs)
 
 # 16c-e. webhook endpoint: signature gate + allowlist (HTTP surface)
 import hmac as _hmac, hashlib as _hashlib

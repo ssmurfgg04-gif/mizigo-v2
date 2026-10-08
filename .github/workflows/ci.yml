@@ -172,6 +172,7 @@ jobs:
           PORT=3999 HOSTNAME=127.0.0.1 \
             DATABASE_URL=file:/tmp/ci.db \
             MIZIGO_SESSION_SECRET=ci-session-secret \
+            PAYSTACK_WEBHOOK_SECRET=ci-webhook-secret \
             nohup node server.js > server.log 2>&1 &
           echo $! > "$GITHUB_WORKSPACE/server.pid"
 

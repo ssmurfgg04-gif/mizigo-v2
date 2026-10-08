@@ -32,7 +32,8 @@ async function handle(): Promise<NextResponse> {
     db.platformSetting.findMany(),
   ]);
   const settings = Object.fromEntries(settingRows.map((s) => [s.key, s.value]));
-  const sandbox = !dbIsPostgres();
+  // sandbox = SQLite OR the explicit CI/demo override on Postgres (SEED_DEMO)
+  const sandbox = !dbIsPostgres() || (process.env.SEED_DEMO ?? "").trim().toLowerCase() === "true";
   return NextResponse.json({
     categories,
     zone,
