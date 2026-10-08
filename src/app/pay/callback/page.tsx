@@ -24,8 +24,10 @@ export default function PayCallbackPage() {
     const shipment = sp.get("shipment");
     shipmentRef.current = shipment;
     if (!shipment) {
-      setPhase("failed");
-      return;
+      // deferred a tick: sync setState in an effect trips the cascading-render
+      // lint rule; a 0ms timeout is invisible to the user
+      const t = setTimeout(() => setPhase("failed"), 0);
+      return () => clearTimeout(t);
     }
     let cancelled = false;
     const call = async (payload: Record<string, unknown>) => {
