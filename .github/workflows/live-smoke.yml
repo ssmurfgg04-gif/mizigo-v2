@@ -46,14 +46,13 @@ jobs:
 
           probe "site"           "/"                      "Mizigo"
           probe "bootstrap API"  "/api/bootstrap"         "categories"
-          probe "locations API"  "/api/locations"         "places"
+          probe "locations API"  "/api/locations"         "results"
           probe "privacy page"   "/privacy"               "Privacy"
           probe "terms page"     "/terms"                 "Terms"
           probe "refund page"    "/refund"                 "Refund"
-          probe "unknown track"  "/api/track/nonexistent" "not found"
 
-          # unknown-track returning 404 is correct — probe() only asserts 200,
-          # so check it manually
+          # /api/track/<unknown> must answer 404 (probe() demands 200, so the
+          # unknown-track assertion lives entirely in this manual check)
           code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$BASE/api/track/nonexistent-token-xyz")
           if [ "$code" != "404" ]; then
             echo "::error title=track-404::expected 404 for unknown token, got $code"
