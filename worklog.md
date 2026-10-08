@@ -558,3 +558,39 @@ Stage Summary:
 - Headline findings: (1) Uber ships a 117-state UI-state registry as version-gated JSON — screens-as-data, directly transferable to state-machine.ts + feature-flags.ts; (2) Bolt adopted Uber's OSS RIBs framework — both giants run business-logic trees with thin views; (3) fee transparency is the most consistent UX law across all four binaries — every fee gets trigger + amount + plain sentence before Confirm; (4) Bolt's design system = typography roles (with tabular-numeral money variant) + semantic color layers + 4dp grid, two font weights only; (5) driver-economics surface (weekly spine, NET/GROSS, cash-excluded balance, early-cashout fee, goals, demand heatmap scrubber) is a product category in itself — the blueprint for our upcoming driver earnings statement
 - Ready-to-build: the 15-item copy-list is ordered for the driver earnings statement work (items 1-4) and then copy/tokens (5-9)
 - Tool notes for future runs: apkcombo mirror recipe + jadx low-RAM recipes documented in doc §1.1/§9; Bolt binaries unobfuscated (full source readable), Uber ProGuarded (mine strings/manifest/assets)
+
+---
+Task ID: 16-a
+Agent: H3 matching subagent
+
+Task summary: Uber-pattern H3 expanding-ring dispatch matching. Added h3-js (v4.5.0) with a res-8 cell index over driver supply (Driver.h3Cell + @@index already in schema): new src/lib/h3.ts primitives (cellOf/ringCells, MATCHING_RESOLUTION=8, MATCHING_MAX_RINGS=3), matchDriverRing + db-backed ringFetcher in src/lib/matching.ts (all existing exports/behavior untouched), and kept h3Cell fresh at every driver-location write (ping action, COMPLETED transition, seed). The request action in shipments/[id]/action/route.ts is NOT wired yet by design — the main agent owns that file and will call matchDriverRing(ringFetcher()) instead of the full findMany scan.
+
+Work Log:
+- Read docs/research/UBER_BOLT_ARCHITECTURE.md §1 (res 8 = ~0.53 km edges / 0.74 km² cells; gridDisk sizes 1/7/19/37 for k=0..3; h3-js v4 API latLngToCell/gridDisk/cellToLatLng; pentagon-safety of gridDisk vs Unsafe variants), src/lib/matching.ts (existing pure engine: matchDriver applies hard filters then dispatchScore ranking), the action route's request action (findMany + matchDriver today), tests/unit/matching.test.ts style, prisma schema (Driver.h3Cell String? + @@index([h3Cell]), client already regenerated)
+- Probed installed h3-js behavior before coding: latLngToCell coerces null→(0,0) instead of throwing (guard added), throws on NaN/Infinity, wraps out-of-domain degrees (999,999) into valid-looking garbage cells (domain guard added); gridDisk returns [] for invalid origin but THROWS on negative k (guard added); cellToLatLng center round-trips to the same cell (used by tests to place drivers in exact rings)
+- bun add h3-js (h3-js@4.5.0; bun.lock updated — no npm)
+- NEW src/lib/h3.ts (75 lines, JSDoc on every export citing the research doc): MATCHING_RESOLUTION=8, MATCHING_MAX_RINGS=3 (~0.74 km/ring step, ~2.2 km fast-path disk), cellOf(lat,lng) = latLngToCell res 8 lowercased with "" on any unindexable input (non-finite, null-coercion, |lat|>90/|lng|>180, library throw), ringCells(origin,k) = deduped pentagon-safe gridDisk disk with [] for invalid origin/k<0
+- src/lib/matching.ts (+85 lines, nothing existing modified): matchDriverRing({fetchByCells, fetchAll, pickup, need}) → {match, ring} — k=0..3 rings scored in isolation via matchDriver (per-ring non-null check is what carries the hard filters outward: a wrong-category driver in ring 0 must not stop the search before ring 1's right driver is fetched; nearest-ring-first documented as the deliberate expanding-ring tradeoff vs marginal score), then single fetchAll fallback covering stale/null cells; early ""-cell guard skips rings entirely for unindexable pickups (no empty IN queries). ringFetcher() returns the db-backed pair (findMany where h3Cell in cells / full scan) with the exact include shape the action route uses (user.name select + vehicles with category) so matchDriver filters identically — Prisma `in` naturally excludes NULL cells
+- h3Cell freshness at all three driver-location writes: api/driver/action ping update, shipments.ts COMPLETED driver update (undefined = leave-alone for CANCELLED/NO_DRIVERS rows), seed.ts driverDefs db.driver.create
+- NEW tests/unit/h3-matching.test.ts (13 tests, injectable closures over arrays, no DB): cellOf determinism + Nairobi coords → valid 15-char lowercase hex + "" on bad inputs; ringCells canonical disk sizes 1/7/19/37 + disk nesting + no ""/dupes + [] on invalid origin/negative k; matchDriverRing ring-0 immediate hit (fetchAll never called), ring-2 hit after empty 0-1, all-rings-empty → fallback invoked once and used, hard-filter rejection in ring 0 (wrong category) → continues outward to ring 1, no-match-anywhere → {match:null, ring:"fallback"}, unindexable pickup → zero ring queries straight to fallback
+- Gates: bunx tsc --noEmit clean (exit 0); npm test → 9 files, 73 passed (60 pre-existing + 13 new); eslint on all touched files clean; throwaway-SQLite runtime smoke of the real ringFetcher verified ring-0 hit / stale-cell fallback / hard-filter+fallback interplay against actual Prisma queries (temp DB deleted)
+- Boundaries respected: no edits to src/app/api/shipments/**, src/app/api/driver/route.ts, src/components/**, src/lib/integrations/**, cancellation.ts, prisma/**, anything Paystack; no git commit (main agent reviews + commits)
+
+Stage Summary:
+- H3 fast path shipped and verified: matchDriverRing(ringFetcher()) drops into the request action as a one-call replacement for findMany+matchDriver; everything else (60 existing unit tests, ranking math, exports) unchanged
+- Wiring note for main agent: const { match, ring } = await matchDriverRing({ ...ringFetcher(), pickup: {lat: s.pickupLat, lng: s.pickupLng}, need: {categoryKey: s.category.key, weightKg: Math.max(weightKg,120)} }); match is the same ScoredDriver matchDriver returns today (null = NO_DRIVERS) — but the winning driver's raw lat/lng for the DRIVER_ASSIGNED event geo now needs a findUnique(match.driverId) since matchDriverRing returns only the scored shape; `ring` is telemetry-grade (0..3 | "fallback") worth logging in the request event
+- Freshness contract: every future driver lat/lng write must set h3Cell: cellOf(lat, lng) in the same update or ring matching silently degrades to the fallback path for that driver (cron's freeStuckDrivers only touches status/lastPingAt — verified safe; no other lat/lng writers exist today)
+- Parallel work observed in the tree (NOT this task): src/app/api/driver/route.ts + src/lib/earnings.ts earnings-statement changes from another agent were present before/alongside this task and were left untouched
+
+---
+Task ID: 16 (integration + wiring)
+Agent: Super Z (main agent)
+
+Work Log:
+- Reviewed + accepted subagent 16-a (H3) work: src/lib/h3.ts, matchDriverRing + ringFetcher in matching.ts, ping/shipments/seed h3Cell maintenance, 13 unit tests (73→84 total with 16-b's earnings-week tests)
+- Reviewed + finished subagent 16-b (Earnings) work left by the timed-out agent: src/lib/earnings.ts (week math Mon 00:00→Sun 23:59:59.999 EAT), GET /api/driver?earnings=1&week= statement + POST earnings-goal, EarningsTab.tsx (NET/GROSS toggle + commission disclaimer, week picker, trip drill-down, goal card, payout statuses), DriverApp tab mount + wallet drill-down, e2e section 16b (a-i), removed the leftover __earnings_smoke scratch dir
+- Wired H3 into the request action + reassign (matchDriverRing with ringFetcher; driver origin via findUnique for the event geo) — the caller change 16-a left to me
+- commissionRate 0.15→0.12 in seed + /terms copy (blueprint surprise #4)
+
+Stage Summary:
+- H3 expanding-ring dispatch live on the request/reassign path (ring telemetry recorded), earnings statement live for drivers; tsc clean, 84/84 unit green; full e2e run pending after Paystack wiring

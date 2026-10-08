@@ -12,6 +12,7 @@ import { dbIsPostgres } from "./feature-flags";
 import { PLACES } from "./geo";
 import { shareToken, shipmentCode, mpesaRef } from "./format";
 import { hashToken } from "./tokens";
+import { cellOf } from "./h3";
 
 const H = 3600_000, M = 60_000, D = 24 * H;
 const ago = (ms: number) => new Date(Date.now() - ms);
@@ -111,7 +112,7 @@ export async function seedAll(): Promise<void> {
   ];
   const drivers = await Promise.all(driverDefs.map(async (d, i) => {
     const u = await db.user.create({ data: { id: `seed-user-d${i + 1}`, phone: d.phone, email: d.email, name: d.name, role: "DRIVER", accountType: "PERSONAL", avatarSeed: d.name.split(" ")[0].toLowerCase(), rating: d.rating, verified: true } });
-    return db.driver.create({ data: { id: `seed-driver-d${i + 1}`, userId: u.id, status: d.status, rating: d.rating, tripsCompleted: d.tripsCompleted, acceptanceRate: d.acceptanceRate, onTimePickup: d.onTimePickup, onTimeDelivery: d.onTimeDelivery, cancellationRate: d.cancellationRate, incidents: d.incidents, lat: d.lat, lng: d.lng, licenceClass: "BCE", licenceExpiry: d.licenceExpiry, verification: "VERIFIED", lastPingAt: ago(2 * M), onlineMinutes: 320 } });
+    return db.driver.create({ data: { id: `seed-driver-d${i + 1}`, userId: u.id, status: d.status, rating: d.rating, tripsCompleted: d.tripsCompleted, acceptanceRate: d.acceptanceRate, onTimePickup: d.onTimePickup, onTimeDelivery: d.onTimeDelivery, cancellationRate: d.cancellationRate, incidents: d.incidents, lat: d.lat, lng: d.lng, h3Cell: cellOf(d.lat, d.lng), licenceClass: "BCE", licenceExpiry: d.licenceExpiry, verification: "VERIFIED", lastPingAt: ago(2 * M), onlineMinutes: 320 } });
   }));
   const DRV = Object.fromEntries(drivers.map((d) => [d.id, d]));
 

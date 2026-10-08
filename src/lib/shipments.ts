@@ -7,6 +7,7 @@ import { canTransition, type Role } from "./state-machine";
 import { buildRoute, alongPolyline, routeLengthKm, haversineKm, SPEED } from "./geo";
 import { shareToken, shipmentCode } from "./format";
 import { hashToken } from "./tokens";
+import { cellOf } from "./h3";
 import type { Prisma, Shipment, VehicleCategory, Vehicle, Driver, User, Quote } from "@prisma/client";
 
 type ShipmentWithRelations = Shipment & {
@@ -145,7 +146,10 @@ export async function applyTransition(
     await db.driver.update({ where: { id: s.driverId }, data: { status: "BUSY" } });
   }
   if ((rule.to === "COMPLETED" || rule.to === "CANCELLED" || rule.to === "NO_DRIVERS") && s.driverId) {
-    await db.driver.update({ where: { id: s.driverId }, data: { status: "ONLINE", lastPingAt: new Date(), lat: rule.to === "COMPLETED" ? s.dropoffLat : undefined, lng: rule.to === "COMPLETED" ? s.dropoffLng : undefined } });
+    // COMPLETED leaves the driver AT the dropoff: refresh lat/lng and their
+    // H3 cell together so ring matching sees the post-trip position (undefined
+    // = "leave the field alone" for the CANCELLED/NO_DRIVERS rows).
+    await db.driver.update({ where: { id: s.driverId }, data: { status: "ONLINE", lastPingAt: new Date(), lat: rule.to === "COMPLETED" ? s.dropoffLat : undefined, lng: rule.to === "COMPLETED" ? s.dropoffLng : undefined, h3Cell: rule.to === "COMPLETED" ? cellOf(s.dropoffLat, s.dropoffLng) : undefined } });
     if (rule.to === "COMPLETED") {
       await db.driver.update({ where: { id: s.driverId }, data: { tripsCompleted: { increment: 1 } } });
     }

@@ -450,6 +450,89 @@ check("double-booking rejected", "_status" in bk2 or bk2.get("error"))
 adm2 = call("/api/admin?tab=overview", sess=ADMIN)
 check("admin return-leg KPI", adm2["kpis"]["returnLoadsLive"] >= 3, adm2["kpis"]["returnLoadsLive"])
 
+# ═══ 16b. driver earnings statement — weekly Mon→Sun EAT cycle (task 16-b) ═══
+
+peter = login("0712000002")  # seeded driver Peter Kamau (pickup, completed seed trips)
+
+def _eat(iso):
+    """ISO instant → EAT wall-clock datetime (UTC+3, no tz db needed)."""
+    return datetime.datetime.fromisoformat(iso.replace("Z", "+00:00")) + datetime.timedelta(hours=3)
+
+# 16b-a. this week's statement: shape + Mon 00:00 → Sun 23:59:59.999 EAT bounds
+st = call("/api/driver?earnings=1", sess=peter)
+keys = ("weekStart", "weekEnd", "weekLabel", "isCurrentWeek", "trips", "netKes", "grossKes",
+        "commissionKes", "platformFeeKes", "tipsKes", "cashCollectedKes", "tripList", "payouts",
+        "pendingBalanceKes", "earningsGoal")
+check("statement shape", all(k in st for k in keys), str([k for k in keys if k not in st])[:80])
+s_eat, e_eat = _eat(st["weekStart"]), _eat(st["weekEnd"])
+check("week runs Mon 00:00 → Sun 23:59:59.999 EAT",
+      s_eat.weekday() == 0 and (s_eat.hour, s_eat.minute, s_eat.second) == (0, 0, 0)
+      and e_eat.weekday() == 6 and (e_eat.hour, e_eat.minute, e_eat.second, e_eat.microsecond) == (23, 59, 59, 999000),
+      st["weekLabel"])
+check("current week contains now", st["isCurrentWeek"] is True
+      and datetime.datetime.fromisoformat(st["weekStart"].replace("Z", "+00:00")) <= datetime.datetime.now(datetime.timezone.utc)
+      and datetime.datetime.fromisoformat(st["weekEnd"].replace("Z", "+00:00")) >= datetime.datetime.now(datetime.timezone.utc))
+
+# 16b-b. seeded week: the seed's four Peter completions (podVerifiedAt 1–50 h
+# ago) always land within the last two cycles — a 50 h horizon crosses at most
+# one Monday boundary, so on a fresh Monday EAT the trips sit in `prev`
+seven_days_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)).date().isoformat()
+prev = call(f"/api/driver?earnings=1&week={seven_days_ago}", sess=peter)
+check("week param selects the previous cycle", prev.get("isCurrentWeek") is False and prev["weekStart"] != st["weekStart"], prev.get("weekLabel", ""))
+check("seeded trips land in the last two cycles", st["trips"] + prev["trips"] >= 4, f"this {st['trips']} · prev {prev['trips']}")
+check("trip count matches the drill-down list", st["trips"] == len(st["tripList"]) and prev["trips"] == len(prev["tripList"]))
+
+# 16b-c. the active cycle carries a positive net with NET < GROSS (the toggle
+# switches between exactly these two figures) and honest take-rate math
+act = st if st["trips"] > 0 else prev
+check("weekly net > 0 for the seeded driver", act["netKes"] > 0, f"KES {act['netKes']:,} · {act['trips']} trips ({'current' if act is st else 'previous'} cycle)")
+check("gross > net while commission is charged", act["grossKes"] > act["netKes"] and act["commissionKes"] > 0)
+check("net + commission + platform fee ≈ gross (±KES 1/trip rounding)",
+      abs((act["netKes"] + act["commissionKes"] + act["platformFeeKes"]) - act["grossKes"]) <= act["trips"],
+      f"{act['netKes']} + {act['commissionKes']} + {act['platformFeeKes']} vs {act['grossKes']}")
+
+# 16b-d. per-trip drill-down rows (fare accepted vs final, commission line)
+t0 = act["tripList"][0]
+check("trip rows carry the money story",
+      all(k in t0 for k in ("code", "completedAt", "pickupName", "dropoffName", "netKes", "tipKes", "commissionKes", "platformFeeKes", "paymentMethod")))
+check("trip commission line present", all(t["commissionKes"] > 0 for t in act["tripList"]))
+check("trip nets sum to the weekly net", sum(t["netKes"] for t in act["tripList"]) == act["netKes"])
+
+# 16b-e. ancient week requests clamp to 8 weeks back (the picker's bound)
+old = call("/api/driver?earnings=1&week=2020-01-01", sess=peter)
+oldest = datetime.datetime.fromisoformat(st["weekStart"].replace("Z", "+00:00")) - datetime.timedelta(days=8 * 7)
+check("weeks older than 8 clamp to the bound",
+      datetime.datetime.fromisoformat(old["weekStart"].replace("Z", "+00:00")) == oldest, old.get("weekLabel", ""))
+
+# 16b-f. payout history rows (Peter's seed: 3 PAID M-PESA payouts within the
+# last 7 days — this cycle plus the previous one always covers them) + balance
+paid_rows = [p for p in (st["payouts"] + prev["payouts"]) if p["status"] == "PAID"]
+check("payout history rows render (PAID · M-PESA)", len(paid_rows) >= 3 and all(p["method"].endswith("MPESA") for p in paid_rows))
+check("pending balance is a whole-KES number >= 0", isinstance(st["pendingBalanceKes"], int) and st["pendingBalanceKes"] >= 0, f"KES {st['pendingBalanceKes']:,}")
+
+# 16b-g. earnings goal: set → statement carries it; bounds validated; 0 clears
+r = call("/api/driver", "POST", {"action": "earnings-goal", "goalKes": 20000}, sess=peter)
+check("goal saved", r.get("ok") is True and r.get("earningsGoal") == 20000)
+st2 = call("/api/driver?earnings=1", sess=peter)
+check("statement reflects the goal", st2.get("earningsGoal") == 20000)
+r = call("/api/driver", "POST", {"action": "earnings-goal", "goalKes": 2_000_000}, sess=peter)
+check("goal above KES 1,000,000 rejected", r.get("_status") == 400, str(r.get("_status")))
+r = call("/api/driver", "POST", {"action": "earnings-goal", "goalKes": "abc"}, sess=peter)
+check("non-numeric goal rejected", r.get("_status") == 400)
+r = call("/api/driver", "POST", {"action": "earnings-goal", "goalKes": 0}, sess=peter)
+check("goal 0 clears the target", r.get("ok") is True and r.get("earningsGoal") is None)
+call("/api/driver", "POST", {"action": "earnings-goal", "goalKes": 20000}, sess=peter)  # leave a demo goal set
+
+# 16b-h. the statement + goal action are session-bound (security matrix)
+r = call("/api/driver?earnings=1")
+check("statement requires a session", r.get("_status") == 401)
+r = call("/api/driver", "POST", {"action": "earnings-goal", "goalKes": 5000}, sess=CUST)
+check("customer can't set a driver goal", r.get("_status") == 403)
+
+# 16b-i. the existing driver-home payload is untouched by the earnings branch
+drv_p = call("/api/driver", sess=peter)
+check("driver home unchanged (earnings branch is additive)", "driver" in drv_p and "earnings" in drv_p and "wallet" in drv_p["earnings"])
+
 # ═══ 17. v1 goodness: night surcharge + planned discount ════════════════════
 
 _night_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0).isoformat().replace("+00:00", "Z")

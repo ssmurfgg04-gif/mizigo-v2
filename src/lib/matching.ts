@@ -4,6 +4,8 @@
 
 import type { Driver, Vehicle, VehicleCategory } from "@prisma/client";
 import { haversineKm } from "./geo";
+import { cellOf, ringCells, MATCHING_MAX_RINGS } from "./h3";
+import { db } from "./db";
 
 export interface MatchCandidate extends Driver {
   user: { name: string } | null;
@@ -179,3 +181,86 @@ export const DEMAND_ZONES = [
   { name: "Thika Road", level: "high" },
   { name: "Karen", level: "low" },
 ];
+
+// ── Uber-pattern expanding-ring matching (H3 fast path) ─────────────────────
+// docs/research/UBER_BOLT_ARCHITECTURE.md §1.5/§2 + §7 #2: index supply by
+// res-8 hex cell, then widen the search disk one ring at a time from the
+// pickup cell instead of haversine-scanning every driver. Only when no ring
+// holds a dispatchable driver do we pay for the full scan — which also covers
+// drivers whose h3Cell is stale or null (written before the index existed).
+
+/**
+ * Expanding-ring dispatch: for k = 0..MATCHING_MAX_RINGS, fetch the drivers
+ * whose h3Cell lies within gridDisk(pickupCell, k) and run the existing
+ * matchDriver ranking over ONLY that ring's pool; the first ring with a
+ * dispatchable driver wins. All rings empty (or hard-filtered out) → one
+ * full-table scan via fetchAll as the fallback.
+ *
+ * Injected fetchers keep this pure for unit tests; the API route passes the
+ * db-backed pair from ringFetcher().
+ *
+ * Nearest-ring-first is a deliberate tradeoff: a better-scored driver may sit
+ * one ring further out, but the expanding-ring pattern (research doc §2.3)
+ * prefers the nearest band with supply — a shorter pickup wait beats a
+ * marginal score gain. That is also why each ring is scored in isolation:
+ * matchDriver returns the best of the pool it is given AND applies the hard
+ * filters (online/verified/vehicle docs/capacity/18 km service area), so a
+ * non-null result for a ring means "this band holds a driver we can actually
+ * dispatch" — e.g. a wrong-category driver in ring 0 must not stop the search
+ * before an exactly-right driver in ring 1 is even fetched.
+ *
+ * @returns the winning ScoredDriver (null when nothing matched anywhere) and
+ * which ring found it (0-based ring index, or "fallback" for the full scan).
+ */
+export async function matchDriverRing(args: {
+  fetchByCells: (cells: string[]) => Promise<MatchCandidate[]>;
+  fetchAll: () => Promise<MatchCandidate[]>;
+  pickup: { lat: number; lng: number };
+  need: { categoryKey: string; weightKg: number };
+}): Promise<{ match: ScoredDriver | null; ring: number | "fallback" }> {
+  const { fetchByCells, fetchAll, pickup, need } = args;
+  const origin = cellOf(pickup.lat, pickup.lng);
+  // An unindexable pickup (bad coordinates → "") can never ring-match; skip
+  // straight to the fallback so we never issue empty `h3Cell IN ()` queries.
+  if (origin) {
+    for (let k = 0; k <= MATCHING_MAX_RINGS; k++) {
+      const candidates = await fetchByCells(ringCells(origin, k));
+      const scored = matchDriver(candidates, pickup, need);
+      if (scored) return { match: scored, ring: k };
+    }
+  }
+  return { match: matchDriver(await fetchAll(), pickup, need), ring: "fallback" };
+}
+
+/**
+ * The db-backed fetcher pair matchDriverRing needs: fetchByCells serves the
+ * per-ring query off the Driver.h3Cell index (Prisma's `in` naturally
+ * excludes NULL/stale cells — those are exactly what the fallback covers);
+ * fetchAll is the legacy full scan the request action used before rings.
+ * Include/shape mirrors the action route's candidate query (user name +
+ * vehicles with category) so matchDriver filters and scores identically.
+ */
+export function ringFetcher(): {
+  fetchByCells: (cells: string[]) => Promise<MatchCandidate[]>;
+  fetchAll: () => Promise<MatchCandidate[]>;
+} {
+  return {
+    fetchByCells: async (cells: string[]) => {
+      if (cells.length === 0) return [];
+      return db.driver.findMany({
+        where: { h3Cell: { in: cells } },
+        include: {
+          user: { select: { name: true } },
+          vehicles: { include: { category: true } },
+        },
+      });
+    },
+    fetchAll: async () =>
+      db.driver.findMany({
+        include: {
+          user: { select: { name: true } },
+          vehicles: { include: { category: true } },
+        },
+      }),
+  };
+}

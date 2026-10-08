@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { mpesaRef } from "@/lib/format";
 import { priceFor } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
+import { cellOf } from "@/lib/h3";
 import { ensureDB } from "@/lib/db-ready";
 import { requireSession, isResponse, rateLimit, clampInt, capStr, validCoord } from "@/lib/security";
 
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
     // 401: session-bound driver missing = stale session (sandbox instance churn)
     const d = await db.driver.findUnique({ where: { id: driverId }, select: { id: true } });
     if (!d) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
-    await db.driver.update({ where: { id: driverId }, data: { lat: c.lat, lng: c.lng, lastPingAt: new Date() } });
+    await db.driver.update({ where: { id: driverId }, data: { lat: c.lat, lng: c.lng, h3Cell: cellOf(c.lat, c.lng), lastPingAt: new Date() } });
     return NextResponse.json({ ok: true, lat: c.lat, lng: c.lng });
   }
 

@@ -20,6 +20,7 @@ import type { LiveMapMarker } from "@/components/mizigo/shared/LiveMap";
 import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import ReturnLoadPublisher from "./ReturnLoadPublisher";
+import EarningsTab from "./EarningsTab";
 import { driverReliability } from "@/lib/matching";
 import { kes, etaText, fmtDateEAT, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
@@ -872,7 +873,10 @@ function DriverTripsScreen({ data }: { data: DriverHome }) {
 }
 
 // ─── Earnings ───
-function DriverEarningsScreen({ data }: { data: DriverHome }) {
+// The tab itself is the Uber-pattern weekly statement (EarningsTab.tsx);
+// this screen stays as the wallet drill-down (balance, withdraw, 7-day chart,
+// monthly breakdown, full payout history) — EarningsTab links into it.
+function DriverEarningsScreen({ data, onBack }: { data: DriverHome; onBack?: () => void }) {
   const [withdraw, setWithdraw] = useState(false);
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
@@ -894,7 +898,12 @@ function DriverEarningsScreen({ data }: { data: DriverHome }) {
 
   return (
     <div className="space-y-4 pb-6">
-      <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">Earnings</h1>
+      {onBack && (
+        <button onClick={onBack} className="flex items-center gap-1.5 px-1 pt-1 text-[13px] font-bold text-[var(--ink-2)]">
+          <ArrowLeft size={15} strokeWidth={2.6} /> Back to weekly statement
+        </button>
+      )}
+      <h1 className="px-1 pt-1 text-[24px] font-extrabold tracking-tight">{onBack ? "Wallet" : "Earnings"}</h1>
 
       <div className="rounded-[16px] bg-[var(--ink)] p-5 text-white">
         <p className="text-[11.5px] font-bold uppercase tracking-widest text-white/50">This week</p>
@@ -1227,6 +1236,7 @@ const DRIVER_TABS = [
 export default function DriverApp() {
   const { user, driverId, driverTab, setDriverTab, setSurface, setUser } = useSession();
   const [tripOpen, setTripOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false); // earnings tab → wallet drill-down
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["driver-home", driverId],
@@ -1272,7 +1282,13 @@ export default function DriverApp() {
               )
             )}
             {driverTab === "trips" && <DriverTripsScreen data={data} />}
-            {driverTab === "earnings" && <DriverEarningsScreen data={data} />}
+            {driverTab === "earnings" && (
+              walletOpen ? (
+                <DriverEarningsScreen data={data} onBack={() => setWalletOpen(false)} />
+              ) : (
+                <EarningsTab onOpenWallet={() => setWalletOpen(true)} />
+              )
+            )}
             {driverTab === "account" && <DriverAccountScreen data={data} />}
           </div>
         )}
@@ -1285,7 +1301,7 @@ export default function DriverApp() {
               const active = driverTab === t.key;
               const dot = (t.key === "requests" && hasActive) || (t.key === "requests" && (data.quoteJobs?.length ?? 0) > 0);
               return (
-                <button key={t.key} onClick={() => setDriverTab(t.key)} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5" aria-current={active ? "page" : undefined}>
+                <button key={t.key} onClick={() => { setDriverTab(t.key); setWalletOpen(false); }} className="relative flex flex-1 flex-col items-center gap-0.5 py-2.5" aria-current={active ? "page" : undefined}>
                   <t.icon size={20} strokeWidth={active ? 2.4 : 2} className={active ? "text-[var(--ink)]" : "text-[var(--ink-3)]"} />
                   <span className={`text-[10px] font-bold ${active ? "text-[var(--ink)]" : "text-[var(--ink-3)]"}`}>{t.label}</span>
                   {dot && <span className="absolute right-[22%] top-1.5 h-2 w-2 rounded-full bg-[var(--brand)]" />}

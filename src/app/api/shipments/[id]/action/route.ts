@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { applyTransition, getShipmentFull, shipmentDTO, simulateLive } from "@/lib/shipments";
 import { cancellationQuote } from "@/lib/cancellation";
 import { newShareTokenHashed } from "@/lib/tokens";
-import { matchDriver } from "@/lib/matching";
+import { matchDriverRing, ringFetcher } from "@/lib/matching";
 import { mpesaRef } from "@/lib/format";
 import { ensureDB } from "@/lib/db-ready";
 import { requireSession, isResponse, rateLimit, clampInt, capStr } from "@/lib/security";
@@ -164,13 +164,16 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
       return NextResponse.json({ ok: true, matched: false, reason: "MANUAL_DISPATCH", shipment: shipmentDTO((await getShipmentFull({ id }))!) });
     }
 
-    const driversRaw = await db.driver.findMany({ include: { user: true, vehicles: { include: { category: true } } } });
+    // H3 expanding-ring matching (Uber pattern — drivers indexed by res-8 hex
+    // cell; rings k=0..3 around the pickup, full-scan fallback for stale/null
+    // cells — docs/research/UBER_BOLT_ARCHITECTURE.md §1)
     const weightKg = s.items.reduce((acc, i) => acc + i.weightKg * i.qty, 0) || 300;
-    const match = matchDriver(
-      driversRaw.map((d) => ({ ...d, user: d.user ? { name: d.user.name } : null })),
-      { lat: s.pickupLat, lng: s.pickupLng },
-      { categoryKey: s.category.key, weightKg: Math.max(weightKg, 120) }
-    );
+    const { match, ring } = await matchDriverRing({
+      ...ringFetcher(),
+      pickup: { lat: s.pickupLat, lng: s.pickupLng },
+      need: { categoryKey: s.category.key, weightKg: Math.max(weightKg, 120) },
+    });
+    record("dispatch:match-ring:ring-" + String(ring), 1, true);
 
     if (!match) {
       const fail = await applyTransition(id, "matching-failed", "SYSTEM");
@@ -180,10 +183,11 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
 
     // assign + capture driver origin in the event geo (used by the movement sim)
     await db.shipment.update({ where: { id: s.id }, data: { driverId: match.driverId, vehicleId: match.vehicleId } });
+    const winner = await db.driver.findUnique({ where: { id: match.driverId }, select: { lat: true, lng: true } });
     const assign = await applyTransition(id, "assign", "SYSTEM", {
       label: `Driver matched · ${match.name} · ${match.vehicleName} ${match.registration}`,
-      lat: driversRaw.find((d) => d.id === match.driverId)!.lat,
-      lng: driversRaw.find((d) => d.id === match.driverId)!.lng,
+      lat: winner?.lat,
+      lng: winner?.lng,
     });
     if (!assign.ok) return NextResponse.json({ error: assign.error }, { status: assign.code });
 
@@ -534,19 +538,22 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
 async function reassign(shipmentId: string, categoryKey: string) {
   const s = await getShipmentFull({ id: shipmentId });
   if (!s || !s.driverId) return null;
-  const driversRaw = await db.driver.findMany({ include: { user: true, vehicles: { include: { category: true } } } });
   const excluded = s.driverId;
-  const match = matchDriver(
-    driversRaw.filter((d) => d.id !== excluded).map((d) => ({ ...d, user: d.user ? { name: d.user.name } : null })),
-    { lat: s.pickupLat, lng: s.pickupLng },
-    { categoryKey, weightKg: 300 }
-  );
+  // same H3 ring path as the request action, with the displaced driver excluded
+  const baseFetch = ringFetcher();
+  const { match } = await matchDriverRing({
+    fetchByCells: async (cells) => (await baseFetch.fetchByCells(cells)).filter((d) => d.id !== excluded),
+    fetchAll: async () => (await baseFetch.fetchAll()).filter((d) => d.id !== excluded),
+    pickup: { lat: s.pickupLat, lng: s.pickupLng },
+    need: { categoryKey, weightKg: 300 },
+  });
   if (!match) return null;
   await db.shipment.update({ where: { id: shipmentId }, data: { driverId: match.driverId, vehicleId: match.vehicleId, status: "MATCHING", stateEnteredAt: new Date() } });
+  const winner = await db.driver.findUnique({ where: { id: match.driverId }, select: { lat: true, lng: true } });
   await applyTransition(shipmentId, "assign", "SYSTEM", {
     label: `Driver matched · ${match.name} · ${match.vehicleName} ${match.registration}`,
-    lat: driversRaw.find((d) => d.id === match.driverId)!.lat,
-    lng: driversRaw.find((d) => d.id === match.driverId)!.lng,
+    lat: winner?.lat,
+    lng: winner?.lng,
   });
   return { name: match.name, etaMin: match.etaMin, rating: match.rating, vehicle: match.vehicleName, registration: match.registration };
 }
