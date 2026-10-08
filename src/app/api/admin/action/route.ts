@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { applyTransition } from "@/lib/shipments";
 import { mpesaRef } from "@/lib/format";
+import { executePayout } from "@/lib/payments";
 import { ensureDB } from "@/lib/db-ready";
 import { requireRole, isResponse, rateLimit } from "@/lib/security";
 import { invalidatePrefix } from "@/lib/query-cache";
@@ -115,9 +116,19 @@ async function handle(req: Request) {
   // ── payouts ──
   if (action === "payout-pay") {
     const { payoutId } = body;
-    const p = await db.payout.update({ where: { id: String(payoutId ?? "") }, data: { status: "PAID", ref: mpesaRef() } });
-    await audit(actor, "PAYOUT_PAID", `payout:${p.id}`, `KES ${p.amount}`);
-    return NextResponse.json({ ok: true, payout: p, note: "MOCK B2C: marked paid in sandbox" });
+    const row = await db.payout.findUnique({ where: { id: String(payoutId ?? "") } });
+    if (!row) return NextResponse.json({ error: "Payout not found." }, { status: 404 });
+    if (row.status === "PAID") return NextResponse.json({ ok: true, payout: row, note: "Already paid." });
+    // marketplace: execute (or retry — same transfer reference, idempotent at
+    // Paystack) through the provider; instant-PAID only in sandbox mode
+    const res = await executePayout(row.id);
+    const p = await db.payout.findUnique({ where: { id: row.id } });
+    await audit(actor, "PAYOUT_EXECUTED", `payout:${row.id}`, `KES ${row.amount} → ${res.status}${res.note ? ` (${res.note})` : ""}`);
+    if (!res.ok) return NextResponse.json({ error: res.note ?? "Payout could not be sent." }, { status: 502 });
+    return NextResponse.json({
+      ok: true, payout: p,
+      note: res.status === "PAID" ? "Marked paid (sandbox)." : "Transfer sent — it lands when Paystack confirms (watch the Payouts tab).",
+    });
   }
 
   // ── promotions (plan §75) ──

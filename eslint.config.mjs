@@ -7,6 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
+  // RE research artifacts are third-party reference material (gitignored) —
+  // never lint APK decompilation output or cloned reference repos
+  ignores: ["research-apk/**", "research-repos/**", "tool-results/**"],
+
   rules: {
     // TypeScript rules
     "@typescript-eslint/no-explicit-any": "off",

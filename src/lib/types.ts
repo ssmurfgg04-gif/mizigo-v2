@@ -86,6 +86,10 @@ export interface DriverHome {
     onTimePickup: number; onTimeDelivery: number; cancellationRate: number; incidents: number;
     verification: string; licenceClass: string; licenceExpiry: string | null; onlineMinutes: number;
     user: { id: string; name: string; phone: string; avatarSeed: string };
+    payout: {
+      type: string | null; accountNumber: string | null; bankCode: string | null;
+      bankName: string | null; recipientCode: string | null; setupAt: string | null;
+    };
     vehicles: {
       id: string; make: string; model: string; registration: string; bodyType: string; capacityKg: number;
       category: string; categoryKey: string; docs: { registration: string; insurance: string; inspection: string };

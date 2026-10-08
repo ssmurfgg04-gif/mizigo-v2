@@ -271,6 +271,7 @@ jobs:
             MIZIGO_SESSION_SECRET=ci-session-secret \
             DEMO_AUTO_PROGRESS=true \
             SEED_DEMO=true \
+            PAYSTACK_WEBHOOK_SECRET=ci-webhook-secret \
             nohup node server.js > server.log 2>&1 &
           echo $! > "$GITHUB_WORKSPACE/server.pid"
 

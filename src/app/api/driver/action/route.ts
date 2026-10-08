@@ -1,10 +1,11 @@
-// POST /api/driver — driver actions: ping (GPS) | status | withdraw | publish-return-load | return-load-cancel
+// POST /api/driver — driver actions: ping (GPS) | status | withdraw | payout-setup | publish-return-load | return-load-cancel
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { mpesaRef } from "@/lib/format";
+
 import { priceFor } from "@/lib/pricing";
 import { routeDistanceKm, routeDurationMin } from "@/lib/geo";
 import { cellOf } from "@/lib/h3";
+import { setupDriverPayout, createWithdrawalPayout } from "@/lib/payments";
 import { ensureDB } from "@/lib/db-ready";
 import { requireSession, isResponse, rateLimit, clampInt, capStr, validCoord } from "@/lib/security";
 
@@ -66,6 +67,11 @@ export async function POST(req: Request) {
     if (!driverId) return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
     const amt = clampInt(body.amount, 0, 200_000, 0);
     if (amt < 100) return NextResponse.json({ error: "Minimum withdrawal is KES 100." }, { status: 400 });
+    const driver = await db.driver.findUnique({ where: { id: driverId } });
+    if (!driver) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
+    if (!driver.payoutRecipientCode) {
+      return NextResponse.json({ error: "Add your payout details first — M-PESA number or bank account." }, { status: 400 });
+    }
     const payouts = await db.payout.findMany({ where: { driverId, status: { in: ["PENDING", "PROCESSING"] } } });
     if (payouts.length) return NextResponse.json({ error: "A withdrawal is already processing." }, { status: 409 });
     // wallet = completed earnings this month − already-paid withdrawals (same as /api/driver)
@@ -79,10 +85,31 @@ export async function POST(req: Request) {
     if (amt > wallet) {
       return NextResponse.json({ error: `That's more than your KES ${wallet.toLocaleString()} wallet balance.` }, { status: 400 });
     }
-    const p = await db.payout.create({ data: { driverId, amount: amt, method: "MPESA", status: "PROCESSING", ref: mpesaRef() } });
-    // mock B2C disbursement: completes immediately in sandbox
-    await db.payout.update({ where: { id: p.id }, data: { status: "PAID" } });
-    return NextResponse.json({ ok: true, payout: p, note: "MOCK B2C: paid instantly in sandbox" });
+    // marketplace: real Paystack transfer in live mode, instant in sandbox
+    const res = await createWithdrawalPayout(driverId, amt);
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.code ?? 502 });
+    const p = await db.payout.findFirst({ where: { driverId, initiatedBy: "DRIVER" }, orderBy: { createdAt: "desc" } });
+    return NextResponse.json({
+      ok: true, payout: p,
+      note: res.status === "PAID" ? "Sent — check your M-PESA." : "Sent to your " + (driver.payoutType === "kepss" ? "bank" : "M-PESA") + ". It arrives within minutes.",
+    });
+  }
+
+  // ── payout destination (once per driver): M-Pesa wallet or bank account →
+  // Paystack transfer recipient (blueprint §c.2). Drivers enter this once;
+  // every later payout (POD share + withdrawals) reuses the recipient code. ──
+  if (action === "payout-setup") {
+    if (!driverId) return NextResponse.json({ error: "No driver profile on this account." }, { status: 403 });
+    const type = body.type === "kepss" ? "kepss" : "mobile_money";
+    const accountNumber = String(body.accountNumber ?? "").trim();
+    const bankCode = String(body.bankCode ?? "").trim();
+    if (!accountNumber || !bankCode) {
+      return NextResponse.json({ error: "Choose a destination and enter the account details." }, { status: 400 });
+    }
+    const res = await setupDriverPayout(driverId, { type, accountNumber, bankCode });
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+    const d = await db.driver.findUnique({ where: { id: driverId }, select: { payoutType: true, payoutAccountNumber: true, payoutBankName: true, payoutRecipientCode: true, payoutSetupAt: true } });
+    return NextResponse.json({ ok: true, payout: d, note: `Saved — payouts go to your ${d?.payoutBankName ?? (type === "kepss" ? "bank" : "M-PESA")}.` });
   }
 
   // ── v1 goodness: publish an empty leg on the return-load marketplace ──

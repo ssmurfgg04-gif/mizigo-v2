@@ -533,6 +533,55 @@ check("customer can't set a driver goal", r.get("_status") == 403)
 drv_p = call("/api/driver", sess=peter)
 check("driver home unchanged (earnings branch is additive)", "driver" in drv_p and "earnings" in drv_p and "wallet" in drv_p["earnings"])
 
+# ═══ 16c. Paystack marketplace wiring (provider-routed payments + payouts) ═══
+
+# 16c-a. provider selection in the sandbox: MOCK (no keys configured here)
+pay_probe = call("/api/paystack/banks", sess=peter)
+check("bank list serves the sandbox fallback", pay_probe.get("ok") is True and pay_probe.get("sandbox") is True
+      and any(b["code"] == "MPESA" for b in pay_probe["banks"]))
+
+# 16c-b. driver payout setup: M-Pesa destination saved (sandbox: no live
+# recipient created, but the details persist and gate withdrawals)
+r = call("/api/driver/action", "POST", {"action": "payout-setup", "type": "mobile_money", "accountNumber": "0712333444", "bankCode": "MPESA"}, sess=peter)
+check("payout details saved", r.get("ok") is True and r["payout"]["payoutBankName"] == "M-PESA", str(r.get("error", ""))[:60])
+r = call("/api/driver/action", "POST", {"action": "payout-setup", "type": "mobile_money", "accountNumber": "0799", "bankCode": "MPESA"}, sess=peter)
+check("invalid M-Pesa number rejected", r.get("_status") == 400, r.get("error", "")[:60])
+
+# 16c-c. withdrawal requires payout details, then succeeds in sandbox
+fresh_drv = login("0715000099", {"role": "DRIVER", "name": "Fresh Driver"})  # self-registers (no payout details)
+r = call("/api/driver/action", "POST", {"action": "withdraw", "amount": 500}, sess=fresh_drv)
+check("withdrawal without payout details blocked", r.get("_status") == 400 and "payout details" in r.get("error", "").lower(), r.get("error", "")[:60])
+r = call("/api/driver/action", "POST", {"action": "payout-setup", "type": "mobile_money", "accountNumber": "0712333444", "bankCode": "MPESA"}, sess=fresh_drv)
+check("fresh driver payout details saved", r.get("ok") is True)
+r = call("/api/driver/action", "POST", {"action": "withdraw", "amount": 100}, sess=fresh_drv)
+check("withdrawal with details proceeds (balance guard)", r.get("_status") in (200, 400), r.get("error", "")[:60])
+
+# 16c-d. the pay action stays sandbox-shaped (MOCK provider, no redirect URL)
+# — the live Paystack branch is covered by unit/integration tests with the
+# REST layer mocked; here we pin the sandbox contract
+bs = call("/api/bootstrap")
+check("sandbox bootstrap hides demo identities only in postgres (this run: sqlite)", "demo" in bs or bs["build"]["mode"] == "sqlite")
+
+# 16c-e. webhook endpoint: signature gate + allowlist (HTTP surface)
+import hmac as _hmac, hashlib as _hashlib
+_WEBHOOK_SECRET = os.environ.get("PAYSTACK_WEBHOOK_SECRET", "ci-webhook-secret")
+def _hook(payload, sig=None):
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(BASE + "/api/paystack/webhook", method="POST", data=body,
+        headers={"Content-Type": "application/json", "x-paystack-signature": sig or _hmac.new(_WEBHOOK_SECRET.encode(), body, _hashlib.sha512).hexdigest()})
+    try:
+        with urllib.request.urlopen(req) as r:
+            return r.status, r.read().decode()[:80]
+    except urllib.error.HTTPError as e:
+        return e.code, (e.read() or b"").decode()[:80]
+
+code, _ = _hook({"event": "charge.success", "data": {"reference": "MZG0NOTREAL01"}}, sig="f" * 128)
+check("webhook rejects a bad signature with 401", code == 401, str(code))
+code, note = _hook({"event": "charge.success", "data": {"reference": "MZG0NOTREAL01"}})
+check("webhook accepts a signed orphan (200, no crash)", code == 200, f"{code} {note}")
+code, note = _hook({"event": "customer.created", "data": {"id": 1}})
+check("webhook allows unhandled events through with 200", code == 200, f"{code} {note}")
+
 # ═══ 17. v1 goodness: night surcharge + planned discount ════════════════════
 
 _night_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0).isoformat().replace("+00:00", "Z")

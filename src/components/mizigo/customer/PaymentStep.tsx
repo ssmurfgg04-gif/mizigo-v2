@@ -59,7 +59,14 @@ export default function PaymentStep() {
         setBookingStep("matching");
         return;
       }
-      await post(`/api/shipments/${s.id}/action`, { action: "pay" });
+      const payRes = await post<{ mode?: string; authorizationUrl?: string; prompt?: string }>(`/api/shipments/${s.id}/action`, { action: "pay" });
+      if (payRes.authorizationUrl) {
+        // Paystack checkout (live marketplace): the customer completes M-PESA
+        // on Paystack's page and returns to /pay/callback, which verifies
+        // server-side and kicks off matching. The fake PIN sheet never shows.
+        window.location.href = payRes.authorizationUrl;
+        return;
+      }
       setPhase("stk");
     } catch (e) {
       toast({ title: "Couldn't start payment", description: (e as Error).message, variant: "destructive" });

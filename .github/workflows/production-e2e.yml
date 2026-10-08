@@ -51,6 +51,8 @@ jobs:
           # CI runs against the cloud DB but still needs the demo dataset
           # (production boot would seed reference data only)
           SEED_DEMO: "true"
+          # lets the e2e webhook checks exercise the signature gate while pay stays MOCK
+          PAYSTACK_WEBHOOK_SECRET: "ci-webhook-secret"
           NETLIFY: "1"
           NODE_ENV: production
         run: |

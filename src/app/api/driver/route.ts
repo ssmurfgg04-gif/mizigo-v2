@@ -220,6 +220,12 @@ export async function GET(req: Request) {
       cancellationRate: driver.cancellationRate, incidents: driver.incidents, verification: driver.verification,
       licenceClass: driver.licenceClass, licenceExpiry: driver.licenceExpiry, onlineMinutes: driver.onlineMinutes,
       user: { id: driver.user.id, name: driver.user.name, phone: driver.user.phone, avatarSeed: driver.user.avatarSeed },
+      payout: {
+        type: driver.payoutType, accountNumber: driver.payoutAccountNumber,
+        bankCode: driver.payoutBankCode, bankName: driver.payoutBankName,
+        recipientCode: driver.payoutRecipientCode ? "saved" : null, // never leak RCP_ codes to the client
+        setupAt: driver.payoutSetupAt,
+      },
       vehicles: driver.vehicles.map((v) => ({
         id: v.id, make: v.make, model: v.model, registration: v.registration, bodyType: v.bodyType, capacityKg: v.capacityKg,
         category: v.category?.name ?? "", categoryKey: v.category?.key ?? "", docs: { registration: v.docRegistration, insurance: v.docInsurance, inspection: v.docInspection },

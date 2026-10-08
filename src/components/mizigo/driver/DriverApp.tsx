@@ -21,6 +21,7 @@ import VehicleAvatar from "@/components/mizigo/shared/VehicleAvatar";
 import ChatSheet from "@/components/mizigo/shared/ChatSheet";
 import ReturnLoadPublisher from "./ReturnLoadPublisher";
 import EarningsTab from "./EarningsTab";
+import DriverPayoutDetails from "./DriverPayoutDetails";
 import { driverReliability } from "@/lib/matching";
 import { kes, etaText, fmtDateEAT, fmtDateTimeEAT, relTimeEAT, fmtPhone } from "@/lib/format";
 import { STATUS_LABEL } from "@/lib/state-machine";
@@ -1040,6 +1041,8 @@ function DriverAccountScreen({ data }: { data: DriverHome }) {
           </div>
         </div>
       )}
+
+      <DriverPayoutDetails data={data} />
 
       {/* reliability */}
       <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">

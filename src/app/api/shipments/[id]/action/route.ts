@@ -13,6 +13,7 @@ import { cancellationQuote } from "@/lib/cancellation";
 import { newShareTokenHashed } from "@/lib/tokens";
 import { matchDriverRing, ringFetcher } from "@/lib/matching";
 import { mpesaRef } from "@/lib/format";
+import { startCustomerPayment, confirmCustomerPayment, initiatePodPayout, refundShipmentPayment } from "@/lib/payments";
 import { ensureDB } from "@/lib/db-ready";
 import { requireSession, isResponse, rateLimit, clampInt, capStr } from "@/lib/security";
 import { invalidatePrefix } from "@/lib/query-cache";
@@ -78,47 +79,36 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     return null;
   };
 
-  // ── M-Pesa STK push (mock Daraja lifecycle) — customer only ──
+  // ── customer payment — provider-routed (Paystack marketplace → Daraja →
+  // sandbox simulation) via lib/payments, the only money-state funnel ──
   if (action === "pay") {
     const deny = asCustomer("Only the customer can pay for this delivery.");
     if (deny) return deny;
     if (s.paymentStatus === "CONFIRMED") return NextResponse.json({ ok: true, alreadyPaid: true, shipment: shipmentDTO(s) });
-    const checkoutReqId = `ws_CO_${s.code}_${Date.now()}`;
-    await db.paymentEvent.deleteMany({ where: { shipmentId: s.id, status: "PENDING" } });
-    await db.paymentEvent.create({ data: { shipmentId: s.id, checkoutReqId, method: s.paymentMethod, amount: s.fareTotal, status: "PENDING" } });
-    await db.shipment.update({ where: { id: s.id }, data: { paymentStatus: "PENDING", checkoutReqId, status: "PAYMENT_PENDING", stateEnteredAt: new Date() } });
-    return NextResponse.json({ ok: true, checkoutReqId, status: "PENDING", prompt: "Check your phone to complete payment." });
+    // attempt counter drives the Paystack reference (MZG482913A2 on retries)
+    const prior = await db.paymentEvent.count({ where: { shipmentId: s.id } });
+    const res = await startCustomerPayment(s.id, prior + 1);
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 502 });
+    const { outcome } = res;
+    return NextResponse.json({
+      ok: true, checkoutReqId: outcome.checkoutReqId, status: "PENDING",
+      provider: outcome.provider, mode: outcome.mode,
+      ...(outcome.authorizationUrl ? { authorizationUrl: outcome.authorizationUrl } : {}),
+      prompt: outcome.prompt,
+    });
   }
 
-  if (action === "pay-confirm") {
+  // sandbox PIN flow (MOCK/Daraja) AND the server-side verify for Paystack —
+  // both funnel into the same atomic-claim confirmation in lib/payments
+  if (action === "pay-confirm" || action === "pay-verify") {
     const deny = asCustomer("Only the customer can confirm this payment.");
     if (deny) return deny;
-    // atomic claim: exactly one concurrent caller flips PENDING → CONFIRMED
-    const pending = await db.paymentEvent.findFirst({ where: { shipmentId: s.id, status: "PENDING" }, orderBy: { createdAt: "desc" } });
-    if (!pending) {
-      // re-read: the snapshot `s` may predate another caller's confirmation
-      let now = await db.shipment.findUnique({ where: { id: s.id }, select: { paymentStatus: true } });
-      if (now?.paymentStatus !== "CONFIRMED") {
-        // a concurrent confirmation may be mid-flight (event flipped, shipment not yet)
-        await new Promise((r) => setTimeout(r, 300));
-        now = await db.shipment.findUnique({ where: { id: s.id }, select: { paymentStatus: true } });
-      }
-      if (now?.paymentStatus === "CONFIRMED") return NextResponse.json({ ok: true, alreadyPaid: true, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
-      return NextResponse.json({ error: "No pending payment. Start again." }, { status: 409 });
-    }
-    const receipt = mpesaRef();
-    const claimed = await db.paymentEvent.updateMany({
-      where: { id: pending.id, status: "PENDING" },
-      data: { status: "CONFIRMED", mpesaReceipt: receipt },
+    const res = await confirmCustomerPayment(id, action === "pay-verify" ? "pay-verify" : "pay-confirm");
+    if (!res.ok && !res.alreadyPaid) return NextResponse.json({ error: res.error }, { status: res.code ?? 400 });
+    return NextResponse.json({
+      ok: true, ...(res.alreadyPaid ? { alreadyPaid: true } : { receipt: res.receipt }),
+      ...(res.shipment ? { shipment: res.shipment } : { shipment: shipmentDTO((await getShipmentFull({ id }))!) }),
     });
-    if (!claimed.count) {
-      // someone else confirmed first — this is an idempotent replay
-      return NextResponse.json({ ok: true, alreadyPaid: true, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
-    }
-    await db.shipment.update({ where: { id: s.id }, data: { paymentStatus: "CONFIRMED", paymentRef: receipt, paidAt: new Date() } });
-    const t = await applyTransition(id, "payment-confirmed", "SYSTEM", { label: `Payment confirmed · M-PESA ${receipt}` });
-    if (!t.ok) return NextResponse.json({ error: t.error }, { status: t.code });
-    return NextResponse.json({ ok: true, receipt, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
   }
 
   if (action === "pay-timeout") {
@@ -302,12 +292,27 @@ async function handle(req: Request, id: string): Promise<NextResponse> {
     if (action === "cancel" && cancelFee > 0) {
       await db.shipment.update({ where: { id }, data: { cancelFee } });
     }
+    // real money: refund the customer's share (full fare minus the withheld
+    // fee) through the provider — the refund.processed webhook finalises it.
+    // MOCK mode is a no-op (the state machine already labels the sandbox refund).
+    if (action === "cancel" && s.paymentStatus === "CONFIRMED" && refundKes > 0) {
+      const refund = await refundShipmentPayment(id, refundKes);
+      if (!refund.ok && refund.note !== "no confirmed paystack payment") {
+        console.error("[refund] provider refund not sent", refund.note);
+      }
+    }
     // POD data
     if (action === "pod") {
       await db.shipment.update({
         where: { id },
         data: { podRecipient: capStr(body.recipient ?? "Recipient", 60), podOtp: body.otp ? capStr(body.otp, 8) : null, podPhotoTaken: !!body.photo, podVerifiedAt: new Date(), podLat: s.dropoffLat, podLng: s.dropoffLng },
       });
+      // hold-then-payout: the driver's share moves after POD is proven —
+      // failure-tolerant (a blocked payout lands in the admin Payouts queue,
+      // it never blocks the delivery itself). Tips added later by the rating
+      // flow ride on the NEXT withdrawal instead (wallet math covers them).
+      const payout = await initiatePodPayout(id, "SYSTEM");
+      if (!payout.ok) console.error("[payout] POD payout not started", payout.note);
     }
     return NextResponse.json({ ok: true, shipment: shipmentDTO((await getShipmentFull({ id }))!) });
   }
