@@ -69,9 +69,8 @@ export async function POST(req: Request) {
     if (amt < 100) return NextResponse.json({ error: "Minimum withdrawal is KES 100." }, { status: 400 });
     const driver = await db.driver.findUnique({ where: { id: driverId } });
     if (!driver) return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
-    if (!driver.payoutRecipientCode) {
-      return NextResponse.json({ error: "Add your payout details first — M-PESA number or bank account." }, { status: 400 });
-    }
+    // payout destination: explicitly saved via payout-setup, else the driver's
+    // own M-Pesa number (auto-default in executePayout)
     const payouts = await db.payout.findMany({ where: { driverId, status: { in: ["PENDING", "PROCESSING"] } } });
     if (payouts.length) return NextResponse.json({ error: "A withdrawal is already processing." }, { status: 409 });
     // wallet = completed earnings this month − already-paid withdrawals (same as /api/driver)

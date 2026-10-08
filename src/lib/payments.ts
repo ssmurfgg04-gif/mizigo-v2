@@ -264,12 +264,9 @@ export async function initiatePodPayout(
     },
   });
 
-  if (!driver.payoutRecipientCode) {
-    await db.payout.update({ where: { id: payout.id }, data: { failureReason: "Driver payout details not set — driver must add M-Pesa/bank details first" } });
-    await pageAdmins("Payout blocked", `${s.code}: driver has no payout details — ask the driver to add them, then release the payout.`, s.code);
-    return { ok: true, payoutId: payout.id, status: "PENDING", note: "driver payout details missing" };
-  }
-
+  // executePayout owns the whole destination story: explicitly saved details,
+  // else auto-fallback to the driver's own M-Pesa number (auto-created once).
+  // It never blocks the POD itself — failures land as PENDING for ops retry.
   const result = await executePayout(payout.id);
   return { ok: result.ok, payoutId: payout.id, status: result.status, note: result.note };
 }
@@ -280,22 +277,36 @@ export async function executePayout(payoutId: string): Promise<{ ok: boolean; st
   if (!p) return { ok: false, status: "MISSING", note: "payout not found" };
   if (p.status === "PAID" || p.status === "PROCESSING") return { ok: true, status: p.status, note: "already in flight/paid" };
 
-  const driver = await db.driver.findUnique({ where: { id: p.driverId } });
-  if (!driver?.payoutRecipientCode) {
-    await db.payout.update({ where: { id: p.id }, data: { failureReason: "Driver payout details not set" } });
-    return { ok: false, status: "PENDING", note: "driver payout details missing" };
+  let driver = await db.driver.findUnique({ where: { id: p.driverId }, include: { user: true } });
+  if (!driver) return { ok: false, status: "MISSING", note: "driver row missing" };
+  if (!driver.payoutRecipientCode) {
+    // default destination: the driver's OWN phone as an M-Pesa wallet (the
+    // overwhelmingly common Kenyan case) — bank accounts / another number
+    // still need the explicit payout-setup. Auto-created once, reused after.
+    const fallback = await setupDriverPayout(driver.id, { type: "mobile_money", accountNumber: driver.user.phone, bankCode: "MPESA" });
+    if (!fallback.ok) {
+      await db.payout.update({ where: { id: p.id }, data: { failureReason: `Driver payout details not set (${fallback.error})` } });
+      return { ok: false, status: "PENDING", note: "driver payout details missing" };
+    }
+    driver = await db.driver.findUnique({ where: { id: p.driverId }, include: { user: true } });
   }
 
   if ((await resolvePaymentProvider()) !== "PAYSTACK") {
-    // sandbox: instant PAID (existing withdraw semantics)
-    await db.payout.update({ where: { id: p.id }, data: { status: "PAID", processedAt: new Date(), ref: p.ref ?? mpesaRef() } });
+    // sandbox: instant PAID (existing withdraw semantics); clear any stale
+    // failure note from a previous blocked attempt
+    await db.payout.update({ where: { id: p.id }, data: { status: "PAID", processedAt: new Date(), ref: p.ref ?? mpesaRef(), failureReason: null } });
     return { ok: true, status: "PAID" };
   }
 
   const secret = (await resolvePaystackSecret())!;
+  const recipientCode = driver?.payoutRecipientCode;
+  if (!recipientCode) {
+    await db.payout.update({ where: { id: p.id }, data: { failureReason: "Driver payout details not set" } });
+    return { ok: false, status: "PENDING", note: "driver payout details missing" };
+  }
   const t = await createTransfer(secret, {
     amountSubunits: p.amount * 100,
-    recipientCode: driver.payoutRecipientCode,
+    recipientCode,
     reference: p.reference ?? paystackTransferReference(`MZG${p.id.replace(/\D/g, "")}`, 1),
     reason: p.shipmentId ? `MIZIGO delivery payout` : "MIZIGO driver withdrawal",
   });

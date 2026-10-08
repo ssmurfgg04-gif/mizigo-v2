@@ -5,7 +5,6 @@
 import type { Driver, Vehicle, VehicleCategory } from "@prisma/client";
 import { haversineKm } from "./geo";
 import { cellOf, ringCells, MATCHING_MAX_RINGS } from "./h3";
-import { db } from "./db";
 
 export interface MatchCandidate extends Driver {
   user: { name: string } | null;
@@ -196,8 +195,8 @@ export const DEMAND_ZONES = [
  * dispatchable driver wins. All rings empty (or hard-filtered out) → one
  * full-table scan via fetchAll as the fallback.
  *
- * Injected fetchers keep this pure for unit tests; the API route passes the
- * db-backed pair from ringFetcher().
+ * Injected fetchers keep this pure (and client-safe) for unit tests; the
+ * API route passes the db-backed pair from lib/dispatch.ts (server-only).
  *
  * Nearest-ring-first is a deliberate tradeoff: a better-scored driver may sit
  * one ring further out, but the expanding-ring pattern (research doc §2.3)
@@ -230,37 +229,4 @@ export async function matchDriverRing(args: {
     }
   }
   return { match: matchDriver(await fetchAll(), pickup, need), ring: "fallback" };
-}
-
-/**
- * The db-backed fetcher pair matchDriverRing needs: fetchByCells serves the
- * per-ring query off the Driver.h3Cell index (Prisma's `in` naturally
- * excludes NULL/stale cells — those are exactly what the fallback covers);
- * fetchAll is the legacy full scan the request action used before rings.
- * Include/shape mirrors the action route's candidate query (user name +
- * vehicles with category) so matchDriver filters and scores identically.
- */
-export function ringFetcher(): {
-  fetchByCells: (cells: string[]) => Promise<MatchCandidate[]>;
-  fetchAll: () => Promise<MatchCandidate[]>;
-} {
-  return {
-    fetchByCells: async (cells: string[]) => {
-      if (cells.length === 0) return [];
-      return db.driver.findMany({
-        where: { h3Cell: { in: cells } },
-        include: {
-          user: { select: { name: true } },
-          vehicles: { include: { category: true } },
-        },
-      });
-    },
-    fetchAll: async () =>
-      db.driver.findMany({
-        include: {
-          user: { select: { name: true } },
-          vehicles: { include: { category: true } },
-        },
-      }),
-  };
 }
