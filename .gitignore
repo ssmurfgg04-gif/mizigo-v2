@@ -88,3 +88,4 @@ scripts/research/
 research-apk/
 research-repos/
 tool-results/
+.secrets/

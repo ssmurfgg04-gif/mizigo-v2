@@ -93,3 +93,62 @@ cheapest, most boring one that works (Neon/Supabase free tiers are enough for
 a demo or a pilot). This is the same conclusion as the general rule: serverless
 compute + local files = per-request islands; put the state where the compute
 can share it.
+
+---
+
+## Going LIVE for real users — Paystack marketplace + real data (October 2026)
+
+The app now runs the **marketplace money model** (hold-then-payout on POD):
+
+- **Payments**: customer pays by M-PESA through **Paystack** (checkout
+  redirect → `/pay/callback` verify → webhook is the source of truth).
+  Provider selection at runtime: `PAYSTACK_SECRET_KEY` (or the encrypted DB
+  key, below) → Daraja → sandbox simulation. With NO keys configured the app
+  keeps the simulated flow — zero-risk default.
+- **Payouts**: after proof of delivery the driver's share moves by Paystack
+  Transfer to their saved M-Pesa/bank recipient (auto-default: the driver's
+  own phone as M-Pesa). Commission is **12%** + KES 100 platform fee.
+- **Real data only**: production Postgres never seeds demo users/drivers/
+  shipments — reference data (tariffs, zone, places, settings) self-seeds on
+  first boot. Demo logins + the demo dataset exist only in the SQLite sandbox
+  and CI (`SEED_DEMO=true`).
+
+### Netlify environment variables (the full production set)
+
+| Variable | Value | Required |
+|---|---|---|
+| `DATABASE_URL` | the `SUPABASE_DATABASE_URL` GitHub secret's value | yes |
+| `PAYSTACK_MASTER_KEY` | the `PAYSTACK_MASTER_KEY` GitHub secret's value | for marketplace |
+| `MIZIGO_SESSION_SECRET` | long random string | recommended |
+| `AFRICASTALKING_API_KEY` + `AT_USERNAME` (+ `AT_SENDER_ID`) | Africa's Talking SMS credentials | for real OTP SMS (without them the login code shows in-app) |
+
+The Paystack **secret key itself never goes to Netlify** — it is stored
+AES-256-GCM-encrypted in the database (`PlatformSetting.paystack.secret.live`,
+written by `scripts/paystack_provision.mjs`, run from the
+**production-migrate** workflow) and decrypted at runtime with
+`PAYSTACK_MASTER_KEY`. Rotating keys = update the GitHub secrets + re-run the
+workflow. (A plain `PAYSTACK_SECRET_KEY` env var still wins if ever set.)
+
+### Paystack dashboard checklist (one-time)
+
+1. **Webhook URL** → set to `https://mizigo.netlify.app/api/paystack/webhook`
+   (direct — recommended). Alternative: the Supabase forwarder
+   `https://xycmzhpkuzyhmgucwqys.supabase.co/functions/v1/paystack-webhook`
+   (already deployed; forwards raw body + signature to the same route).
+   The currently-configured `https://fnlyuabpiqwqaohztdbn.supabase.co/...`
+   points at a project with no such function — **must be changed**.
+2. **Transfers OTP**: Settings → Preferences → uncheck "Confirm transfers
+   before sending" so POD payouts are fully automatic. (If left ON, payouts
+   park in PROCESSING with an "Awaiting OTP" note and ops finalizes them from
+   the admin Payouts tab — the app handles both.)
+3. Live callback URL may stay `https://mizigo.netlify.app` — the per-transaction
+   `callback_url` overrides it anyway.
+
+### First live smoke (after the env vars are set)
+
+1. Book a small delivery (KES 10–50) with your own phone → confirm the M-PESA
+   STK push arrives via Paystack → pay → the delivery flips to confirmed.
+2. Check the Paystack dashboard: transaction shows, fee = 1.5%.
+3. Complete the delivery to POD → the driver payout (your driver account)
+   queues and lands on M-Pesa (KES 20–60 transfer fee per the band).
+4. Ops view: admin → Payouts shows the lifecycle rows with statuses.

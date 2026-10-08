@@ -42,6 +42,17 @@ jobs:
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
         run: npx prisma db push --schema prisma/schema.postgres.prisma --skip-generate
 
+      # marketplace keys: AES-256-GCM encrypted into PlatformSetting — the app
+      # decrypts at runtime with PAYSTACK_MASTER_KEY (Netlify env). Skipped
+      # harmlessly when the Paystack secrets are not configured.
+      - name: Provision Paystack keys (encrypted)
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          PAYSTACK_MASTER_KEY: ${{ secrets.PAYSTACK_MASTER_KEY }}
+          PAYSTACK_SECRET_KEY: ${{ secrets.PAYSTACK_SECRET_KEY }}
+          PAYSTACK_PUBLIC_KEY: ${{ secrets.PAYSTACK_PUBLIC_KEY }}
+        run: node scripts/paystack_provision.mjs
+
       - name: Verify Mizigo tables exist
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
