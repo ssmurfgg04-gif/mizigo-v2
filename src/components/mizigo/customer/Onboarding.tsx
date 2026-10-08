@@ -1,16 +1,19 @@
 "use client";
-// Customer onboarding: phone → OTP → account type. Mock OTP is shown in-app (sandbox).
+// Customer onboarding: phone → OTP → account type. OTP is sent by SMS when
+// Africa's Talking keys are configured; the sandbox shows the code in-app.
 
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Building2, Smartphone, User } from "lucide-react";
 import { Button, Logo, AvatarInitials } from "@/components/mizigo/shared/ui";
 import { post, loginWithOtp } from "@/lib/api-client";
-import { fmtPhone } from "@/lib/format";
+import { fmtPhone, formatPhoneInput, normalizeKePhone } from "@/lib/format";
+import { useSettings } from "@/components/mizigo/shared/useSettings";
 import { useSession, type SessionUser } from "@/store/session";
 import { toast } from "@/hooks/use-toast";
 
 export default function Onboarding() {
   const { setUser, setSurface } = useSession();
+  const { sandbox } = useSettings();
   const [step, setStep] = useState<"phone" | "otp" | "usage">("phone");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
@@ -21,8 +24,8 @@ export default function Onboarding() {
   const [businessName, setBusinessName] = useState("");
 
   const requestOtp = async () => {
-    const p = phone.replace(/\D/g, "");
-    if (!/^0(7|1)\d{8}$/.test(p)) {
+    const p = normalizeKePhone(phone);
+    if (!p) {
       toast({ title: "Check the number", description: "Enter a Kenyan number like 0712 345 678.", variant: "destructive" });
       return;
     }
@@ -45,7 +48,7 @@ export default function Onboarding() {
     }
     setBusy(true);
     try {
-      await post("/api/auth", { action: "verify", phone: phone.replace(/\D/g, ""), code, role: "CUSTOMER" });
+      await post("/api/auth", { action: "verify", phone: normalizeKePhone(phone), code, role: "CUSTOMER" });
       setStep("usage");
     } catch (e) {
       toast({ title: "Wrong code", description: (e as Error).message, variant: "destructive" });
@@ -58,7 +61,7 @@ export default function Onboarding() {
     setBusy(true);
     try {
       const r = await post<{ user: { id: string; phone: string; name: string; role: string; accountType: string; businessName: string | null; avatarSeed: string } }>("/api/auth", {
-        action: "verify", phone: phone.replace(/\D/g, ""), code, name: name || undefined, accountType, businessName: businessName || undefined, role: "CUSTOMER",
+        action: "verify", phone: normalizeKePhone(phone), code, name: name || undefined, accountType, businessName: businessName || undefined, role: "CUSTOMER",
       });
       setUser(r.user);
     } catch (e) {
@@ -106,11 +109,12 @@ export default function Onboarding() {
                 </span>
                 <input
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
                   onKeyDown={(e) => e.key === "Enter" && requestOtp()}
-                  placeholder="712 345 678"
+                  placeholder="0712 345 678"
                   inputMode="tel"
-                  className="h-full w-full bg-transparent text-[16px] font-semibold tracking-wide outline-none placeholder:font-medium placeholder:text-[var(--ink-3)]"
+                  autoComplete="tel-national"
+                  className="tnum h-full w-full bg-transparent text-[16px] font-semibold outline-none placeholder:font-medium placeholder:text-[var(--ink-3)]"
                   aria-label="Phone number"
                 />
               </div>
@@ -118,19 +122,21 @@ export default function Onboarding() {
             <Button className="mt-4 w-full" onClick={requestOtp} loading={busy}>
               Continue <ArrowRight size={16} strokeWidth={2.6} />
             </Button>
-            <div className="mt-5 border-t border-[var(--line)] pt-4">
-              <p className="text-center text-[11.5px] font-semibold uppercase tracking-wide text-[var(--ink-3)]">Sandbox demo</p>
-              <div className="mt-2.5 grid grid-cols-2 gap-2">
-                <button onClick={() => demoLogin("0712000001")} className="flex items-center gap-2 rounded-[10px] border border-[var(--line)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]">
-                  <AvatarInitials initials="JK" size={32} tone="ink" />
-                  <span className="text-[12px] font-bold leading-tight">John K.<br /><span className="font-medium text-[var(--ink-3)]">Personal</span></span>
-                </button>
-                <button onClick={() => demoLogin("0722000033")} className="flex items-center gap-2 rounded-[10px] border border-[var(--line)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]">
-                  <AvatarInitials initials="AB" size={32} tone="brand" />
-                  <span className="text-[12px] font-bold leading-tight">ABC Traders<br /><span className="font-medium text-[var(--ink-3)]">Business</span></span>
-                </button>
+            {sandbox && (
+              <div className="mt-5 border-t border-[var(--line)] pt-4">
+                <p className="text-center text-[11.5px] font-semibold uppercase tracking-wide text-[var(--ink-3)]">Sandbox demo</p>
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <button onClick={() => demoLogin("0712000001")} className="flex items-center gap-2 rounded-[10px] border border-[var(--line)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]">
+                    <AvatarInitials initials="JK" size={32} tone="ink" />
+                    <span className="text-[12px] font-bold leading-tight">John K.<br /><span className="font-medium text-[var(--ink-3)]">Personal</span></span>
+                  </button>
+                  <button onClick={() => demoLogin("0722000033")} className="flex items-center gap-2 rounded-[10px] border border-[var(--line)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]">
+                    <AvatarInitials initials="AB" size={32} tone="brand" />
+                    <span className="text-[12px] font-bold leading-tight">ABC Traders<br /><span className="font-medium text-[var(--ink-3)]">Business</span></span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

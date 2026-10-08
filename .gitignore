@@ -83,3 +83,8 @@ rust/target/
 # agent working material (local reference only)
 scripts/pr-review/
 scripts/research/
+
+# RE research artifacts (never commit APKs / decompiled trees / third-party clones)
+research-apk/
+research-repos/
+tool-results/

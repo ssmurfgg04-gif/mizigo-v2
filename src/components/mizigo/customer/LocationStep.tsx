@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { Bookmark, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
 import { api, post } from "@/lib/api-client";
+import { formatPhoneInput } from "@/lib/format";
 import type { PlaceHit } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { Button } from "@/components/mizigo/shared/ui";
@@ -278,10 +279,10 @@ export default function LocationStep({ mode }: { mode: "pickup" | "dropoff" }) {
               <span className="text-[11.5px] font-bold uppercase tracking-widest text-[var(--ink-3)]">Phone</span>
               <input
                 value={phone}
-                onChange={(e) => patchDraft(isPickup ? { pickupPhone: e.target.value } : { dropoffPhone: e.target.value })}
+                onChange={(e) => patchDraft(isPickup ? { pickupPhone: formatPhoneInput(e.target.value) } : { dropoffPhone: formatPhoneInput(e.target.value) })}
                 placeholder="0712 345 678"
                 inputMode="tel"
-                className="mt-1.5 h-12 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[14px] font-semibold outline-none focus:border-[var(--brand)]"
+                className="tnum mt-1.5 h-12 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[14px] font-semibold outline-none focus:border-[var(--brand)]"
               />
             </label>
           </div>

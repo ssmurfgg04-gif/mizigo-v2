@@ -19,6 +19,32 @@ export function maskPhone(phone: string): string {
   return p.length > 6 ? `${p.slice(0, 6)}··· ${p.slice(-3)}` : p;
 }
 
+/**
+ * Live phone-input formatter (fixes the "number glitches into one unbroken
+ * line" bug): digits only, auto-prefixed with the leading 0, capped at 10
+ * digits, grouped 4-3-3 as the user types — "0712 345 678".
+ * Accepts both habits: typing "712…" (placeholder style) and "0712…".
+ */
+export function formatPhoneInput(raw: string): string {
+  let p = raw.replace(/\D/g, "");
+  // strip a 254 country prefix if pasted whole ("254712345678" → "0712345678")
+  if (p.startsWith("254")) p = "0" + p.slice(3);
+  // auto-prefix the 0 ("712345678" → "0712345678")
+  if (/^[71]/.test(p) && p.length <= 9) p = "0" + p;
+  p = p.slice(0, 10);
+  if (p.length <= 4) return p;
+  if (p.length <= 7) return `${p.slice(0, 4)} ${p.slice(4)}`;
+  return `${p.slice(0, 4)} ${p.slice(4, 7)} ${p.slice(7)}`;
+}
+
+/** Normalise any of "0712 345 678" / "712345678" / "+254712345678" → "0712345678" (or "" when invalid). */
+export function normalizeKePhone(raw: string): string {
+  let p = raw.replace(/\D/g, "");
+  if (p.startsWith("254")) p = "0" + p.slice(3);
+  if (/^[71]\d{8}$/.test(p)) p = "0" + p;
+  return /^0(7|1)\d{8}$/.test(p) ? p : "";
+}
+
 // East Africa Time (UTC+3) formatting without Intl timezone data dependency
 const EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
 

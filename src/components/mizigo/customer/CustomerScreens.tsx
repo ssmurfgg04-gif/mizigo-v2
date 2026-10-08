@@ -18,6 +18,7 @@ import { LanguagePicker } from "@/components/mizigo/shared/LanguagePicker";
 import { toast } from "@/hooks/use-toast";
 import { shareTrackLink } from "@/components/mizigo/shared/share";
 import { useSettings } from "@/components/mizigo/shared/useSettings";
+import { InstallAppRow } from "@/components/mizigo/shared/InstallApp";
 import { customerRating, isRateable, RatingSheetHost } from "./RatingSheet";
 import { KIND_ICON, useNotificationOpen } from "./notification-link";
 import { requestNotificationPermission, SystemNotifications, useNotificationPermission } from "./useSystemNotifications";
@@ -542,6 +543,11 @@ export function AccountScreen() {
           </div>
         </div>
 
+        {/* install as app (PWA) — Chrome/Android one-tap, iOS instructions */}
+        <div className="border-b border-[var(--line)]">
+          <InstallAppRow />
+        </div>
+
         {/* language (plan §62) — 18-language picker sheet (i18n task 10-D) */}
         <div className="border-b border-[var(--line)] px-4 py-4">
           <p className="flex items-center gap-1.5 text-[11.5px] font-extrabold uppercase tracking-widest text-[var(--ink-3)]"><Languages size={12} /> {t("account.language", lang)}</p>
@@ -575,7 +581,7 @@ export function AccountScreen() {
           <LogOut size={15} /> {t("account.logOut", lang)}
         </Button>
       </div>
-      <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo · Nairobi, Kenya · v2 sandbox</p>
+      <p className="text-center text-[11.5px] font-medium text-[var(--ink-3)]">Mizigo · Nairobi, Kenya</p>
 
       {/* language picker sheet (i18n 10-D) */}
       <LanguagePicker open={langOpen} onClose={() => setLangOpen(false)} />

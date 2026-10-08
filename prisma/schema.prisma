@@ -105,8 +105,22 @@ model Driver {
   verification   String   @default("VERIFIED") // VERIFIED | PENDING | SUSPENDED
   lat            Float    @default(-1.2864)
   lng            Float    @default(36.8172)
+  // H3 res-8 cell of the driver's last position (Uber-pattern hex grid —
+  // docs/research/UBER_BOLT_ARCHITECTURE.md §1); matching expands rings from
+  // the pickup cell instead of scanning every driver (docs/ROADMAP_DISPATCH_INTEL.md)
+  h3Cell         String?
   lastPingAt     DateTime @default(now())
   onlineMinutes  Int      @default(0)
+  // payout destination (marketplace hold-then-payout — created once via
+  // Paystack /transferrecipient; see docs/research/PAYSTACK_WIRING_BLUEPRINT.md §c.2)
+  payoutType            String?   // mobile_money | kepss
+  payoutAccountNumber   String?   // 2547XXXXXXXX (M-Pesa) | bank account number
+  payoutBankCode        String?   // MPESA | ATL_KE | 97 | 68 (Equity) | 01 (KCB) …
+  payoutBankName        String?   // display name from the /bank list
+  payoutRecipientCode   String?   // RCP_… (the reusable payout handle)
+  payoutSetupAt         DateTime?
+  // driver-set weekly earnings target (Uber Earnings-goal pattern)
+  earningsGoal   Int?
   createdAt      DateTime @default(now())
   user           User     @relation(fields: [userId], references: [id])
   vehicles       Vehicle[]
@@ -114,6 +128,7 @@ model Driver {
   quotes         Quote[]
 
   @@index([lat, lng])
+  @@index([h3Cell])
   @@index([status, verification])
 }
 
@@ -291,25 +306,63 @@ model Quote {
 model PaymentEvent {
   id             String   @id @default(cuid())
   shipmentId     String
-  checkoutReqId  String   @unique
-  method         String
-  amount         Int
-  status         String   // PENDING | CONFIRMED | FAILED | TIMEOUT | REFUNDED
-  mpesaReceipt   String?
+  checkoutReqId  String   @unique // Paystack reference | Daraja CheckoutRequestID | mock id
+  provider       String   @default("MOCK") // MOCK | PAYSTACK | DARAJA
+  method         String                     // MPESA | CARD | CASH
+  amount         Int                        // whole KES (fareTotal)
+  amountSubunits Int?                       // provider payload amount (cents) for reconciliation
+  currency       String   @default("KES")
+  status         String                     // PENDING | CONFIRMED | FAILED | TIMEOUT | REFUNDED
+  mpesaReceipt   String?                    // Daraja receipt / generic display receipt
+  providerTxId   String?                    // Paystack transaction id (u64 as string!)
+  channel        String?                    // mobile_money | card …
+  feesCharged    Int?                       // subunits — from verify/webhook
+  providerMeta   String?                    // JSON: authorization_url, access_code, raw response
+  verifiedAt     DateTime?                  // when a verify call or valid webhook confirmed it
+  refundedSubunits Int?                     // partial refund total for this payment
   createdAt      DateTime @default(now())
   shipment       Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId])
+  @@index([provider, status])
+}
+
+// webhook idempotency ledger + raw provider audit trail — every Paystack
+// event lands here exactly once (dedupe key = "<event>:<data.reference ?? data.id>")
+model PaystackEvent {
+  id          String    @id @default(cuid())
+  eventId     String    @unique
+  event       String                 // charge.success | transfer.success | …
+  reference   String?
+  payload     String                 // raw body verbatim (JSON string)
+  status      String    @default("RECEIVED") // RECEIVED | PROCESSED | IGNORED | ORPHAN
+  errorNote   String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([event, createdAt])
 }
 
 model Payout {
-  id        String   @id @default(cuid())
-  driverId  String
-  amount    Int
-  method    String   @default("MPESA")
-  status    String   @default("PAID") // PENDING | PROCESSING | PAID | FAILED
-  ref       String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  driverId      String
+  shipmentId    String?            // POD payouts; null for driver-initiated withdrawals
+  amount        Int                // whole KES
+  method        String   @default("MPESA")   // MPESA (sandbox) | PAYSTACK_MPESA | PAYSTACK_BANK
+  status        String   @default("PAID")    // PENDING | PROCESSING | PAID | FAILED | REVERSED
+  ref           String?            // display ref (receipt-style)
+  reference     String?  @unique   // transfer reference po-… (≥16 chars, [a-z0-9_-]) — retry key
+  transferCode  String?            // TRF_…
+  recipientCode String?            // RCP_…
+  currency      String   @default("KES")
+  feeCharged    Int?               // subunits, from transfer webhook/verify
+  failureReason String?
+  initiatedBy   String   @default("SYSTEM")  // SYSTEM (auto POD) | ADMIN | DRIVER
+  createdAt     DateTime @default(now())
+  processedAt   DateTime?
+
+  @@index([driverId, status])
+  @@index([shipmentId])
 }
 
 model Rating {

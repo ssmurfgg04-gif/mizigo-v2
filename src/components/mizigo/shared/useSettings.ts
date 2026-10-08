@@ -24,8 +24,12 @@ const FALLBACK: PlatformSettings = {
 export function useSettings() {
   const q = useQuery({
     queryKey: ["bootstrap-settings"],
-    queryFn: () => api<{ settings?: PlatformSettings }>("/api/bootstrap"),
+    queryFn: () => api<{ settings?: PlatformSettings; build?: { mode?: string; sandbox?: boolean } }>("/api/bootstrap"),
     staleTime: 60_000,
   });
-  return q.data?.settings ?? FALLBACK;
+  return {
+    ...FALLBACK,
+    ...(q.data?.settings ?? {}),
+    sandbox: q.data?.build?.sandbox ?? q.data?.build?.mode !== "postgres",
+  };
 }
