@@ -3,9 +3,12 @@
 # the real Supabase Postgres and run both suites against it. Detached runner —
 # writes progress to /tmp/supa_verify.log
 set -u
-cd /home/z/my-project
+cd "$(dirname "$0")/.."
 LOG=/tmp/supa_verify.log
-export DATABASE_URL="postgresql://postgres.xycmzhpkuzyhmgucwqys:Mzg-7bR9pQ2wKs4tN6vJ@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?schema=mizigo&sslmode=require"
+# Credential comes from the environment (GitHub secret SUPABASE_DATABASE_URL
+# locally) — never hardcoded. Example shape:
+#   postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?schema=mizigo&sslmode=require
+: "${DATABASE_URL:?Set DATABASE_URL to the Supabase session-pooler URL (see docs/NETLIFY_PRODUCTION.md)}"
 
 for pid in $(ps -eo pid,cmd | grep "next start\|next-server" | grep -v grep | awk '{print $1}'); do kill -9 "$pid" 2>/dev/null; done
 sleep 1
