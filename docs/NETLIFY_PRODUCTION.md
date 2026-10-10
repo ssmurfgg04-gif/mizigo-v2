@@ -1,14 +1,15 @@
 # Mizigo on Netlify — sandbox mode vs production mode
 
 > **Current production setup (October 2026).** The hosted Postgres is a
-> **Supabase** project (session pooler), and mizigo's tables live in their own
-> **`mizigo` schema** — sharing the Supabase project safely with another app
-> (`plugpay`, public schema — untouched, verified by reset script output).
-> The full connection string is stored as the GitHub repo secret
-> **`SUPABASE_DATABASE_URL`** (never in the repo). To flip the live site from
-> sandbox to multi-user production: Netlify → Site configuration →
-> Environment variables → `DATABASE_URL` = that secret's value, then redeploy.
-> Everything else (schema push at build, seed on cold start) is automatic.
+> **dedicated Supabase project** (`xdfubicmhjercdvqmfcg`, name `mizigo`,
+> ap-south-1) — fully separated from plugpay's Supabase project as of
+> October 10, 2026; the temporary co-tenancy (mizigo schema on plugpay's
+> project) has been removed. The full connection string is stored as the
+> GitHub repo secret **`SUPABASE_DATABASE_URL`** (never in the repo). To
+> flip the live site from sandbox to multi-user production: Netlify →
+> Site configuration → Environment variables → `DATABASE_URL` = that
+> secret's value, then redeploy. Everything else (schema push at build,
+> seed on cold start) is automatic.
 >
 > Repo workflows that use the secret:
 > - **production-migrate** — `prisma db push` against Supabase (manual + on
@@ -150,7 +151,7 @@ Secrets (`PAYSTACK_MASTER_KEY`) for `scripts/paystack_provision.mjs`.
 Provisioning (idempotent, values from env only — never CLI args):
 
 ```bash
-SUPABASE_ACCESS_TOKEN=sbp_… SUPABASE_PROJECT_REF=xycmzhpkuzyhmgucwqys \
+SUPABASE_ACCESS_TOKEN=sbp_… SUPABASE_PROJECT_REF=xdfubicmhjercdvqmfcg \
 PAYSTACK_SECRET_KEY=sk_live_… [DARAJA_* when they arrive] \
 python3 scripts/vault_provision.py          # stores + verifies by name only
 python3 scripts/vault_provision.py --list   # names only, never values
@@ -192,9 +193,9 @@ CI/e2e boots off the live provider regardless.
 ### Paystack dashboard checklist (one-time)
 
 1. **Webhook URL** → `https://mizigo.netlify.app/api/paystack/webhook`
-   (direct — recommended; ✅ set October 2026). Alternative: the Supabase
-   forwarder `https://xycmzhpkuzyhmgucwqys.supabase.co/functions/v1/paystack-webhook`
-   (already deployed; forwards raw body + signature to the same route).
+   (direct — recommended; ✅ set October 2026). Alternative: a Supabase
+   Edge-Function forwarder deployed on the mizigo project (the one that lived
+   on plugpay's project was retired with the October 2026 schema split).
 2. **Transfers OTP**: Settings → Preferences → uncheck "Confirm transfers
    before sending" so POD payouts are fully automatic. (If left ON, payouts
    park in PROCESSING with an "Awaiting OTP" note and ops finalizes them from

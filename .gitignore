@@ -89,3 +89,7 @@ research-apk/
 research-repos/
 tool-results/
 .secrets/
+
+# local temp credentials — never commit
+.supa_pw_tmp
+*.pw_tmp
